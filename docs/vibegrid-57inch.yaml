@@ -1,0 +1,1049 @@
+version: 1
+settings:
+  defaultGridColumns: 12
+  defaultGridRows: 8
+  gap: 0
+  defaultCycleDisplaysOnWrap: false
+  animationDuration: 0
+  controlCenterScale: 1
+  largerFonts: false
+  themeMode: dark
+  moveEverythingMoveOnSelection: miniControlCenterOnTop
+  moveEverythingCenterWidthPercent: 33
+  moveEverythingCenterHeightPercent: 70
+  moveEverythingOverlayMode: persistent
+  moveEverythingOverlayDuration: 2
+  moveEverythingStartAlwaysOnTop: true
+  moveEverythingStartMoveToBottom: false
+  moveEverythingAdvancedControlCenterHover: false
+  moveEverythingStickyHoverStealFocus: false
+  moveEverythingCloseHideHotkeysOutsideMode: true
+  moveEverythingExcludeControlCenter: false
+  moveEverythingMiniRetileWidthPercent: 25
+  moveEverythingBackgroundRefreshInterval: 5
+  moveEverythingCloseWindowHotkey: cmd+ctrl+alt+keypad_slash
+  moveEverythingHideWindowHotkey: ""
+shortcuts:
+  - id: shortcut-b12d2709-6965-4e3f-9c6f-98651b44c295
+    name: Max
+    enabled: true
+    cycleDisplaysOnWrap: true
+    controlCenterOnly: false
+    hotkey:
+      key: keypad_asterisk
+      modifiers:
+        - alt
+        - ctrl
+    placements:
+      - id: step-9bc0a74d-6a68-45f8-a937-fba7eccf56da
+        title: ""
+        mode: grid
+        display: active
+        grid:
+          columns: 12
+          rows: 8
+          x: 0
+          y: 0
+          width: 12
+          height: 8
+      - id: step-a471624f-daff-420c-8c53-f73450f64635
+        title: ""
+        mode: grid
+        display: active
+        grid:
+          columns: 12
+          rows: 8
+          x: 1
+          y: 0
+          width: 10
+          height: 8
+      - id: step-1b42c6f2-3b27-4115-ba4a-f3290f27ff7e
+        title: ""
+        mode: grid
+        display: active
+        grid:
+          columns: 12
+          rows: 8
+          x: 2
+          y: 0
+          width: 8
+          height: 8
+      - id: step-81dde922-c4f7-4959-b30f-1fdfcf57866b
+        title: ""
+        mode: grid
+        display: active
+        grid:
+          columns: 12
+          rows: 8
+          x: 3
+          y: 0
+          width: 6
+          height: 8
+      - id: step-3c91ef70-d6f9-4491-af77-a03f05b9dd6b
+        title: ""
+        mode: grid
+        display: active
+        grid:
+          columns: 12
+          rows: 8
+          x: 4
+          y: 0
+          width: 4
+          height: 8
+      - id: step-7c6a1ffc-c69b-474b-ad5f-6f72ce598513
+        title: ""
+        mode: grid
+        display: active
+        grid:
+          columns: 12
+          rows: 8
+          x: 5
+          y: 0
+          width: 2
+          height: 8
+  - id: shortcut-d8ac571c-4f31-44e8-abb1-c6937594c1c1
+    name: Middle
+    enabled: true
+    cycleDisplaysOnWrap: false
+    controlCenterOnly: false
+    hotkey:
+      key: f5
+      modifiers:
+        - alt
+        - ctrl
+    placements:
+      - id: step-002cd48d-b6cd-464b-b1bb-630c0cc988d8
+        title: ""
+        mode: grid
+        display: active
+        grid:
+          columns: 12
+          rows: 8
+          x: 4
+          y: 0
+          width: 4
+          height: 8
+      - id: step-de42a81b-2c1b-4415-9201-c12e407cf95b
+        title: ""
+        mode: grid
+        display: active
+        grid:
+          columns: 12
+          rows: 8
+          x: 5
+          y: 0
+          width: 2
+          height: 8
+      - id: step-31a1ba84-99f0-4ef3-a2b6-362e50835bb3
+        title: ""
+        mode: grid
+        display: active
+        grid:
+          columns: 12
+          rows: 8
+          x: 5
+          y: 0
+          width: 3
+          height: 8
+      - id: step-ef574b07-fcf8-4eeb-ae55-c18e658aba46
+        title: ""
+        mode: grid
+        display: active
+        grid:
+          columns: 12
+          rows: 8
+          x: 4
+          y: 0
+          width: 3
+          height: 8
+      - id: step-9603cbbb-51cd-4087-97fe-0baf821821e9
+        title: ""
+        mode: grid
+        display: active
+        grid:
+          columns: 12
+          rows: 8
+          x: 4
+          y: 0
+          width: 5
+          height: 8
+      - id: step-fde25c77-00c5-4da6-b1d8-3953bb1e0c10
+        title: ""
+        mode: grid
+        display: active
+        grid:
+          columns: 12
+          rows: 8
+          x: 6
+          y: 0
+          width: 5
+          height: 8
+      - id: step-0b71d970-cac2-49d5-bea9-e65d29efb4fa
+        title: ""
+        mode: grid
+        display: active
+        grid:
+          columns: 12
+          rows: 8
+          x: 3
+          y: 0
+          width: 6
+          height: 8
+      - id: step-2e6b2f5c-f987-4a6f-bbcf-75ba0dc22e24
+        title: ""
+        mode: grid
+        display: active
+        grid:
+          columns: 12
+          rows: 8
+          x: 4
+          y: 0
+          width: 6
+          height: 8
+      - id: step-19e435e8-dc4b-479a-b00c-9052240d91a0
+        title: ""
+        mode: grid
+        display: active
+        grid:
+          columns: 12
+          rows: 8
+          x: 5
+          y: 0
+          width: 6
+          height: 8
+  - id: shortcut-b7eeaabd-0848-417f-b2bd-7a673a5dd9b2
+    name: Left
+    enabled: true
+    cycleDisplaysOnWrap: false
+    controlCenterOnly: false
+    hotkey:
+      key: f4
+      modifiers:
+        - alt
+        - ctrl
+    placements:
+      - id: step-144ad0ad-c835-4745-85f8-7db1033561ca
+        title: ""
+        mode: grid
+        display: active
+        grid:
+          columns: 12
+          rows: 8
+          x: 1
+          y: 0
+          width: 3
+          height: 8
+      - id: step-3d53e0c2-114c-4d66-b7f4-0ef9a8f30193
+        title: ""
+        mode: grid
+        display: active
+        grid:
+          columns: 12
+          rows: 9
+          x: 1
+          y: 3
+          width: 2
+          height: 3
+      - id: step-22feef93-31d8-4f7f-bb2f-1215780e8894
+        title: ""
+        mode: grid
+        display: active
+        grid:
+          columns: 12
+          rows: 9
+          x: 3
+          y: 3
+          width: 2
+          height: 3
+      - id: step-261d3b1d-3954-4d39-908b-1a277df4d89e
+        title: ""
+        mode: grid
+        display: active
+        grid:
+          columns: 12
+          rows: 8
+          x: 1
+          y: 0
+          width: 2
+          height: 8
+      - id: step-8c725f45-cdb0-4caa-9605-982278755166
+        title: ""
+        mode: grid
+        display: active
+        grid:
+          columns: 12
+          rows: 8
+          x: 3
+          y: 0
+          width: 3
+          height: 8
+      - id: step-7da8481a-3681-4a3e-9f73-55bde9b8a390
+        title: ""
+        mode: grid
+        display: active
+        grid:
+          columns: 12
+          rows: 8
+          x: 1
+          y: 0
+          width: 5
+          height: 8
+  - id: shortcut-e3be9f05-18f3-4598-bf3a-c9926bc109d5
+    name: Right
+    enabled: true
+    cycleDisplaysOnWrap: false
+    controlCenterOnly: false
+    hotkey:
+      key: f6
+      modifiers:
+        - alt
+        - ctrl
+    placements:
+      - id: step-7e741eab-5ffd-4792-a9c8-30eeb95a42d3
+        title: ""
+        mode: grid
+        display: active
+        grid:
+          columns: 12
+          rows: 8
+          x: 8
+          y: 0
+          width: 3
+          height: 8
+      - id: step-7c228586-30ba-4d15-82f1-e7afb3aa570c-2
+        title: ""
+        mode: grid
+        display: active
+        grid:
+          columns: 12
+          rows: 9
+          x: 9
+          y: 3
+          width: 2
+          height: 3
+      - id: step-c7cf798f-d6de-4705-9001-c3430a3f1fef
+        title: ""
+        mode: grid
+        display: active
+        grid:
+          columns: 12
+          rows: 9
+          x: 7
+          y: 3
+          width: 2
+          height: 3
+      - id: step-b641f420-786b-4faa-95f2-485e3fc5319f
+        title: ""
+        mode: grid
+        display: active
+        grid:
+          columns: 12
+          rows: 8
+          x: 9
+          y: 0
+          width: 2
+          height: 8
+      - id: step-78fbdd29-44ba-48cc-822a-d05c8d9f4d40
+        title: ""
+        mode: grid
+        display: active
+        grid:
+          columns: 12
+          rows: 8
+          x: 6
+          y: 0
+          width: 3
+          height: 8
+      - id: step-903f0a00-acc8-4bce-b686-47c816adeab2
+        title: ""
+        mode: grid
+        display: active
+        grid:
+          columns: 12
+          rows: 8
+          x: 6
+          y: 0
+          width: 5
+          height: 8
+  - id: shortcut-22334f3c-bc2d-45ff-863c-cdd50981286d
+    name: Top
+    enabled: true
+    cycleDisplaysOnWrap: false
+    controlCenterOnly: false
+    hotkey:
+      key: f2
+      modifiers:
+        - alt
+        - ctrl
+    placements:
+      - id: step-4f40a476-3516-486c-9f85-e991f72790f4
+        title: ""
+        mode: grid
+        display: active
+        grid:
+          columns: 12
+          rows: 8
+          x: 4
+          y: 0
+          width: 4
+          height: 4
+      - id: step-241be1aa-df07-498f-ad3a-2af81f1a0cd0
+        title: ""
+        mode: grid
+        display: active
+        grid:
+          columns: 12
+          rows: 8
+          x: 5
+          y: 0
+          width: 2
+          height: 4
+      - id: step-d77ffa85-462e-43f7-9c76-5b932e3b94c5
+        title: ""
+        mode: grid
+        display: active
+        grid:
+          columns: 12
+          rows: 8
+          x: 5
+          y: 0
+          width: 3
+          height: 4
+      - id: step-915fd86e-07c6-45eb-bb52-b26497a523c1
+        title: ""
+        mode: grid
+        display: active
+        grid:
+          columns: 12
+          rows: 8
+          x: 4
+          y: 0
+          width: 3
+          height: 4
+      - id: step-761a2d73-a0ea-4e1d-a6c2-4cdaeca88458
+        title: ""
+        mode: grid
+        display: active
+        grid:
+          columns: 12
+          rows: 8
+          x: 4
+          y: 0
+          width: 4
+          height: 5
+      - id: step-12eea66d-fa4e-4b44-91b4-c1d30b6fcb50
+        title: ""
+        mode: grid
+        display: active
+        grid:
+          columns: 12
+          rows: 8
+          x: 3
+          y: 0
+          width: 6
+          height: 5
+      - id: step-e0634a96-17e6-4246-ae00-d7920040fce5
+        title: ""
+        mode: grid
+        display: active
+        grid:
+          columns: 12
+          rows: 8
+          x: 3
+          y: 0
+          width: 6
+          height: 4
+      - id: step-f1dbdaa0-f477-4a82-bb0b-4c9ccf376f9e
+        title: ""
+        mode: grid
+        display: active
+        grid:
+          columns: 12
+          rows: 8
+          x: 5
+          y: 0
+          width: 2
+          height: 4
+  - id: shortcut-479b308f-080f-4c41-aa49-ce0bd79f1dfa
+    name: Bottom
+    enabled: true
+    cycleDisplaysOnWrap: false
+    controlCenterOnly: false
+    hotkey:
+      key: f10
+      modifiers:
+        - alt
+        - ctrl
+    placements:
+      - id: step-37fd8688-a440-4316-a667-e1e0ee611d4e
+        title: ""
+        mode: grid
+        display: active
+        grid:
+          columns: 12
+          rows: 8
+          x: 4
+          y: 4
+          width: 4
+          height: 4
+      - id: step-75898b44-c9c7-4e97-a036-20ebfc875b7d
+        title: ""
+        mode: grid
+        display: active
+        grid:
+          columns: 12
+          rows: 8
+          x: 5
+          y: 4
+          width: 2
+          height: 4
+      - id: step-359216a0-55a7-438a-9776-fad48b56d277
+        title: ""
+        mode: grid
+        display: active
+        grid:
+          columns: 12
+          rows: 8
+          x: 5
+          y: 4
+          width: 3
+          height: 4
+      - id: step-ef79fbf2-444f-4571-a9eb-0c52108d6bf4
+        title: ""
+        mode: grid
+        display: active
+        grid:
+          columns: 12
+          rows: 8
+          x: 4
+          y: 4
+          width: 3
+          height: 4
+      - id: step-f11de06b-82e2-414a-b3c0-8969fdc46cfb
+        title: ""
+        mode: grid
+        display: active
+        grid:
+          columns: 12
+          rows: 8
+          x: 4
+          y: 5
+          width: 4
+          height: 3
+      - id: step-2774ec78-68ce-4150-a3a6-aa17c08ca49b
+        title: ""
+        mode: grid
+        display: active
+        grid:
+          columns: 12
+          rows: 8
+          x: 3
+          y: 5
+          width: 6
+          height: 3
+      - id: step-fbdfde73-4be8-4ef8-9937-6eba68ec40af
+        title: ""
+        mode: grid
+        display: active
+        grid:
+          columns: 12
+          rows: 8
+          x: 3
+          y: 4
+          width: 6
+          height: 4
+      - id: step-cad4414f-cb72-4b5e-a34d-51a31f02a990
+        title: ""
+        mode: grid
+        display: active
+        grid:
+          columns: 12
+          rows: 8
+          x: 5
+          y: 4
+          width: 2
+          height: 4
+  - id: shortcut-4ed3501d-c52a-4287-93d5-f318d2eb4377
+    name: "Top Left"
+    enabled: true
+    cycleDisplaysOnWrap: false
+    controlCenterOnly: false
+    hotkey:
+      key: f1
+      modifiers:
+        - alt
+        - ctrl
+    placements:
+      - id: step-e2a4d93c-d807-4524-b430-8d7153e0d225
+        title: ""
+        mode: grid
+        display: active
+        grid:
+          columns: 12
+          rows: 8
+          x: 1
+          y: 0
+          width: 3
+          height: 4
+      - id: step-9b807b56-dfbf-4e6b-8b82-5d734c363357
+        title: ""
+        mode: grid
+        display: active
+        grid:
+          columns: 12
+          rows: 9
+          x: 1
+          y: 0
+          width: 2
+          height: 3
+      - id: step-e2e00592-914e-4075-a169-84ffb1be707a
+        title: ""
+        mode: grid
+        display: active
+        grid:
+          columns: 12
+          rows: 9
+          x: 3
+          y: 0
+          width: 2
+          height: 3
+      - id: step-1116ef2e-ca19-422c-a3dc-3057965e7c7f
+        title: ""
+        mode: grid
+        display: active
+        grid:
+          columns: 12
+          rows: 8
+          x: 1
+          y: 0
+          width: 2
+          height: 4
+      - id: step-7fce5722-e54f-418e-90f5-270d0ebcf093
+        title: ""
+        mode: grid
+        display: active
+        grid:
+          columns: 12
+          rows: 8
+          x: 3
+          y: 0
+          width: 2
+          height: 4
+      - id: step-6ea2230b-5698-42be-a9e6-2c0f3d1e9e91
+        title: ""
+        mode: grid
+        display: active
+        grid:
+          columns: 12
+          rows: 8
+          x: 2
+          y: 0
+          width: 3
+          height: 4
+      - id: step-b379b1a2-afa2-4290-8cee-1f1d661e7a06
+        title: ""
+        mode: grid
+        display: active
+        grid:
+          columns: 12
+          rows: 8
+          x: 1
+          y: 0
+          width: 4
+          height: 4
+      - id: step-e4aeea1b-8780-4943-aa74-537ae8729a55
+        title: ""
+        mode: grid
+        display: active
+        grid:
+          columns: 12
+          rows: 8
+          x: 1
+          y: 0
+          width: 5
+          height: 4
+  - id: shortcut-b86f4262-d59a-4518-91e9-2107e5479267
+    name: "Top Right"
+    enabled: true
+    cycleDisplaysOnWrap: false
+    controlCenterOnly: false
+    hotkey:
+      key: f3
+      modifiers:
+        - alt
+        - ctrl
+    placements:
+      - id: step-a9951c41-8c00-4c15-90d3-407f237e1fde
+        title: ""
+        mode: grid
+        display: active
+        grid:
+          columns: 12
+          rows: 8
+          x: 8
+          y: 0
+          width: 3
+          height: 4
+      - id: step-18bc39cc-8227-44a9-8ca3-df29b3c0ad02
+        title: ""
+        mode: grid
+        display: active
+        grid:
+          columns: 12
+          rows: 9
+          x: 9
+          y: 0
+          width: 2
+          height: 3
+      - id: step-0fa24155-46e3-43ee-8b38-04842b09d3b9
+        title: ""
+        mode: grid
+        display: active
+        grid:
+          columns: 12
+          rows: 9
+          x: 7
+          y: 0
+          width: 2
+          height: 3
+      - id: step-4dc4b3b9-e385-4c3a-bfec-c0c5104b7f0f
+        title: ""
+        mode: grid
+        display: active
+        grid:
+          columns: 12
+          rows: 8
+          x: 9
+          y: 0
+          width: 2
+          height: 4
+      - id: step-91679989-4d57-4bc3-b94d-72a4546f485f
+        title: ""
+        mode: grid
+        display: active
+        grid:
+          columns: 12
+          rows: 8
+          x: 7
+          y: 0
+          width: 2
+          height: 4
+      - id: step-0207e322-11f6-43bc-8bee-3dfa6d648bec
+        title: ""
+        mode: grid
+        display: active
+        grid:
+          columns: 12
+          rows: 8
+          x: 7
+          y: 0
+          width: 3
+          height: 4
+      - id: step-8179010b-71ac-4ed3-855b-93a2f3555b79
+        title: ""
+        mode: grid
+        display: active
+        grid:
+          columns: 12
+          rows: 8
+          x: 7
+          y: 0
+          width: 4
+          height: 4
+      - id: step-c12a8671-476f-4c3c-9c5b-354f52d1b0c9
+        title: ""
+        mode: grid
+        display: active
+        grid:
+          columns: 12
+          rows: 8
+          x: 6
+          y: 0
+          width: 5
+          height: 4
+  - id: shortcut-42f7f369-e160-443f-88f5-d6fc57586945
+    name: "Bottom Left"
+    enabled: true
+    cycleDisplaysOnWrap: false
+    controlCenterOnly: false
+    hotkey:
+      key: f9
+      modifiers:
+        - alt
+        - ctrl
+    placements:
+      - id: step-67a60a2f-63d1-4a87-823f-ff97cfc0ccb9
+        title: ""
+        mode: grid
+        display: active
+        grid:
+          columns: 12
+          rows: 8
+          x: 1
+          y: 4
+          width: 3
+          height: 4
+      - id: step-7c700ca6-9d65-4f89-ae75-2ee9d96a7527
+        title: ""
+        mode: grid
+        display: active
+        grid:
+          columns: 12
+          rows: 9
+          x: 1
+          y: 6
+          width: 2
+          height: 3
+      - id: step-aaf8873a-c2ba-486e-8a78-21655a0d1a7f
+        title: ""
+        mode: grid
+        display: active
+        grid:
+          columns: 12
+          rows: 9
+          x: 3
+          y: 6
+          width: 2
+          height: 3
+      - id: step-74a2f9e3-995c-467a-9f55-3cf800c400ef
+        title: ""
+        mode: grid
+        display: active
+        grid:
+          columns: 12
+          rows: 8
+          x: 1
+          y: 4
+          width: 2
+          height: 4
+      - id: step-b22b296c-ceb5-4f3f-a847-61bc4e7329bf
+        title: ""
+        mode: grid
+        display: active
+        grid:
+          columns: 12
+          rows: 8
+          x: 3
+          y: 4
+          width: 2
+          height: 4
+      - id: step-34b70e82-ab16-4a41-bc9f-61575b34ccb2
+        title: ""
+        mode: grid
+        display: active
+        grid:
+          columns: 12
+          rows: 8
+          x: 2
+          y: 4
+          width: 3
+          height: 4
+      - id: step-4f615389-cc48-43e2-8b59-0e085b4d0d31
+        title: ""
+        mode: grid
+        display: active
+        grid:
+          columns: 12
+          rows: 8
+          x: 1
+          y: 4
+          width: 4
+          height: 4
+      - id: step-b79b0bdf-7b94-4b26-88b4-efdbfb551e0c
+        title: ""
+        mode: grid
+        display: active
+        grid:
+          columns: 12
+          rows: 8
+          x: 1
+          y: 4
+          width: 5
+          height: 4
+  - id: shortcut-2fd8dc65-7549-486b-b411-2565aea288f1
+    name: "Bottom Right"
+    enabled: true
+    cycleDisplaysOnWrap: false
+    controlCenterOnly: false
+    hotkey:
+      key: f11
+      modifiers:
+        - alt
+        - ctrl
+    placements:
+      - id: step-db100407-8346-4c0a-9026-5b60dd514cd6
+        title: ""
+        mode: grid
+        display: active
+        grid:
+          columns: 12
+          rows: 8
+          x: 8
+          y: 4
+          width: 3
+          height: 4
+      - id: step-c0295380-58e6-4c34-89ac-0d60f9983a9a
+        title: ""
+        mode: grid
+        display: active
+        grid:
+          columns: 12
+          rows: 9
+          x: 9
+          y: 6
+          width: 2
+          height: 3
+      - id: step-d825b2f9-d125-4a18-b8ff-c05b925f93a6
+        title: ""
+        mode: grid
+        display: active
+        grid:
+          columns: 12
+          rows: 9
+          x: 7
+          y: 6
+          width: 2
+          height: 3
+      - id: step-9d21d7e6-dfd3-4daa-9116-f87219c19159
+        title: ""
+        mode: grid
+        display: active
+        grid:
+          columns: 12
+          rows: 8
+          x: 9
+          y: 4
+          width: 2
+          height: 4
+      - id: step-5e8e6a62-7e4c-410a-9b5a-bab515c09029
+        title: ""
+        mode: grid
+        display: active
+        grid:
+          columns: 12
+          rows: 8
+          x: 7
+          y: 4
+          width: 2
+          height: 4
+      - id: step-d5eb5fbb-2f13-4293-8351-b74da5225664
+        title: ""
+        mode: grid
+        display: active
+        grid:
+          columns: 12
+          rows: 8
+          x: 7
+          y: 4
+          width: 3
+          height: 4
+      - id: step-2222657a-f2d3-42d8-ad3c-610be85c973b
+        title: ""
+        mode: grid
+        display: active
+        grid:
+          columns: 12
+          rows: 8
+          x: 7
+          y: 4
+          width: 4
+          height: 4
+      - id: step-733513be-02df-4cba-aede-05667af8bf56
+        title: ""
+        mode: grid
+        display: active
+        grid:
+          columns: 12
+          rows: 8
+          x: 6
+          y: 4
+          width: 5
+          height: 4
+  - id: shortcut-247ebe53-e270-45e1-ad89-1dbc4ec82bbe
+    name: "Tiny Left"
+    enabled: true
+    cycleDisplaysOnWrap: false
+    controlCenterOnly: false
+    hotkey:
+      key: keypad_slash
+      modifiers:
+        - alt
+        - ctrl
+    placements:
+      - id: step-1fea9b1e-67e2-4a74-8a1a-591a3e69d3f0
+        title: ""
+        mode: grid
+        display: active
+        grid:
+          columns: 12
+          rows: 8
+          x: 0
+          y: 0
+          width: 1
+          height: 8
+      - id: step-02371f88-1ab6-4ce0-8e6b-56ef162d508d
+        title: ""
+        mode: grid
+        display: active
+        grid:
+          columns: 12
+          rows: 8
+          x: 0
+          y: 0
+          width: 1
+          height: 4
+      - id: step-b111af9b-97e1-4b50-a5b3-adc0e32d87ba
+        title: ""
+        mode: grid
+        display: active
+        grid:
+          columns: 12
+          rows: 8
+          x: 0
+          y: 4
+          width: 1
+          height: 4
+  - id: shortcut-ad808d91-789e-40db-8f2b-25497c221316
+    name: "Tiny Right"
+    enabled: true
+    cycleDisplaysOnWrap: false
+    controlCenterOnly: false
+    hotkey:
+      key: keypad_minus
+      modifiers:
+        - alt
+        - ctrl
+    placements:
+      - id: step-92bb268a-b769-4c88-bea9-dc018e4630e3
+        title: ""
+        mode: grid
+        display: active
+        grid:
+          columns: 12
+          rows: 8
+          x: 11
+          y: 0
+          width: 1
+          height: 8
+      - id: step-9df411d5-2261-4587-9ed6-1168cae048ab
+        title: ""
+        mode: grid
+        display: active
+        grid:
+          columns: 12
+          rows: 8
+          x: 11
+          y: 0
+          width: 1
+          height: 4
+      - id: step-32b66d12-694e-4796-9f7f-1482d4de80a9
+        title: ""
+        mode: grid
+        display: active
+        grid:
+          columns: 12
+          rows: 8
+          x: 11
+          y: 4
+          width: 1
+          height: 4

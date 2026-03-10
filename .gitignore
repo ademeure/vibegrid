@@ -1,0 +1,26 @@
+# SwiftPM / build outputs
+.build/
+.swiftpm/
+
+# All build outputs (macOS .app, Windows .exe, .pkg, etc.)
+dist/
+
+# Provisioning profiles and sensitive key material
+packaging/*.provisionprofile
+*.p12
+*.key
+*.pem
+.env*
+
+# macOS noise
+.DS_Store
+
+# Local Codex app metadata
+.codex/
+
+# Shared web UI files copied into the Windows Go embed dir at build time.
+# The canonical copies live at Sources/VibeGrid/Resources/web/.
+windows/vibegrid-win11/web/app.js
+windows/vibegrid-win11/web/styles.css
+windows/vibegrid-win11/web/index.html
+windows/vibegrid-win11/*.test.exe

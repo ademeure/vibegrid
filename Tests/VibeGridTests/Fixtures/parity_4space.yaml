@@ -1,0 +1,74 @@
+version: 1
+settings:
+    defaultGridColumns: 12
+    defaultGridRows: 8
+    gap: 4
+    defaultCycleDisplaysOnWrap: true
+    animationDuration: 0.5
+    controlCenterScale: 1.25
+    largerFonts: true
+    themeMode: dark
+    moveEverythingMoveOnSelection: always
+    moveEverythingCenterWidthPercent: 50
+    moveEverythingCenterHeightPercent: 80
+    moveEverythingOverlayMode: timed
+    moveEverythingOverlayDuration: 3
+    moveEverythingStartAlwaysOnTop: true
+    moveEverythingStartMoveToBottom: true
+    moveEverythingAdvancedControlCenterHover: false
+    moveEverythingStickyHoverStealFocus: true
+    moveEverythingCloseHideHotkeysOutsideMode: true
+    moveEverythingCloseWindowHotkey: cmd+shift+w
+    moveEverythingHideWindowHotkey: alt+cmd+h
+shortcuts:
+    - id: left-half
+      name: Left Half
+      enabled: true
+      cycleDisplaysOnWrap: false
+      controlCenterOnly: false
+      hotkey:
+        key: left
+        modifiers:
+            - cmd
+            - alt
+      placements:
+        - id: step-1
+          title: ""
+          mode: grid
+          display: active
+          grid:
+            columns: 12
+            rows: 8
+            x: 0
+            y: 0
+            width: 6
+            height: 8
+    - id: center
+      name: Center Float
+      enabled: true
+      cycleDisplaysOnWrap: true
+      controlCenterOnly: true
+      hotkey:
+        key: c
+        modifiers:
+            - cmd
+            - ctrl
+      placements:
+        - id: step-big
+          title: Big
+          mode: freeform
+          display: main
+          rect:
+            x: 0.1
+            y: 0.15
+            width: 0.8
+            height: 0.7
+        - id: step-small
+          title: Small
+          mode: freeform
+          display: active
+          rect:
+            x: 0.25
+            y: 0.2
+            width: 0.5
+            height: 0.6

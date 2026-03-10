@@ -1,0 +1,55 @@
+{
+  "availableFrameCases": [
+    {
+      "name": "exclude_left_docked_control_center",
+      "available": { "x": 0, "y": 0, "width": 1440, "height": 900 },
+      "occupied": { "x": 0, "y": 0, "width": 320, "height": 900 },
+      "expected": { "x": 320, "y": 0, "width": 1120, "height": 900 }
+    },
+    {
+      "name": "exclude_right_docked_control_center",
+      "available": { "x": 0, "y": 0, "width": 1440, "height": 900 },
+      "occupied": { "x": 1120, "y": 0, "width": 320, "height": 900 },
+      "expected": { "x": 0, "y": 0, "width": 1120, "height": 900 }
+    },
+    {
+      "name": "ignore_centered_control_center",
+      "available": { "x": 0, "y": 0, "width": 1440, "height": 900 },
+      "occupied": { "x": 520, "y": 0, "width": 400, "height": 900 },
+      "expected": { "x": 0, "y": 0, "width": 1440, "height": 900 }
+    }
+  ],
+  "gridCases": [
+    {
+      "name": "fills_full_area_for_exact_two_by_two_case",
+      "count": 4,
+      "gap": 0,
+      "aspectRatio": 1.5,
+      "available": { "x": 0, "y": 0, "width": 1200, "height": 800 },
+      "expectedRows": 2,
+      "expectedColumns": 2,
+      "expectedFrames": [
+        { "x": 0, "y": 400, "width": 600, "height": 400 },
+        { "x": 600, "y": 400, "width": 600, "height": 400 },
+        { "x": 0, "y": 0, "width": 600, "height": 400 },
+        { "x": 600, "y": 0, "width": 600, "height": 400 }
+      ]
+    }
+  ],
+  "sliceCases": [
+    {
+      "name": "leading_quarter_slice_uses_25_percent_width",
+      "available": { "x": 320, "y": 0, "width": 1120, "height": 900 },
+      "widthFraction": 0.25,
+      "expected": { "x": 320, "y": 0, "width": 280, "height": 900 }
+    }
+  ],
+  "trailingSliceCases": [
+    {
+      "name": "trailing_quarter_slice_uses_25_percent_width",
+      "available": { "x": 0, "y": 0, "width": 1120, "height": 900 },
+      "widthFraction": 0.25,
+      "expected": { "x": 840, "y": 0, "width": 280, "height": 900 }
+    }
+  ]
+}

@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>VibeGrid Control Center</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div id="uiScaleRoot" class="ui-scale-root">
+      <div class="ambient"></div>
+      <header class="topbar">
+        <div class="brand">
+          <div class="brand-badge">V</div>
+          <div class="brand-copy">
+            <h1>VibeGrid Control Center</h1>
+            <p>Hardcore Window Management.</p>
+          </div>
+        </div>
+        <div class="topbar-actions">
+          <button id="permissionBadge" class="btn warning" type="button">
+            Accessibility: Unknown
+          </button>
+          <button id="openYamlBtn" class="btn ghost">Open YAML</button>
+          <button id="reloadBtn" class="btn ghost">Reload YAML</button>
+          <button id="loadFromYamlBtn" class="btn ghost">Load</button>
+          <button id="saveAsYamlBtn" class="btn ghost">Save</button>
+          <button id="undoBtn" class="btn ghost">Undo</button>
+          <button id="redoBtn" class="btn ghost">Redo</button>
+          <button id="moveEverythingBtn" class="btn move-everything">Window List</button>
+          <button id="settingsBtn" class="btn primary">Settings</button>
+          <button id="hideBtn" class="btn warning">Hide</button>
+          <button id="exitBtn" class="btn danger">Exit</button>
+          <span class="narrow-mode-notice">narrow mode: resize for more</span>
+        </div>
+      </header>
+      <section id="hotkeyIssueBanner" class="hotkey-issues hidden"></section>
+      <section id="runtimeBanner" class="runtime-banner hidden"></section>
+
+      <main class="layout">
+        <aside class="panel shortcuts-panel">
+          <div class="panel-header shortcuts-header">
+            <h2>Shortcuts</h2>
+            <div class="shortcut-actions">
+              <button id="addShortcutBtn" class="btn tiny">+ Add</button>
+              <button id="cloneShortcutBtn" class="btn tiny">Clone</button>
+              <button id="massHotkeyCaptureBtn" class="btn tiny capture">Record All Hotkeys</button>
+            </div>
+          </div>
+          <div id="shortcutList" class="shortcut-list"></div>
+        </aside>
+
+        <section class="panel editor-panel">
+          <div id="emptyState" class="empty-state hidden">
+            <h3>No shortcuts yet</h3>
+            <p>Create your first shortcut to start building a window cycle.</p>
+            <button id="emptyAddShortcutBtn" class="btn primary">Add Shortcut</button>
+          </div>
+
+          <div id="editorContent" class="editor-content hidden">
+            <div class="editor-header">
+              <div class="field">
+                <label for="shortcutName">Shortcut Name</label>
+                <input id="shortcutName" type="text" placeholder="Left Cycle" />
+              </div>
+
+              <div class="hotkey-row">
+                <label>Hotkey</label>
+                <span id="hotkeyPreview" class="hotkey-preview"></span>
+                <button id="hotkeyCaptureBtn" class="btn capture">Record</button>
+                <button id="toggleShortcutEnabledBtn" class="btn ghost">Disable</button>
+                <button id="removeShortcutBtn" class="btn danger">Delete Shortcut</button>
+              </div>
+
+              <label class="toggle-line">
+                <input id="cycleDisplaysOnWrap" type="checkbox" />
+                Cycle to next display when wrapping from last step to first
+              </label>
+
+              <label class="toggle-line">
+                <input id="controlCenterOnly" type="checkbox" />
+                Control center only (always focus and move only the control center)
+              </label>
+            </div>
+
+            <div class="sequence-header">
+              <h3>Cycle Sequence</h3>
+              <p>
+                Pressing the same hotkey keeps cycling. Switching hotkeys or waiting 10 seconds resets it to the first step.
+              </p>
+              <div class="sequence-actions">
+                <button id="addGridPlacementBtn" class="btn tiny">+ Grid</button>
+                <button id="addFreePlacementBtn" class="btn tiny">+ Freeform</button>
+                <button id="flipHorizontalBtn" class="btn tiny">Horizontal Flip</button>
+                <button id="flipVerticalBtn" class="btn tiny">Vertical Flip</button>
+                <label class="flip-all-toggle">
+                  <input id="flipAllSteps" type="checkbox" />
+                  Flip All
+                </label>
+              </div>
+            </div>
+
+            <div id="placementList" class="placement-list"></div>
+          </div>
+
+        </section>
+
+        <aside class="panel preview-panel">
+          <div id="moveEverythingWorkspace" class="move-everything-workspace hidden">
+            <div id="moveEverythingStickyControls" class="move-everything-sticky-controls">
+              <div class="move-everything-runtime-controls">
+                <div class="move-everything-bulk-actions">
+                  <button id="moveEverythingRetileBtn" class="btn tiny move-everything-bulk-btn" type="button">
+                    Retile All Windows
+                  </button>
+                  <button id="moveEverythingMiniRetileBtn" class="btn tiny move-everything-bulk-btn" type="button">
+                    Mini Retile
+                  </button>
+                </div>
+                <div id="moveEverythingNativeOnlyControls" class="move-everything-native-controls">
+                  <label class="toggle-line move-everything-top-toggle">
+                    <input id="moveEverythingAlwaysOnTop" type="checkbox" />
+                    <span id="moveEverythingAlwaysOnTopLabel">Always On Top</span>
+                  </label>
+                  <label class="toggle-line move-everything-top-toggle">
+                    <input id="moveEverythingMoveToBottom" type="checkbox" />
+                    <span id="moveEverythingMoveToBottomLabel">Move To Bottom</span>
+                  </label>
+                  <label class="toggle-line move-everything-top-toggle">
+                    <input id="moveEverythingDontMoveVibeGrid" type="checkbox" />
+                    Sticky
+                  </label>
+                </div>
+              </div>
+            </div>
+            <div id="moveEverythingWindowList" class="move-everything-window-list"></div>
+          </div>
+
+          <div id="placementEditorEmpty" class="empty-mini">
+            <h3>Select a Cycle Step</h3>
+            <p>Choose a step from the sequence to edit its target region.</p>
+          </div>
+
+          <div id="placementEditor" class="placement-editor hidden">
+            <div class="placement-meta">
+              <div class="field">
+                <label for="placementTitle">Step Title</label>
+                <input id="placementTitle" type="text" placeholder="Step title (optional)" />
+              </div>
+
+              <div class="field">
+                <label for="displayTarget">Display Target</label>
+                <select id="displayTarget">
+                  <option value="active">Active Display</option>
+                  <option value="main">Main Display</option>
+                  <option value="index-0">Display #1</option>
+                  <option value="index-1">Display #2</option>
+                  <option value="index-2">Display #3</option>
+                  <option value="index-3">Display #4</option>
+                </select>
+              </div>
+
+              <div class="mode-switch">
+                <button id="modeGridBtn" class="btn tiny">Grid</button>
+                <button id="modeFreeBtn" class="btn tiny">Freeform</button>
+                <button id="removePlacementBtn" class="btn tiny danger">Delete Step</button>
+              </div>
+            </div>
+
+            <div id="gridEditor" class="shape-editor hidden">
+              <div class="grid-controls">
+                <label>
+                  Cols
+                  <input id="gridCols" type="number" min="1" max="24" />
+                </label>
+                <label>
+                  Rows
+                  <input id="gridRows" type="number" min="1" max="20" />
+                </label>
+                <p>Drag across cells to set the active region.</p>
+              </div>
+              <div id="gridCanvas" class="grid-canvas"></div>
+            </div>
+
+            <div id="freeEditor" class="shape-editor hidden">
+              <div class="free-controls">
+                <label>
+                  X
+                  <input id="freeX" type="range" min="0" max="1" step="0.01" />
+                  <span id="freeXLabel"></span>
+                </label>
+                <label>
+                  Y
+                  <input id="freeY" type="range" min="0" max="1" step="0.01" />
+                  <span id="freeYLabel"></span>
+                </label>
+                <label>
+                  Width
+                  <input id="freeW" type="range" min="0.05" max="1" step="0.01" />
+                  <span id="freeWLabel"></span>
+                </label>
+                <label>
+                  Height
+                  <input id="freeH" type="range" min="0.05" max="1" step="0.01" />
+                  <span id="freeHLabel"></span>
+                </label>
+              </div>
+
+              <div id="freeCanvas" class="free-canvas">
+                <div id="freeRect" class="free-rect">
+                  <div class="resize-handle"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </aside>
+      </main>
+
+      <div id="toastStack" class="toast-stack"></div>
+      <div id="confirmModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
+        <div class="modal-card">
+          <h3 id="confirmTitle">Confirm</h3>
+          <p id="confirmMessage"></p>
+          <div class="modal-actions">
+            <button id="confirmCancelBtn" class="btn ghost">Cancel</button>
+            <button id="confirmOkBtn" class="btn primary">Confirm</button>
+          </div>
+        </div>
+      </div>
+      <div id="settingsModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+        <div class="modal-card settings-card">
+          <h3 id="settingsTitle">Settings</h3>
+          <p>Configure Control Center defaults and app behavior.</p>
+          <div class="settings-section">
+            <h4>Appearance</h4>
+            <div class="settings-grid">
+              <label>
+                Theme
+                <select id="settingThemeMode">
+                  <option value="system">System Default</option>
+                  <option value="light">Light</option>
+                  <option value="dark">Dark</option>
+                </select>
+              </label>
+              <label class="settings-size-field">
+                Control Center Size
+                <div class="settings-size-row">
+                  <input
+                    id="settingControlCenterScale"
+                    type="text"
+                    inputmode="decimal"
+                    autocomplete="off"
+                    spellcheck="false"
+                  />
+                  <button id="applyControlCenterScaleBtn" class="btn ghost settings-size-apply-btn" type="button">Apply Size</button>
+                </div>
+              </label>
+            </div>
+            <label class="toggle-line">
+              <input id="settingLargerFonts" type="checkbox" />
+              Larger fonts (+2pt)
+            </label>
+          </div>
+          <div class="settings-section">
+            <h4>Control Center</h4>
+            <div class="settings-grid">
+              <label>
+                Default Grid Cols
+                <input id="settingGridCols" type="number" min="1" max="24" />
+              </label>
+              <label>
+                Default Grid Rows
+                <input id="settingGridRows" type="number" min="1" max="20" />
+              </label>
+              <label>
+                Gap (px)
+                <input id="settingGap" type="number" min="0" max="80" />
+              </label>
+            </div>
+            <label class="toggle-line">
+              <input id="settingDefaultCycleDisplaysOnWrap" type="checkbox" />
+              New shortcuts cycle to the next display when they wrap from last step to first
+            </label>
+          </div>
+          <div class="settings-section">
+            <h4>Config</h4>
+            <p id="settingsConfigPath" class="settings-code"></p>
+            <div class="settings-inline-actions">
+              <button id="revealConfigBtn" class="btn ghost">Reveal Config in Finder</button>
+              <button id="copyConfigPathBtn" class="btn ghost">Copy Config Path</button>
+              <button id="openConfigBtn" class="btn ghost">Open Config</button>
+            </div>
+          </div>
+          <div class="settings-section settings-bottom-options">
+            <label class="toggle-line">
+              <input id="settingLaunchAtLogin" type="checkbox" />
+              Launch VibeGrid automatically at login
+            </label>
+            <button id="openLoginItemsSettingsBtn" class="btn ghost tiny settings-utility-btn">Open Login Items Settings</button>
+          </div>
+          <div class="modal-actions">
+            <button id="openMoveEverythingSettingsBtn" class="btn move-everything">Window List Settings</button>
+            <button id="settingsRestoreDefaultsBtn" class="btn warning">Restore Defaults</button>
+            <button id="settingsExitBtn" class="btn danger">Exit</button>
+            <button id="settingsCloseBtn" class="btn primary">Done</button>
+          </div>
+        </div>
+      </div>
+      <div id="moveEverythingModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="moveEverythingTitle">
+        <div class="modal-card settings-card">
+          <h3 id="moveEverythingTitle">Window List</h3>
+          <p>Hover a visible window in the list to target it.</p>
+          <p id="moveEverythingRequirementsHint" class="settings-hint warning"></p>
+          <div class="settings-section">
+            <h4>Behavior</h4>
+            <label class="toggle-line move-everything-modal-toggle">
+              <input id="moveEverythingStartAlwaysOnTopSetting" type="checkbox" />
+              Start Window List with Always On Top
+            </label>
+            <label class="toggle-line move-everything-modal-toggle">
+              <input id="moveEverythingStickyHoverStealFocusSetting" type="checkbox" />
+              Sticky hover steals Control Center focus
+            </label>
+            <label class="toggle-line move-everything-modal-toggle">
+              <input id="moveEverythingExcludeControlCenterSetting" type="checkbox" />
+              Exclude Control Center area from placements
+            </label>
+            <div class="settings-grid" style="margin-top: 8px;">
+              <label>
+                Mini Retile Width (%)
+                <input id="moveEverythingMiniRetileWidthPercentSetting" type="number" min="5" max="100" />
+              </label>
+            </div>
+          </div>
+          <div class="settings-section">
+            <h4>Hotkeys</h4>
+            <label class="toggle-line move-everything-modal-toggle">
+              <input id="moveEverythingCloseHideOutsideMode" type="checkbox" />
+              Close/Hide hotkeys also work outside Window List mode
+            </label>
+            <div class="move-hotkey-list">
+              <div class="move-hotkey-row">
+                <div class="move-hotkey-meta">
+                  <strong>Close Window</strong>
+                  <small>Optional</small>
+                </div>
+                <span id="moveEverythingCloseWindowPreview" class="hotkey-preview move-hotkey-preview"></span>
+                <button class="btn tiny capture" type="button" data-me-record="moveEverythingCloseWindowHotkey">Record</button>
+                <button class="btn tiny ghost" type="button" data-me-clear="moveEverythingCloseWindowHotkey">Clear</button>
+              </div>
+              <div class="move-hotkey-row">
+                <div class="move-hotkey-meta">
+                  <strong>Hide Window</strong>
+                  <small>Optional</small>
+                </div>
+                <span id="moveEverythingHideWindowPreview" class="hotkey-preview move-hotkey-preview"></span>
+                <button class="btn tiny capture" type="button" data-me-record="moveEverythingHideWindowHotkey">Record</button>
+                <button class="btn tiny ghost" type="button" data-me-clear="moveEverythingHideWindowHotkey">Clear</button>
+              </div>
+            </div>
+          </div>
+          <div class="modal-actions">
+            <button id="moveEverythingCloseBtn" class="btn primary">Done</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="app.js"></script>
+  </body>
+</html>

@@ -1,0 +1,75 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  macos:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build macOS app
+        run: CODESIGN_IDENTITY="-" ./scripts/build_app.sh
+
+      - name: Run tests
+        run: swift test
+
+      - name: Sanity check macOS app bundle
+        run: |
+          test -x dist/VibeGrid.app/Contents/MacOS/VibeGrid
+          test -f dist/VibeGrid.app/Contents/Info.plist
+          test -f dist/VibeGrid.app/Contents/Resources/VibeGrid_VibeGrid.bundle/index.html
+          test -f dist/VibeGrid.app/Contents/Resources/VibeGrid_VibeGrid.bundle/app.js
+          test -f dist/VibeGrid.app/Contents/Resources/VibeGrid_VibeGrid.bundle/styles.css
+          plutil -p dist/VibeGrid.app/Contents/Info.plist
+          codesign --verify --deep --strict dist/VibeGrid.app
+          test "$(find dist -maxdepth 1 -mindepth 1 | wc -l | tr -d ' ')" = "1"
+
+      - name: Package macOS app
+        run: |
+          ditto -c -k --keepParent dist/VibeGrid.app dist/VibeGrid-macOS.zip
+
+      - name: Upload macOS app
+        uses: actions/upload-artifact@v4
+        with:
+          name: VibeGrid-macOS
+          path: dist/VibeGrid-macOS.zip
+
+  windows:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: windows/vibegrid-win11/go.mod
+          cache-dependency-path: windows/vibegrid-win11/go.sum
+
+      - name: Build Windows exe
+        run: make windows-exe
+
+      - name: Sanity check Windows exe
+        run: |
+          test -f dist/windows/VibeGrid-Windows11.exe
+          test "$(find dist/windows -maxdepth 1 -type f | wc -l | tr -d ' ')" = "1"
+          file dist/windows/VibeGrid-Windows11.exe
+          strings dist/windows/VibeGrid-Windows11.exe | grep "web/index.html"
+          strings dist/windows/VibeGrid-Windows11.exe | grep "web/app.js"
+          strings dist/windows/VibeGrid-Windows11.exe | grep "web/styles.css"
+          strings dist/windows/VibeGrid-Windows11.exe | grep "text/yaml; charset=utf-8"
+          test ! -e windows/vibegrid-win11/web/app.js
+          test ! -e windows/vibegrid-win11/web/index.html
+          test ! -e windows/vibegrid-win11/web/styles.css
+
+      - name: Upload Windows exe
+        uses: actions/upload-artifact@v4
+        with:
+          name: VibeGrid-Windows11
+          path: dist/windows/VibeGrid-Windows11.exe

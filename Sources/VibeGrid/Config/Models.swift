@@ -1,0 +1,718 @@
+import Foundation
+import CoreGraphics
+
+struct AppConfig: Codable {
+    var version: Int
+    var settings: Settings
+    var shortcuts: [ShortcutConfig]
+
+    static var `default`: AppConfig {
+        AppConfig(
+            version: 1,
+            settings: Settings.default,
+            shortcuts: [
+                ShortcutConfig(
+                    id: "cycle-left",
+                    name: "Left",
+                    hotkey: Hotkey(key: "keypad4", modifiers: ["ctrl"]),
+                    placements: [
+                        PlacementStep(
+                            id: "left-half", title: "", mode: .grid, display: .active,
+                            grid: GridPlacement(columns: 6, rows: 6, x: 0, y: 0, width: 3, height: 6), rect: nil
+                        ),
+                        PlacementStep(
+                            id: "left-third", title: "", mode: .grid, display: .active,
+                            grid: GridPlacement(columns: 6, rows: 6, x: 0, y: 0, width: 2, height: 6), rect: nil
+                        )
+                    ]
+                ),
+                ShortcutConfig(
+                    id: "cycle-right",
+                    name: "Right",
+                    hotkey: Hotkey(key: "keypad6", modifiers: ["ctrl"]),
+                    placements: [
+                        PlacementStep(
+                            id: "right-half", title: "", mode: .grid, display: .active,
+                            grid: GridPlacement(columns: 6, rows: 6, x: 3, y: 0, width: 3, height: 6), rect: nil
+                        ),
+                        PlacementStep(
+                            id: "right-third", title: "", mode: .grid, display: .active,
+                            grid: GridPlacement(columns: 6, rows: 6, x: 4, y: 0, width: 2, height: 6), rect: nil
+                        )
+                    ]
+                ),
+                ShortcutConfig(
+                    id: "cycle-center",
+                    name: "Center",
+                    hotkey: Hotkey(key: "keypad5", modifiers: ["ctrl"]),
+                    placements: [
+                        PlacementStep(
+                            id: "full-screen", title: "", mode: .grid, display: .active,
+                            grid: GridPlacement(columns: 6, rows: 6, x: 0, y: 0, width: 6, height: 6), rect: nil
+                        ),
+                        PlacementStep(
+                            id: "center-third", title: "", mode: .grid, display: .active,
+                            grid: GridPlacement(columns: 6, rows: 6, x: 2, y: 0, width: 2, height: 6), rect: nil
+                        )
+                    ]
+                ),
+                ShortcutConfig(
+                    id: "cycle-top",
+                    name: "Top",
+                    hotkey: Hotkey(key: "keypad8", modifiers: ["ctrl"]),
+                    placements: [
+                        PlacementStep(
+                            id: "top-full", title: "", mode: .grid, display: .active,
+                            grid: GridPlacement(columns: 6, rows: 6, x: 0, y: 0, width: 6, height: 3), rect: nil
+                        ),
+                        PlacementStep(
+                            id: "top-center", title: "", mode: .grid, display: .active,
+                            grid: GridPlacement(columns: 6, rows: 6, x: 2, y: 0, width: 2, height: 3), rect: nil
+                        )
+                    ]
+                ),
+                ShortcutConfig(
+                    id: "cycle-bottom",
+                    name: "Bottom",
+                    hotkey: Hotkey(key: "keypad2", modifiers: ["ctrl"]),
+                    placements: [
+                        PlacementStep(
+                            id: "bottom-full", title: "", mode: .grid, display: .active,
+                            grid: GridPlacement(columns: 6, rows: 6, x: 0, y: 3, width: 6, height: 3), rect: nil
+                        ),
+                        PlacementStep(
+                            id: "bottom-center", title: "", mode: .grid, display: .active,
+                            grid: GridPlacement(columns: 6, rows: 6, x: 2, y: 3, width: 2, height: 3), rect: nil
+                        )
+                    ]
+                ),
+                ShortcutConfig(
+                    id: "cycle-top-left",
+                    name: "Top Left",
+                    hotkey: Hotkey(key: "keypad7", modifiers: ["ctrl"]),
+                    placements: [
+                        PlacementStep(
+                            id: "top-left-half", title: "", mode: .grid, display: .active,
+                            grid: GridPlacement(columns: 6, rows: 6, x: 0, y: 0, width: 3, height: 3), rect: nil
+                        ),
+                        PlacementStep(
+                            id: "top-left-third", title: "", mode: .grid, display: .active,
+                            grid: GridPlacement(columns: 6, rows: 6, x: 0, y: 0, width: 2, height: 3), rect: nil
+                        )
+                    ]
+                ),
+                ShortcutConfig(
+                    id: "cycle-top-right",
+                    name: "Top Right",
+                    hotkey: Hotkey(key: "keypad9", modifiers: ["ctrl"]),
+                    placements: [
+                        PlacementStep(
+                            id: "top-right-half", title: "", mode: .grid, display: .active,
+                            grid: GridPlacement(columns: 6, rows: 6, x: 3, y: 0, width: 3, height: 3), rect: nil
+                        ),
+                        PlacementStep(
+                            id: "top-right-third", title: "", mode: .grid, display: .active,
+                            grid: GridPlacement(columns: 6, rows: 6, x: 4, y: 0, width: 2, height: 3), rect: nil
+                        )
+                    ]
+                ),
+                ShortcutConfig(
+                    id: "cycle-bottom-left",
+                    name: "Bottom Left",
+                    hotkey: Hotkey(key: "keypad1", modifiers: ["ctrl"]),
+                    placements: [
+                        PlacementStep(
+                            id: "bottom-left-half", title: "", mode: .grid, display: .active,
+                            grid: GridPlacement(columns: 6, rows: 6, x: 0, y: 3, width: 3, height: 3), rect: nil
+                        ),
+                        PlacementStep(
+                            id: "bottom-left-third", title: "", mode: .grid, display: .active,
+                            grid: GridPlacement(columns: 6, rows: 6, x: 0, y: 3, width: 2, height: 3), rect: nil
+                        )
+                    ]
+                ),
+                ShortcutConfig(
+                    id: "cycle-bottom-right",
+                    name: "Bottom Right",
+                    hotkey: Hotkey(key: "keypad3", modifiers: ["ctrl"]),
+                    placements: [
+                        PlacementStep(
+                            id: "bottom-right-half", title: "", mode: .grid, display: .active,
+                            grid: GridPlacement(columns: 6, rows: 6, x: 3, y: 3, width: 3, height: 3), rect: nil
+                        ),
+                        PlacementStep(
+                            id: "bottom-right-third", title: "", mode: .grid, display: .active,
+                            grid: GridPlacement(columns: 6, rows: 6, x: 4, y: 3, width: 2, height: 3), rect: nil
+                        )
+                    ]
+                )
+            ]
+        )
+    }
+}
+
+struct Settings: Codable {
+    enum ThemeMode: String, Codable {
+        case system
+        case light
+        case dark
+    }
+
+    enum MoveEverythingOverlayMode: String, Codable {
+        case persistent
+        case timed
+    }
+
+    enum MoveEverythingMoveOnSelectionMode: String, Codable {
+        case never
+        case miniControlCenterOnTop
+        case firstSelection
+        case always
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.singleValueContainer()
+            let rawValue = (try? container.decode(String.self))?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased() ?? ""
+
+            switch rawValue {
+            case "never":
+                self = .never
+            case "minicontrolcenterontop", "advancedcontrolcenterontop", "controlcenteronce", "controlcenteronly":
+                self = .miniControlCenterOnTop
+            case "firstselection":
+                self = .firstSelection
+            case "always":
+                self = .always
+            default:
+                self = .miniControlCenterOnTop
+            }
+        }
+
+        func encode(to encoder: Encoder) throws {
+            var container = encoder.singleValueContainer()
+            try container.encode(rawValue)
+        }
+    }
+
+    var defaultGridColumns: Int
+    var defaultGridRows: Int
+    var gap: Int
+    var defaultCycleDisplaysOnWrap: Bool
+    var animationDuration: Double
+    var controlCenterScale: Double
+    var largerFonts: Bool
+    var themeMode: ThemeMode
+    var moveEverythingMoveOnSelection: MoveEverythingMoveOnSelectionMode
+    var moveEverythingCenterWidthPercent: Double
+    var moveEverythingCenterHeightPercent: Double
+    var moveEverythingOverlayMode: MoveEverythingOverlayMode
+    var moveEverythingOverlayDuration: Double
+    var moveEverythingStartAlwaysOnTop: Bool
+    var moveEverythingStartMoveToBottom: Bool
+    var moveEverythingAdvancedControlCenterHover: Bool
+    var moveEverythingStickyHoverStealFocus: Bool
+    var moveEverythingCloseHideHotkeysOutsideMode: Bool
+    var moveEverythingExcludeControlCenter: Bool
+    var moveEverythingMiniRetileWidthPercent: Double
+    var moveEverythingBackgroundRefreshInterval: Double
+    var moveEverythingCloseWindowHotkey: Hotkey?
+    var moveEverythingHideWindowHotkey: Hotkey?
+
+    static var `default`: Settings {
+        Settings(
+            defaultGridColumns: 12,
+            defaultGridRows: 8,
+            gap: 2,
+            defaultCycleDisplaysOnWrap: false,
+            animationDuration: 0.0,
+            controlCenterScale: 1.0,
+            largerFonts: true,
+            themeMode: .system,
+            moveEverythingMoveOnSelection: .miniControlCenterOnTop,
+            moveEverythingCenterWidthPercent: 33,
+            moveEverythingCenterHeightPercent: 70,
+            moveEverythingOverlayMode: .persistent,
+            moveEverythingOverlayDuration: 2,
+            moveEverythingStartAlwaysOnTop: false,
+            moveEverythingStartMoveToBottom: false,
+            moveEverythingAdvancedControlCenterHover: true,
+            moveEverythingStickyHoverStealFocus: false,
+            moveEverythingCloseHideHotkeysOutsideMode: false,
+            moveEverythingExcludeControlCenter: false,
+            moveEverythingMiniRetileWidthPercent: 25,
+            moveEverythingBackgroundRefreshInterval: 5,
+            moveEverythingCloseWindowHotkey: nil,
+            moveEverythingHideWindowHotkey: nil
+        )
+    }
+
+    init(
+        defaultGridColumns: Int,
+        defaultGridRows: Int,
+        gap: Int,
+        defaultCycleDisplaysOnWrap: Bool,
+        animationDuration: Double,
+        controlCenterScale: Double = 1.0,
+        largerFonts: Bool = true,
+        themeMode: ThemeMode = .system,
+        moveEverythingMoveOnSelection: MoveEverythingMoveOnSelectionMode = .miniControlCenterOnTop,
+        moveEverythingCenterWidthPercent: Double = 33,
+        moveEverythingCenterHeightPercent: Double = 70,
+        moveEverythingOverlayMode: MoveEverythingOverlayMode = .persistent,
+        moveEverythingOverlayDuration: Double = 2,
+        moveEverythingStartAlwaysOnTop: Bool = false,
+        moveEverythingStartMoveToBottom: Bool = false,
+        moveEverythingAdvancedControlCenterHover: Bool = true,
+        moveEverythingStickyHoverStealFocus: Bool = false,
+        moveEverythingCloseHideHotkeysOutsideMode: Bool = false,
+        moveEverythingExcludeControlCenter: Bool = false,
+        moveEverythingMiniRetileWidthPercent: Double = 25,
+        moveEverythingBackgroundRefreshInterval: Double = 5,
+        moveEverythingCloseWindowHotkey: Hotkey? = nil,
+        moveEverythingHideWindowHotkey: Hotkey? = nil
+    ) {
+        self.defaultGridColumns = defaultGridColumns
+        self.defaultGridRows = defaultGridRows
+        self.gap = gap
+        self.defaultCycleDisplaysOnWrap = defaultCycleDisplaysOnWrap
+        self.animationDuration = animationDuration
+        self.controlCenterScale = controlCenterScale
+        self.largerFonts = largerFonts
+        self.themeMode = themeMode
+        self.moveEverythingMoveOnSelection = moveEverythingMoveOnSelection
+        self.moveEverythingCenterWidthPercent = moveEverythingCenterWidthPercent
+        self.moveEverythingCenterHeightPercent = moveEverythingCenterHeightPercent
+        self.moveEverythingOverlayMode = moveEverythingOverlayMode
+        self.moveEverythingOverlayDuration = moveEverythingOverlayDuration
+        self.moveEverythingStartAlwaysOnTop = moveEverythingStartAlwaysOnTop
+        self.moveEverythingStartMoveToBottom = moveEverythingStartMoveToBottom
+        self.moveEverythingAdvancedControlCenterHover = moveEverythingAdvancedControlCenterHover
+        self.moveEverythingStickyHoverStealFocus = moveEverythingStickyHoverStealFocus
+        self.moveEverythingCloseHideHotkeysOutsideMode = moveEverythingCloseHideHotkeysOutsideMode
+        self.moveEverythingExcludeControlCenter = moveEverythingExcludeControlCenter
+        self.moveEverythingMiniRetileWidthPercent = moveEverythingMiniRetileWidthPercent
+        self.moveEverythingBackgroundRefreshInterval = moveEverythingBackgroundRefreshInterval
+        self.moveEverythingCloseWindowHotkey = moveEverythingCloseWindowHotkey
+        self.moveEverythingHideWindowHotkey = moveEverythingHideWindowHotkey
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case defaultGridColumns
+        case defaultGridRows
+        case gap
+        case defaultCycleDisplaysOnWrap
+        case animationDuration
+        case controlCenterScale
+        case largerFonts
+        case themeMode
+        case darkMode
+        case moveEverythingMoveOnSelection
+        case moveEverythingCenterWidthPercent
+        case moveEverythingCenterHeightPercent
+        case moveEverythingOverlayMode
+        case moveEverythingOverlayDuration
+        case moveEverythingStartAlwaysOnTop
+        case moveEverythingStartMoveToBottom
+        case moveEverythingAdvancedControlCenterHover
+        case moveEverythingStickyHoverStealFocus
+        case moveEverythingCloseHideHotkeysOutsideMode
+        case moveEverythingExcludeControlCenter
+        case moveEverythingMiniRetileWidthPercent
+        case moveEverythingBackgroundRefreshInterval
+        case moveEverythingCloseWindowHotkey
+        case moveEverythingHideWindowHotkey
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        defaultGridColumns = try container.decodeIfPresent(Int.self, forKey: .defaultGridColumns) ?? 12
+        defaultGridRows = try container.decodeIfPresent(Int.self, forKey: .defaultGridRows) ?? 8
+        gap = try container.decodeIfPresent(Int.self, forKey: .gap) ?? 2
+        defaultCycleDisplaysOnWrap = try container.decodeIfPresent(Bool.self, forKey: .defaultCycleDisplaysOnWrap) ?? false
+        animationDuration = try container.decodeIfPresent(Double.self, forKey: .animationDuration) ?? 0
+        controlCenterScale = try container.decodeIfPresent(Double.self, forKey: .controlCenterScale) ?? 1.0
+        largerFonts = try container.decodeIfPresent(Bool.self, forKey: .largerFonts) ?? true
+        moveEverythingMoveOnSelection = try container.decodeIfPresent(
+            MoveEverythingMoveOnSelectionMode.self,
+            forKey: .moveEverythingMoveOnSelection
+        ) ?? .miniControlCenterOnTop
+        moveEverythingCenterWidthPercent = try container.decodeIfPresent(Double.self, forKey: .moveEverythingCenterWidthPercent) ?? 33
+        moveEverythingCenterHeightPercent = try container.decodeIfPresent(Double.self, forKey: .moveEverythingCenterHeightPercent) ?? 70
+        moveEverythingOverlayMode = try container.decodeIfPresent(MoveEverythingOverlayMode.self, forKey: .moveEverythingOverlayMode) ?? .persistent
+        moveEverythingOverlayDuration = try container.decodeIfPresent(Double.self, forKey: .moveEverythingOverlayDuration) ?? 2
+        moveEverythingStartAlwaysOnTop = try container.decodeIfPresent(Bool.self, forKey: .moveEverythingStartAlwaysOnTop) ?? false
+        moveEverythingStartMoveToBottom = try container.decodeIfPresent(Bool.self, forKey: .moveEverythingStartMoveToBottom) ?? false
+        moveEverythingAdvancedControlCenterHover = try container.decodeIfPresent(Bool.self, forKey: .moveEverythingAdvancedControlCenterHover) ?? true
+        moveEverythingStickyHoverStealFocus = try container.decodeIfPresent(Bool.self, forKey: .moveEverythingStickyHoverStealFocus) ?? false
+        moveEverythingCloseHideHotkeysOutsideMode = try container.decodeIfPresent(
+            Bool.self,
+            forKey: .moveEverythingCloseHideHotkeysOutsideMode
+        ) ?? false
+        moveEverythingExcludeControlCenter = try container.decodeIfPresent(Bool.self, forKey: .moveEverythingExcludeControlCenter) ?? false
+        moveEverythingMiniRetileWidthPercent = try container.decodeIfPresent(Double.self, forKey: .moveEverythingMiniRetileWidthPercent) ?? 25
+        moveEverythingBackgroundRefreshInterval = try container.decodeIfPresent(Double.self, forKey: .moveEverythingBackgroundRefreshInterval) ?? 5
+        moveEverythingCloseWindowHotkey = try container.decodeIfPresent(Hotkey.self, forKey: .moveEverythingCloseWindowHotkey)
+        moveEverythingHideWindowHotkey = try container.decodeIfPresent(Hotkey.self, forKey: .moveEverythingHideWindowHotkey)
+        if let decodedThemeMode = try container.decodeIfPresent(ThemeMode.self, forKey: .themeMode) {
+            themeMode = decodedThemeMode
+        } else {
+            let legacyDarkMode = try container.decodeIfPresent(Bool.self, forKey: .darkMode) ?? false
+            themeMode = legacyDarkMode ? .dark : .system
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(defaultGridColumns, forKey: .defaultGridColumns)
+        try container.encode(defaultGridRows, forKey: .defaultGridRows)
+        try container.encode(gap, forKey: .gap)
+        try container.encode(defaultCycleDisplaysOnWrap, forKey: .defaultCycleDisplaysOnWrap)
+        try container.encode(animationDuration, forKey: .animationDuration)
+        try container.encode(controlCenterScale, forKey: .controlCenterScale)
+        try container.encode(largerFonts, forKey: .largerFonts)
+        try container.encode(themeMode, forKey: .themeMode)
+        try container.encode(moveEverythingMoveOnSelection, forKey: .moveEverythingMoveOnSelection)
+        try container.encode(moveEverythingCenterWidthPercent, forKey: .moveEverythingCenterWidthPercent)
+        try container.encode(moveEverythingCenterHeightPercent, forKey: .moveEverythingCenterHeightPercent)
+        try container.encode(moveEverythingOverlayMode, forKey: .moveEverythingOverlayMode)
+        try container.encode(moveEverythingOverlayDuration, forKey: .moveEverythingOverlayDuration)
+        try container.encode(moveEverythingStartAlwaysOnTop, forKey: .moveEverythingStartAlwaysOnTop)
+        try container.encode(moveEverythingStartMoveToBottom, forKey: .moveEverythingStartMoveToBottom)
+        try container.encode(moveEverythingAdvancedControlCenterHover, forKey: .moveEverythingAdvancedControlCenterHover)
+        try container.encode(moveEverythingStickyHoverStealFocus, forKey: .moveEverythingStickyHoverStealFocus)
+        try container.encode(
+            moveEverythingCloseHideHotkeysOutsideMode,
+            forKey: .moveEverythingCloseHideHotkeysOutsideMode
+        )
+        try container.encode(moveEverythingExcludeControlCenter, forKey: .moveEverythingExcludeControlCenter)
+        try container.encode(moveEverythingMiniRetileWidthPercent, forKey: .moveEverythingMiniRetileWidthPercent)
+        try container.encode(moveEverythingBackgroundRefreshInterval, forKey: .moveEverythingBackgroundRefreshInterval)
+        try container.encodeIfPresent(moveEverythingCloseWindowHotkey, forKey: .moveEverythingCloseWindowHotkey)
+        try container.encodeIfPresent(moveEverythingHideWindowHotkey, forKey: .moveEverythingHideWindowHotkey)
+    }
+}
+
+enum MoveEverythingHotkeyAction: String, CaseIterable {
+    case closeWindow
+    case hideWindow
+
+    var displayName: String {
+        switch self {
+        case .closeWindow:
+            return "Close Window"
+        case .hideWindow:
+            return "Hide Window"
+        }
+    }
+}
+
+extension Settings {
+    func moveEverythingHotkey(for action: MoveEverythingHotkeyAction) -> Hotkey? {
+        switch action {
+        case .closeWindow:
+            return moveEverythingCloseWindowHotkey
+        case .hideWindow:
+            return moveEverythingHideWindowHotkey
+        }
+    }
+}
+
+struct ShortcutConfig: Codable, Identifiable {
+    var id: String
+    var name: String
+    var enabled: Bool
+    var hotkey: Hotkey
+    var cycleDisplaysOnWrap: Bool
+    var controlCenterOnly: Bool
+    var placements: [PlacementStep]
+
+    init(
+        id: String,
+        name: String,
+        enabled: Bool = true,
+        hotkey: Hotkey,
+        cycleDisplaysOnWrap: Bool = false,
+        controlCenterOnly: Bool = false,
+        placements: [PlacementStep]
+    ) {
+        self.id = id
+        self.name = name
+        self.enabled = enabled
+        self.hotkey = hotkey
+        self.cycleDisplaysOnWrap = cycleDisplaysOnWrap
+        self.controlCenterOnly = controlCenterOnly
+        self.placements = placements
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case name
+        case enabled
+        case hotkey
+        case cycleDisplaysOnWrap
+        case controlCenterOnly
+        case placements
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        enabled = try container.decodeIfPresent(Bool.self, forKey: .enabled) ?? true
+        hotkey = try container.decode(Hotkey.self, forKey: .hotkey)
+        cycleDisplaysOnWrap = try container.decodeIfPresent(Bool.self, forKey: .cycleDisplaysOnWrap) ?? false
+        controlCenterOnly = try container.decodeIfPresent(Bool.self, forKey: .controlCenterOnly) ?? false
+        placements = try container.decode([PlacementStep].self, forKey: .placements)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(name, forKey: .name)
+        try container.encode(enabled, forKey: .enabled)
+        try container.encode(hotkey, forKey: .hotkey)
+        try container.encode(cycleDisplaysOnWrap, forKey: .cycleDisplaysOnWrap)
+        try container.encode(controlCenterOnly, forKey: .controlCenterOnly)
+        try container.encode(placements, forKey: .placements)
+    }
+}
+
+struct Hotkey: Codable {
+    var key: String
+    var modifiers: [String]
+}
+
+struct PlacementStep: Codable, Identifiable {
+    var id: String
+    var title: String
+    var mode: PlacementMode
+    var display: DisplayTarget
+    var grid: GridPlacement?
+    var rect: FreeformRect?
+}
+
+enum PlacementMode: String, Codable {
+    case grid
+    case freeform
+}
+
+enum DisplayTarget: Codable, Equatable {
+    case active
+    case main
+    case index(Int)
+
+    private static let indexPrefix = "index-"
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let rawValue = try container.decode(String.self)
+        guard let parsed = Self.parse(rawValue) else {
+            throw DecodingError.dataCorruptedError(in: container, debugDescription: "Unsupported display target: \(rawValue)")
+        }
+        self = parsed
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(rawValue)
+    }
+
+    var rawValue: String {
+        switch self {
+        case .active:
+            return "active"
+        case .main:
+            return "main"
+        case .index(let index):
+            return "\(Self.indexPrefix)\(index)"
+        }
+    }
+
+    static func parse(_ rawValue: String) -> DisplayTarget? {
+        switch rawValue {
+        case "active":
+            return .active
+        case "main":
+            return .main
+        default:
+            guard rawValue.hasPrefix(indexPrefix) else {
+                return nil
+            }
+            let suffix = String(rawValue.dropFirst(indexPrefix.count))
+            guard let parsed = Int(suffix), parsed >= 0 else {
+                return nil
+            }
+            return .index(parsed)
+        }
+    }
+}
+
+struct GridPlacement: Codable {
+    var columns: Int
+    var rows: Int
+    var x: Int
+    var y: Int
+    var width: Int
+    var height: Int
+}
+
+struct FreeformRect: Codable {
+    var x: Double
+    var y: Double
+    var width: Double
+    var height: Double
+}
+
+extension PlacementStep {
+    func normalizedRect(defaultColumns: Int, defaultRows: Int) -> CGRect? {
+        switch mode {
+        case .grid:
+            let config = grid ?? GridPlacement(columns: defaultColumns, rows: defaultRows, x: 0, y: 0, width: defaultColumns, height: defaultRows)
+            guard config.columns > 0, config.rows > 0 else { return nil }
+            return CGRect(
+                x: Double(config.x) / Double(config.columns),
+                y: Double(config.y) / Double(config.rows),
+                width: Double(config.width) / Double(config.columns),
+                height: Double(config.height) / Double(config.rows)
+            )
+        case .freeform:
+            guard let rect else { return nil }
+            return CGRect(x: rect.x, y: rect.y, width: rect.width, height: rect.height)
+        }
+    }
+}
+
+extension AppConfig {
+    func normalized() -> AppConfig {
+        var copy = self
+        if copy.version <= 0 {
+            copy.version = 1
+        }
+        if copy.settings.defaultGridColumns <= 0 {
+            copy.settings.defaultGridColumns = 12
+        }
+        if copy.settings.defaultGridRows <= 0 {
+            copy.settings.defaultGridRows = 8
+        }
+        if copy.settings.gap < 0 {
+            copy.settings.gap = 0
+        }
+        if copy.settings.animationDuration < 0 {
+            copy.settings.animationDuration = 0
+        }
+        if !copy.settings.controlCenterScale.isFinite {
+            copy.settings.controlCenterScale = 1
+        }
+        copy.settings.controlCenterScale = min(max(copy.settings.controlCenterScale, 0.5), 2.0)
+        if !copy.settings.moveEverythingCenterWidthPercent.isFinite {
+            copy.settings.moveEverythingCenterWidthPercent = 33
+        }
+        copy.settings.moveEverythingCenterWidthPercent = min(max(copy.settings.moveEverythingCenterWidthPercent, 10), 100)
+        if !copy.settings.moveEverythingCenterHeightPercent.isFinite {
+            copy.settings.moveEverythingCenterHeightPercent = 70
+        }
+        copy.settings.moveEverythingCenterHeightPercent = min(max(copy.settings.moveEverythingCenterHeightPercent, 10), 100)
+        if !copy.settings.moveEverythingOverlayDuration.isFinite {
+            copy.settings.moveEverythingOverlayDuration = 2
+        }
+        copy.settings.moveEverythingOverlayDuration = min(max(copy.settings.moveEverythingOverlayDuration, 0.2), 8)
+        copy.settings.moveEverythingCloseWindowHotkey = normalizeHotkey(copy.settings.moveEverythingCloseWindowHotkey)
+        copy.settings.moveEverythingHideWindowHotkey = normalizeHotkey(copy.settings.moveEverythingHideWindowHotkey)
+
+        var seenShortcutIDs: Set<String> = []
+        copy.shortcuts = copy.shortcuts.map { shortcut in
+            var normalizedShortcut = shortcut
+            normalizedShortcut.id = nextUniqueID(from: shortcut.id, seen: &seenShortcutIDs)
+            normalizedShortcut.name = shortcut.name.trimmingCharacters(in: .whitespacesAndNewlines)
+            if normalizedShortcut.name.isEmpty {
+                normalizedShortcut.name = normalizedShortcut.id
+            }
+            normalizedShortcut.hotkey.key = shortcut.hotkey.key.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+            normalizedShortcut.hotkey.modifiers = Array(Set(shortcut.hotkey.modifiers.map { $0.lowercased().trimmingCharacters(in: .whitespacesAndNewlines) })).sorted()
+            var seenPlacementIDs: Set<String> = []
+            normalizedShortcut.placements = shortcut.placements.compactMap { placement in
+                var normalizedPlacement = placement
+                normalizedPlacement.id = nextUniqueID(from: placement.id, seen: &seenPlacementIDs)
+                normalizedPlacement.title = placement.title.trimmingCharacters(in: .whitespacesAndNewlines)
+                switch normalizedPlacement.mode {
+                case .grid:
+                    guard var grid = normalizedPlacement.grid else { return nil }
+                    grid.columns = max(grid.columns, 1)
+                    grid.rows = max(grid.rows, 1)
+                    grid.x = max(grid.x, 0)
+                    grid.y = max(grid.y, 0)
+                    grid.width = max(grid.width, 1)
+                    grid.height = max(grid.height, 1)
+                    if grid.x + grid.width > grid.columns {
+                        grid.width = max(1, grid.columns - grid.x)
+                    }
+                    if grid.y + grid.height > grid.rows {
+                        grid.height = max(1, grid.rows - grid.y)
+                    }
+                    normalizedPlacement.grid = grid
+                    normalizedPlacement.rect = nil
+                case .freeform:
+                    guard var rect = normalizedPlacement.rect else { return nil }
+                    rect.x = min(max(rect.x, 0), 1)
+                    rect.y = min(max(rect.y, 0), 1)
+                    rect.width = min(max(rect.width, 0.05), 1)
+                    rect.height = min(max(rect.height, 0.05), 1)
+                    if rect.x + rect.width > 1 {
+                        rect.x = max(0, 1 - rect.width)
+                    }
+                    if rect.y + rect.height > 1 {
+                        rect.y = max(0, 1 - rect.height)
+                    }
+                    normalizedPlacement.rect = rect
+                    normalizedPlacement.grid = nil
+                }
+                return normalizedPlacement
+            }
+            return normalizedShortcut
+        }
+        return copy
+    }
+}
+
+private func nextUniqueID(from rawID: String, seen: inout Set<String>) -> String {
+    let base = rawID
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+    let seeded = base.isEmpty ? UUID().uuidString.lowercased() : base
+
+    if !seen.contains(seeded) {
+        seen.insert(seeded)
+        return seeded
+    }
+
+    var suffix = 2
+    var candidate = "\(seeded)-\(suffix)"
+    while seen.contains(candidate) {
+        suffix += 1
+        candidate = "\(seeded)-\(suffix)"
+    }
+    seen.insert(candidate)
+    return candidate
+}
+
+private func normalizeHotkey(_ hotkey: Hotkey?) -> Hotkey? {
+    guard var hotkey else {
+        return nil
+    }
+
+    hotkey.key = hotkey.key
+        .lowercased()
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !hotkey.key.isEmpty else {
+        return nil
+    }
+
+    hotkey.modifiers = Array(
+        Set(
+            hotkey.modifiers.map {
+                $0.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+        )
+    ).sorted()
+    return hotkey
+}
