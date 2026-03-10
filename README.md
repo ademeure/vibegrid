@@ -9,7 +9,7 @@
 </tr>
 </table>
 
-The year is 2027. With the rise of AGI, the average vibe-coder now has 7 Samsung Odyssey 57" 8K monitors and 12 microphones in a desperate attempt to keep up with Peter Steinberger's productivity and feel like they're adding value to their legion of fully autonomous coding agents (they're not).
+The year is 2027. The Parallel Agent Wars have begun, and the average vibe-coder uses more than 7 Samsung Odyssey 57" 8K monitors and 12 microphones in a desperate attempt to keep up with Peter Steinberger's productivity and feel like they're adding value to their legions of fully autonomous coding agents (they're not).
 
 But sadly, Window Layout Management software hasn't managed to keep up in this timeline. Human brains have atrophied to the point where they don't even remember how to use more than one window at a time. This had terrible safety implications: horrific neck pain for humans, and misaligned agents hiding in plain sight behind fullscreen windows of Microsoft Notepad for AI (Copilot++ Edition).  
 
