@@ -111,6 +111,9 @@ final class WindowManagerEngine: WindowManagerEngineProtocol {
         label: "vibegrid.moveEverything.inventory.refresh",
         qos: .userInitiated
     )
+    var moveEverythingITermFetchCache: [ITermWindowInventoryResolver.WindowDescriptor] = []
+    var moveEverythingITermFetchCacheAt: Date?
+    let moveEverythingITermFetchCacheTTL: TimeInterval = 2.0
     var moveEverythingInventoryRefreshInFlight = false
     var moveEverythingInventoryRefreshQueued = false
     var moveEverythingInventoryRefreshRevision: UInt64 = 0

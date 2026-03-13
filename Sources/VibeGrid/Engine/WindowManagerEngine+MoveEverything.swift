@@ -2119,6 +2119,14 @@ extension WindowManagerEngine {
                 }
 
                 if forceRefresh {
+                    // If the cache is still fresh (within the normal refresh interval), skip the
+                    // expensive synchronous rebuild and let the background timer keep it current.
+                    // This prevents main-thread stalls from rapid forceRefresh calls.
+                    if let lastRefresh = moveEverythingResolvedInventoryLastRefreshAt,
+                       now.timeIntervalSince(lastRefresh) < moveEverythingResolvedInventoryRefreshInterval {
+                        requestMoveEverythingInventoryRefreshIfNeeded(force: true)
+                        return cachedInventory
+                    }
                     let refreshedInventory = resolveMoveEverythingWindowInventorySynchronously(
                         controlCenterWindowNumber: currentControlCenterWindowNumberSnapshot()
                     )
@@ -2244,7 +2252,14 @@ extension WindowManagerEngine {
             var hiddenWindows: [MoveEverythingManagedWindow] = []
             var hiddenCoreGraphicsFallbackWindows: [MoveEverythingCoreGraphicsFallbackWindow] = []
             var hiddenWindowKeys: Set<String> = []
-            var cachedITermWindowInventory: [ITermWindowInventoryResolver.WindowDescriptor]?
+            // Use a short-lived cross-call cache for the osascript iTerm fetch so that
+            // multiple rapid inventory rebuilds don't each spawn a new subprocess.
+            let iTermFetchCacheValid: Bool = {
+                guard let at = moveEverythingITermFetchCacheAt else { return false }
+                return Date().timeIntervalSince(at) < moveEverythingITermFetchCacheTTL
+            }()
+            var cachedITermWindowInventory: [ITermWindowInventoryResolver.WindowDescriptor]? =
+                iTermFetchCacheValid ? moveEverythingITermFetchCache : nil
 
             for app in NSWorkspace.shared.runningApplications {
                 if app.isTerminated {
@@ -2274,6 +2289,8 @@ extension WindowManagerEngine {
                         debugContext: "inventory pid=\(app.processIdentifier) appName=\(appName)"
                     )
                     cachedITermWindowInventory = fetched
+                    moveEverythingITermFetchCache = fetched
+                    moveEverythingITermFetchCacheAt = Date()
                     return fetched
                 }()
                 let appElement = applicationAXElement(for: app.processIdentifier)

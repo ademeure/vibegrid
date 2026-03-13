@@ -22,32 +22,40 @@ struct WindowListActivityConfigSync {
     ) {
         let targetURL = Self.configURL(fileManager: fileManager)
         let directoryURL = targetURL.deletingLastPathComponent()
-
+        let payload: Data
         do {
-            try fileManager.createDirectory(at: directoryURL, withIntermediateDirectories: true)
-            let data = try JSONEncoder().encode(
+            payload = try JSONEncoder().encode(
                 Payload(
                     settings: settings,
                     iTermWindowOverridesByID: iTermWindowOverridesByID,
                     iTermWindowOverridesByNumber: iTermWindowOverridesByNumber
                 )
             )
-            try data.write(to: targetURL, options: .atomic)
-            WindowListDebugLogger.log(
-                "activity-sync",
-                "wrote activity config path=\(targetURL.path) overrideIDs=\(iTermWindowOverridesByID.keys.sorted()) " +
-                    "overrideNumbers=\(iTermWindowOverridesByNumber.keys.sorted())"
-            )
         } catch {
-            NSLog(
-                "VibeGrid: failed to sync Window List activity config to %@: %@",
-                targetURL.path,
-                String(describing: error)
-            )
-            WindowListDebugLogger.log(
-                "activity-sync",
-                "failed to write activity config path=\(targetURL.path) error=\(String(describing: error))"
-            )
+            NSLog("VibeGrid: failed to encode Window List activity config: %@", String(describing: error))
+            return
+        }
+        // File I/O dispatched to background to avoid stalling the main thread
+        DispatchQueue.global(qos: .utility).async {
+            do {
+                try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
+                try payload.write(to: targetURL, options: .atomic)
+                WindowListDebugLogger.log(
+                    "activity-sync",
+                    "wrote activity config path=\(targetURL.path) overrideIDs=\(iTermWindowOverridesByID.keys.sorted()) " +
+                        "overrideNumbers=\(iTermWindowOverridesByNumber.keys.sorted())"
+                )
+            } catch {
+                NSLog(
+                    "VibeGrid: failed to sync Window List activity config to %@: %@",
+                    targetURL.path,
+                    String(describing: error)
+                )
+                WindowListDebugLogger.log(
+                    "activity-sync",
+                    "failed to write activity config path=\(targetURL.path) error=\(String(describing: error))"
+                )
+            }
         }
     }
 
