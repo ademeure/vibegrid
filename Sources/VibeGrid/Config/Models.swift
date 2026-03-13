@@ -221,6 +221,7 @@ struct Settings: Codable {
     var moveEverythingITermRecentActivityIdleText: String
     var moveEverythingITermRecentActivityBadgeEnabled: Bool
     var moveEverythingITermRecentActivityColorize: Bool
+    var moveEverythingITermRecentActivityColorizeNamedOnly: Bool
     var moveEverythingActiveWindowHighlightColorize: Bool
     var moveEverythingActiveWindowHighlightColor: String
     var moveEverythingITermRecentActivityActiveColor: String
@@ -263,6 +264,7 @@ struct Settings: Codable {
             moveEverythingITermRecentActivityIdleText: "",
             moveEverythingITermRecentActivityBadgeEnabled: false,
             moveEverythingITermRecentActivityColorize: true,
+            moveEverythingITermRecentActivityColorizeNamedOnly: false,
             moveEverythingActiveWindowHighlightColorize: true,
             moveEverythingActiveWindowHighlightColor: "#4D88D4",
             moveEverythingITermRecentActivityActiveColor: "#2F8F4E",
@@ -306,6 +308,7 @@ struct Settings: Codable {
         moveEverythingITermRecentActivityIdleText: String = "",
         moveEverythingITermRecentActivityBadgeEnabled: Bool = false,
         moveEverythingITermRecentActivityColorize: Bool = true,
+        moveEverythingITermRecentActivityColorizeNamedOnly: Bool = false,
         moveEverythingActiveWindowHighlightColorize: Bool = true,
         moveEverythingActiveWindowHighlightColor: String = "#4D88D4",
         moveEverythingITermRecentActivityActiveColor: String = "#2F8F4E",
@@ -346,6 +349,7 @@ struct Settings: Codable {
         self.moveEverythingITermRecentActivityIdleText = moveEverythingITermRecentActivityIdleText
         self.moveEverythingITermRecentActivityBadgeEnabled = moveEverythingITermRecentActivityBadgeEnabled
         self.moveEverythingITermRecentActivityColorize = moveEverythingITermRecentActivityColorize
+        self.moveEverythingITermRecentActivityColorizeNamedOnly = moveEverythingITermRecentActivityColorizeNamedOnly
         self.moveEverythingActiveWindowHighlightColorize = moveEverythingActiveWindowHighlightColorize
         self.moveEverythingActiveWindowHighlightColor = moveEverythingActiveWindowHighlightColor
         self.moveEverythingITermRecentActivityActiveColor = moveEverythingITermRecentActivityActiveColor
@@ -389,6 +393,7 @@ struct Settings: Codable {
         case moveEverythingITermRecentActivityIdleText
         case moveEverythingITermRecentActivityBadgeEnabled
         case moveEverythingITermRecentActivityColorize
+        case moveEverythingITermRecentActivityColorizeNamedOnly
         case moveEverythingActiveWindowHighlightColorize
         case moveEverythingActiveWindowHighlightColor
         case moveEverythingITermRecentActivityActiveColor
@@ -452,6 +457,10 @@ struct Settings: Codable {
             Bool.self,
             forKey: .moveEverythingITermRecentActivityColorize
         ) ?? true
+        moveEverythingITermRecentActivityColorizeNamedOnly = try container.decodeIfPresent(
+            Bool.self,
+            forKey: .moveEverythingITermRecentActivityColorizeNamedOnly
+        ) ?? false
         moveEverythingActiveWindowHighlightColorize = try container.decodeIfPresent(
             Bool.self,
             forKey: .moveEverythingActiveWindowHighlightColorize
@@ -534,6 +543,7 @@ struct Settings: Codable {
             forKey: .moveEverythingITermRecentActivityBadgeEnabled
         )
         try container.encode(moveEverythingITermRecentActivityColorize, forKey: .moveEverythingITermRecentActivityColorize)
+        try container.encode(moveEverythingITermRecentActivityColorizeNamedOnly, forKey: .moveEverythingITermRecentActivityColorizeNamedOnly)
         try container.encode(
             moveEverythingActiveWindowHighlightColorize,
             forKey: .moveEverythingActiveWindowHighlightColorize
