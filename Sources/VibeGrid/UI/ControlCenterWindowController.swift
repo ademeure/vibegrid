@@ -167,6 +167,31 @@ final class ControlCenterWindowController: NSWindowController, NSWindowDelegate,
         window.setFrameOrigin(NSPoint(x: x, y: y))
     }
 
+    /// Position (and optionally resize) the window near the given cursor point.
+    /// If `contentSize` is provided the window is resized to exactly that content area.
+    func placeWindowNearCursor(at cursor: NSPoint, contentSize: NSSize? = nil) {
+        guard let window else { return }
+        let targetScreen = NSScreen.screens.first(where: { NSMouseInRect(cursor, $0.frame, false) })
+            ?? NSScreen.main
+            ?? NSScreen.screens.first
+        guard let screen = targetScreen else { return }
+        let visible = screen.visibleFrame
+        // Compute the full frame size, incorporating a new content size if given
+        let frameSize: NSSize
+        if let cs = contentSize {
+            let contentRect = NSRect(origin: .zero, size: cs)
+            frameSize = window.frameRect(forContentRect: contentRect).size
+        } else {
+            frameSize = window.frame.size
+        }
+        // Center horizontally on cursor, bottom of window sits at cursor
+        var x = cursor.x - frameSize.width / 2
+        var y = cursor.y - frameSize.height
+        x = max(visible.minX, min(x, visible.maxX - frameSize.width))
+        y = max(visible.minY, min(y, visible.maxY - frameSize.height))
+        window.setFrame(NSRect(origin: NSPoint(x: x, y: y), size: frameSize), display: false, animate: false)
+    }
+
     private func attemptOpenSettingsModal(remainingAttempts: Int) {
         let script = "(function(){ if (window.vibeGridOpenSettingsModal) { window.vibeGridOpenSettingsModal(); return true; } return false; })();"
         webView.evaluateJavaScript(script) { [weak self] value, _ in
@@ -232,15 +257,17 @@ final class ControlCenterWindowController: NSWindowController, NSWindowDelegate,
         textField.frame = NSRect(x: 0, y: 0, width: 360, height: 24)
         alert.accessoryView = textField
 
-        guard let window else {
-            let response = alert.runModal()
-            completionHandler(response == .alertFirstButtonReturn ? textField.stringValue : nil)
-            return
-        }
+        // Position the dialog near the current cursor, not attached to the VibeGrid window
+        let mouseLocation = NSEvent.mouseLocation
+        let alertWindow = alert.window
+        let windowSize = alertWindow.frame.size
+        alertWindow.setFrameOrigin(NSPoint(
+            x: mouseLocation.x - windowSize.width / 2,
+            y: mouseLocation.y - windowSize.height / 2
+        ))
 
-        alert.beginSheetModal(for: window) { response in
-            completionHandler(response == .alertFirstButtonReturn ? textField.stringValue : nil)
-        }
+        let response = alert.runModal()
+        completionHandler(response == .alertFirstButtonReturn ? textField.stringValue : nil)
     }
 }
 

@@ -352,15 +352,15 @@
             </div>
             <label class="toggle-line move-everything-modal-toggle" style="margin-top: 8px;">
               <input id="moveEverythingITermRecentActivityBadgeEnabledSetting" type="checkbox" />
-              Show iTerm2 activity badge/status marker in terminal
+              Show iTerm2 activity badge
             </label>
             <label class="toggle-line move-everything-modal-toggle" style="margin-top: 8px;">
               <input id="moveEverythingITermBadgeFromTitleSetting" type="checkbox" />
-              Auto-set iTerm2 badge from window title (when no badge text is set)
+              Auto badge from window title
             </label>
             <label class="toggle-line move-everything-modal-toggle" style="margin-top: 8px;">
               <input id="moveEverythingITermRecentActivityColorizeSetting" type="checkbox" />
-              Color-code title box by iTerm2 activity
+              Color-code by iTerm2 activity
             </label>
             <label class="toggle-line move-everything-modal-toggle" style="margin-top: 8px;">
               <input id="moveEverythingActiveWindowHighlightColorizeSetting" type="checkbox" />
@@ -390,13 +390,13 @@
                 <input id="moveEverythingITermBadgeRightMarginSetting" type="number" min="0" max="200" step="1" />
               </label>
             </div>
-            <p id="moveEverythingITermRecentActivityHint" class="settings-hint">Activity labels still update iTerm2 window titles. Use the per-window Badge button for custom badge text/color; the controls above set badge placement.</p>
+            <p id="moveEverythingITermRecentActivityHint" class="settings-hint">Activity labels update iTerm2 titles. Use per-window Badge button for custom text/color.</p>
           </div>
           <div class="settings-section">
             <h4>Hotkeys</h4>
             <label class="toggle-line move-everything-modal-toggle">
               <input id="moveEverythingCloseHideOutsideMode" type="checkbox" />
-              Close/Hide hotkeys also work outside Window List mode
+              Close/Hide hotkeys work outside Window List mode
             </label>
             <div class="move-hotkey-list">
               <div class="move-hotkey-row">
@@ -425,6 +425,15 @@
                 <span id="moveEverythingNameWindowPreview" class="hotkey-preview move-hotkey-preview"></span>
                 <button class="btn tiny capture" type="button" data-me-record="moveEverythingNameWindowHotkey">Record</button>
                 <button class="btn tiny ghost" type="button" data-me-clear="moveEverythingNameWindowHotkey">Clear</button>
+              </div>
+              <div class="move-hotkey-row">
+                <div class="move-hotkey-meta">
+                  <strong>Quick View</strong>
+                  <small>Optional</small>
+                </div>
+                <span id="moveEverythingQuickViewPreview" class="hotkey-preview move-hotkey-preview"></span>
+                <button class="btn tiny capture" type="button" data-me-record="moveEverythingQuickViewHotkey">Record</button>
+                <button class="btn tiny ghost" type="button" data-me-clear="moveEverythingQuickViewHotkey">Clear</button>
               </div>
             </div>
           </div>
@@ -464,8 +473,8 @@
               <input id="moveEverythingWindowEditorBadgeColorInput" type="text" placeholder="#A05FE0" autocomplete="off" maxlength="7" style="width:80px;font-family:monospace" />
               <div class="badge-opacity-row">
                 <span>Opacity</span>
-                <input id="moveEverythingWindowEditorBadgeOpacityInput" type="range" min="10" max="100" value="55" style="flex:1" />
-                <span id="moveEverythingWindowEditorBadgeOpacityLabel" style="min-width:32px;text-align:right;font-family:monospace">55%</span>
+                <input id="moveEverythingWindowEditorBadgeOpacityInput" type="range" min="10" max="100" value="80" style="flex:1" />
+                <span id="moveEverythingWindowEditorBadgeOpacityLabel" style="min-width:32px;text-align:right;font-family:monospace">80%</span>
               </div>
               <small class="settings-hint">Pick a swatch or type a hex color. Adjust opacity to match iTerm's default faded look.</small>
             </div>

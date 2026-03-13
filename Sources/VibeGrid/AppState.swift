@@ -49,6 +49,12 @@ final class AppState {
     private var moveEverythingDontMoveVibeGrid = false
     private var moveEverythingShowOverlays = true
     private var moveEverythingModeWasActive = false
+    private var windowEditorSavedFrame: NSRect?
+    private var windowEditorWasVisible = false
+    private var windowEditorCursorPosition: NSPoint?
+    private var quickViewActive = false
+    private var quickViewSavedFrame: NSRect?
+    private var quickViewWasVisible = false
 
     private(set) var config: AppConfig
     private var controlCenter: ControlCenterWindowController?
@@ -106,10 +112,26 @@ final class AppState {
             DispatchQueue.main.async {
                 guard let self else { return }
                 self.ensureMoveEverythingMode()
+                // Save current visibility and position so we can restore after the editor closes
+                let cursor = NSEvent.mouseLocation
+                self.windowEditorCursorPosition = cursor
+                self.windowEditorWasVisible = self.controlCenter?.window?.isVisible ?? false
+                self.windowEditorSavedFrame = self.controlCenter?.window?.frame
+                // Show at cursor with a sensible initial compact size; JS will send exact dimensions
+                self.controlCenter?.placeWindowNearCursor(at: cursor, contentSize: NSSize(width: 580, height: 500))
                 self.controlCenter?.showWindow(nil)
                 NSApp.activate(ignoringOtherApps: true)
                 self.controlCenter?.window?.makeKeyAndOrderFront(nil)
+                // Push fresh inventory before opening the editor so JS can find any window type.
+                // Both evaluateJavaScript calls are queued in order, so inventory arrives first.
+                self.controlCenter?.refresh(forceMoveEverythingWindowRefresh: true)
                 self.controlCenter?.openWindowEditor(forKey: key)
+            }
+        }
+        windowManager.onMoveEverythingQuickViewRequested = { [weak self] in
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.toggleQuickView()
             }
         }
     }
@@ -145,6 +167,57 @@ final class AppState {
     func hideControlCenter() {
         placementPreviewOverlay.hide()
         controlCenter?.window?.orderOut(nil)
+    }
+
+    func handleWindowEditorOpened(cardWidth: Int, cardHeight: Int) {
+        guard let cursor = windowEditorCursorPosition else { return }
+        // Add modal overlay padding (20px each side)
+        let contentSize = NSSize(width: CGFloat(cardWidth) + 40, height: CGFloat(cardHeight) + 40)
+        controlCenter?.placeWindowNearCursor(at: cursor, contentSize: contentSize)
+    }
+
+    func handleWindowEditorClosed() {
+        if !windowEditorWasVisible {
+            controlCenter?.window?.orderOut(nil)
+        } else if let saved = windowEditorSavedFrame {
+            controlCenter?.window?.setFrame(saved, display: false, animate: false)
+        }
+        windowEditorSavedFrame = nil
+        windowEditorWasVisible = false
+        windowEditorCursorPosition = nil
+    }
+
+    func toggleQuickView() {
+        if quickViewActive {
+            // Restore
+            if !quickViewWasVisible {
+                controlCenter?.window?.orderOut(nil)
+            } else if let saved = quickViewSavedFrame {
+                controlCenter?.window?.setFrame(saved, display: false, animate: false)
+            }
+            quickViewSavedFrame = nil
+            quickViewWasVisible = false
+            quickViewActive = false
+        } else {
+            // Save state
+            quickViewWasVisible = controlCenter?.window?.isVisible ?? false
+            quickViewSavedFrame = controlCenter?.window?.frame
+            quickViewActive = true
+
+            // Compute compact narrow size: width ~550px, height capped at 1/4 screen
+            let cursor = NSEvent.mouseLocation
+            let screen = NSScreen.screens.first(where: { NSMouseInRect(cursor, $0.frame, false) })
+                ?? NSScreen.main
+                ?? NSScreen.screens.first
+            let maxHeight = (screen?.visibleFrame.height ?? 800) / 4
+            let contentSize = NSSize(width: 550, height: min(1120, maxHeight * 1.6))
+
+            ensureMoveEverythingMode()
+            controlCenter?.placeWindowNearCursor(at: cursor, contentSize: contentSize)
+            controlCenter?.showWindow(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            controlCenter?.window?.makeKeyAndOrderFront(nil)
+        }
     }
 
     func refresh() {

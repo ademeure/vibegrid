@@ -209,6 +209,7 @@ const ids = {
   moveEverythingCloseWindowPreview: document.getElementById("moveEverythingCloseWindowPreview"),
   moveEverythingHideWindowPreview: document.getElementById("moveEverythingHideWindowPreview"),
   moveEverythingNameWindowPreview: document.getElementById("moveEverythingNameWindowPreview"),
+  moveEverythingQuickViewPreview: document.getElementById("moveEverythingQuickViewPreview"),
   moveEverythingCloseHideOutsideMode: document.getElementById("moveEverythingCloseHideOutsideMode"),
   moveEverythingWindowEditorModal: document.getElementById("moveEverythingWindowEditorModal"),
   moveEverythingWindowEditorTitle: document.getElementById("moveEverythingWindowEditorTitle"),
@@ -281,11 +282,13 @@ const moveEverythingHotkeyFieldOrder = [
   "moveEverythingCloseWindowHotkey",
   "moveEverythingHideWindowHotkey",
   "moveEverythingNameWindowHotkey",
+  "moveEverythingQuickViewHotkey",
 ];
 const moveEverythingHotkeyPreviewByField = {
   moveEverythingCloseWindowHotkey: ids.moveEverythingCloseWindowPreview,
   moveEverythingHideWindowHotkey: ids.moveEverythingHideWindowPreview,
   moveEverythingNameWindowHotkey: ids.moveEverythingNameWindowPreview,
+  moveEverythingQuickViewHotkey: ids.moveEverythingQuickViewPreview,
 };
 let permissionPollTimer = null;
 let autosaveTimer = null;
@@ -2270,11 +2273,11 @@ function renderMoveEverythingWindowEditorModal() {
     );
   }
   if (ids.moveEverythingWindowEditorBadgeOpacityInput) {
-    const opacityVal = Math.max(10, Math.min(100, Number(editor.badgeOpacityValue) || 55));
+    const opacityVal = Math.max(10, Math.min(100, Number(editor.badgeOpacityValue) || 80));
     ids.moveEverythingWindowEditorBadgeOpacityInput.value = String(opacityVal);
   }
   if (ids.moveEverythingWindowEditorBadgeOpacityLabel) {
-    const opacityVal = Math.max(10, Math.min(100, Number(editor.badgeOpacityValue) || 55));
+    const opacityVal = Math.max(10, Math.min(100, Number(editor.badgeOpacityValue) || 80));
     ids.moveEverythingWindowEditorBadgeOpacityLabel.textContent = `${opacityVal}%`;
   }
   syncMoveEverythingWindowEditorBadgeColorVisibility();
@@ -2283,6 +2286,7 @@ function renderMoveEverythingWindowEditorModal() {
 function closeMoveEverythingWindowEditorModal() {
   state.moveEverythingWindowEditor = null;
   renderMoveEverythingWindowEditorModal();
+  sendToNative("windowEditorClosed", {});
 }
 
 function focusMoveEverythingWindowEditorPrimaryField() {
@@ -2326,7 +2330,7 @@ function openMoveEverythingWindowEditor(key) {
       state.moveEverythingCustomITermWindowBadgeColorByKey[normalizedKey],
       defaultMoveEverythingITermBadgeCustomColor
     ),
-    badgeOpacityValue: state.moveEverythingCustomITermWindowBadgeOpacityByKey[normalizedKey] ?? 55,
+    badgeOpacityValue: state.moveEverythingCustomITermWindowBadgeOpacityByKey[normalizedKey] ?? 80,
   };
   sendJsLog(
     "info",
@@ -2335,6 +2339,16 @@ function openMoveEverythingWindowEditor(key) {
   );
   renderMoveEverythingWindowEditorModal();
   focusMoveEverythingWindowEditorPrimaryField();
+  // Measure the rendered card so Swift can size the window precisely
+  window.requestAnimationFrame(() => {
+    const card = document.querySelector("#moveEverythingWindowEditorModal .modal-card");
+    if (!card) return;
+    const rect = card.getBoundingClientRect();
+    sendToNative("windowEditorOpened", {
+      cardWidth: Math.ceil(rect.width),
+      cardHeight: Math.ceil(rect.height),
+    });
+  });
 }
 
 function resetMoveEverythingWindowEditorFields() {
@@ -2353,10 +2367,10 @@ function resetMoveEverythingWindowEditorFields() {
       ids.moveEverythingWindowEditorBadgeColorInput.value = defaultMoveEverythingITermBadgeCustomColor;
     }
     if (ids.moveEverythingWindowEditorBadgeOpacityInput) {
-      ids.moveEverythingWindowEditorBadgeOpacityInput.value = "55";
+      ids.moveEverythingWindowEditorBadgeOpacityInput.value = "80";
     }
     if (ids.moveEverythingWindowEditorBadgeOpacityLabel) {
-      ids.moveEverythingWindowEditorBadgeOpacityLabel.textContent = "55%";
+      ids.moveEverythingWindowEditorBadgeOpacityLabel.textContent = "80%";
     }
     syncMoveEverythingWindowEditorBadgeColorVisibility();
   }
@@ -2393,7 +2407,7 @@ function submitMoveEverythingITermWindowOverride(windowItem, payload = {}) {
     badgeText: String(payload.badgeText || ""),
     badgeColorProvided: Boolean(payload.badgeColorProvided),
     badgeColor: String(payload.badgeColor || ""),
-    badgeOpacity: Number.isFinite(payload.badgeOpacity) ? payload.badgeOpacity : 55,
+    badgeOpacity: Number.isFinite(payload.badgeOpacity) ? payload.badgeOpacity : 80,
   });
 }
 
@@ -2436,10 +2450,10 @@ function submitMoveEverythingWindowEditor() {
       delete state.moveEverythingCustomITermWindowBadgeOpacityByKey[editor.key];
     } else {
       state.moveEverythingCustomITermWindowBadgeColorByKey[editor.key] = trimmedBadgeColor;
-      const opacityVal = Math.max(10, Math.min(100, parseInt(ids.moveEverythingWindowEditorBadgeOpacityInput?.value, 10) || 55));
+      const opacityVal = Math.max(10, Math.min(100, parseInt(ids.moveEverythingWindowEditorBadgeOpacityInput?.value, 10) || 80));
       state.moveEverythingCustomITermWindowBadgeOpacityByKey[editor.key] = opacityVal;
     }
-    const badgeOpacity = Math.max(10, Math.min(100, parseInt(ids.moveEverythingWindowEditorBadgeOpacityInput?.value, 10) || 55));
+    const badgeOpacity = Math.max(10, Math.min(100, parseInt(ids.moveEverythingWindowEditorBadgeOpacityInput?.value, 10) || 80));
     submitMoveEverythingITermWindowOverride(windowItem, {
       titleProvided: true,
       title: trimmedTitle,

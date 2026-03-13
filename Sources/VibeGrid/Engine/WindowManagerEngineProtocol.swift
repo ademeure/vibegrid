@@ -6,6 +6,7 @@ protocol WindowManagerEngineProtocol: AnyObject {
     var onMoveEverythingModeChanged: ((Bool) -> Void)? { get set }
     var onMoveEverythingInventoryRefreshed: (() -> Void)? { get set }
     var onMoveEverythingNameWindowRequested: ((String) -> Void)? { get set }
+    var onMoveEverythingQuickViewRequested: (() -> Void)? { get set }
     var isMoveEverythingActive: Bool { get }
 
     func applyConfig(_ config: AppConfig)

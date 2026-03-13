@@ -346,6 +346,12 @@ struct YAMLConfigCodec {
                             lineNumber: line.number,
                             field: "moveEverythingNameWindowHotkey"
                         )
+                    case "moveEverythingQuickViewHotkey":
+                        config.settings.moveEverythingQuickViewHotkey = try parseHotkey(
+                            effectiveValue,
+                            lineNumber: line.number,
+                            field: "moveEverythingQuickViewHotkey"
+                        )
                     default:
                         if Self.ignoredLegacySettingsKeys.contains(key) {
                             break
@@ -568,6 +574,7 @@ struct YAMLConfigCodec {
         lines.append("  moveEverythingCloseWindowHotkey: \(encodeHotkey(normalized.settings.moveEverythingCloseWindowHotkey))")
         lines.append("  moveEverythingHideWindowHotkey: \(encodeHotkey(normalized.settings.moveEverythingHideWindowHotkey))")
         lines.append("  moveEverythingNameWindowHotkey: \(encodeHotkey(normalized.settings.moveEverythingNameWindowHotkey))")
+        lines.append("  moveEverythingQuickViewHotkey: \(encodeHotkey(normalized.settings.moveEverythingQuickViewHotkey))")
         lines.append("shortcuts:")
 
         for shortcut in normalized.shortcuts {

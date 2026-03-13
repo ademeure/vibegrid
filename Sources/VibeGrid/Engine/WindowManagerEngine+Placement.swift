@@ -344,6 +344,9 @@ extension WindowManagerEngine {
 
         case .nameWindow:
             nameWindowFromHotkey()
+
+        case .quickView:
+            onMoveEverythingQuickViewRequested?()
         }
     }
 
@@ -353,7 +356,11 @@ extension WindowManagerEngine {
         }
         var focusedPID: pid_t = 0
         AXUIElementGetPid(focusedAXWindow, &focusedPID)
-        guard focusedPID != ProcessInfo.processInfo.processIdentifier else {
+        if focusedPID == ProcessInfo.processInfo.processIdentifier {
+            // Control center is focused — use the hovered window from the list if available
+            if let key = moveEverythingHoveredWindowKey {
+                onMoveEverythingNameWindowRequested?(key)
+            }
             return
         }
 

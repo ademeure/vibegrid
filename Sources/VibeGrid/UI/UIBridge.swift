@@ -106,6 +106,15 @@ final class UIBridge: NSObject, WKScriptMessageHandler {
         case "hideControlCenter":
             appState.hideControlCenter()
 
+        case "windowEditorOpened":
+            let payload = body["payload"] as? [String: Any]
+            let cardWidth = (payload?["cardWidth"] as? NSNumber)?.intValue ?? 540
+            let cardHeight = (payload?["cardHeight"] as? NSNumber)?.intValue ?? 400
+            appState.handleWindowEditorOpened(cardWidth: cardWidth, cardHeight: cardHeight)
+
+        case "windowEditorClosed":
+            appState.handleWindowEditorClosed()
+
         case "toggleMoveEverythingMode":
             let result = appState.toggleMoveEverythingMode()
             switch result {

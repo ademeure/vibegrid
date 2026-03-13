@@ -137,6 +137,7 @@ final class WindowManagerEngine: WindowManagerEngineProtocol {
     var firefoxFrameRetryWorkItemsByKey: [String: [DispatchWorkItem]] = [:]
     var onMoveEverythingInventoryRefreshed: (() -> Void)?
     var onMoveEverythingNameWindowRequested: ((String) -> Void)?
+    var onMoveEverythingQuickViewRequested: (() -> Void)?
     var isMoveEverythingAlwaysOnTopEnabledProvider: (() -> Bool)?
 
     // MARK: - Init
@@ -275,6 +276,7 @@ final class WindowManagerEngine: WindowManagerEngineProtocol {
         }
 
         actions.append(.nameWindow)
+        actions.append(.quickView)
 
         return actions
     }
