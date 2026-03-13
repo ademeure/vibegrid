@@ -18,6 +18,13 @@ settings:
   moveEverythingAdvancedControlCenterHover: false
   moveEverythingStickyHoverStealFocus: true
   moveEverythingCloseHideHotkeysOutsideMode: true
+  moveEverythingITermRecentActivityTimeout: 7
+  moveEverythingITermRecentActivityActiveText: "[LIVE]"
+  moveEverythingITermRecentActivityIdleText: "[idle]"
+  moveEverythingITermRecentActivityBadgeEnabled: true
+  moveEverythingITermRecentActivityColorize: true
+  moveEverythingITermRecentActivityActiveColor: "#228844"
+  moveEverythingITermRecentActivityIdleColor: "#AA3333"
   moveEverythingCloseWindowHotkey: cmd+shift+w
   moveEverythingHideWindowHotkey: alt+cmd+h
 shortcuts:

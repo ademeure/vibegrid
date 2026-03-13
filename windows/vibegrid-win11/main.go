@@ -55,14 +55,14 @@ var (
 	procGetClassNameW            = user32.NewProc("GetClassNameW")
 	procGetWindow                = user32.NewProc("GetWindow")
 
-	procOpenProcess  = kernel32.NewProc("OpenProcess")
-	procCloseHandle  = kernel32.NewProc("CloseHandle")
+	procOpenProcess = kernel32.NewProc("OpenProcess")
+	procCloseHandle = kernel32.NewProc("CloseHandle")
 
 	procGetModuleBaseNameW = psapi.NewProc("GetModuleBaseNameW")
 
-	advapi32             = syscall.NewLazyDLL("advapi32.dll")
-	procRegSetValueExW   = advapi32.NewProc("RegSetValueExW")
-	procRegDeleteValueW  = advapi32.NewProc("RegDeleteValueW")
+	advapi32            = syscall.NewLazyDLL("advapi32.dll")
+	procRegSetValueExW  = advapi32.NewProc("RegSetValueExW")
+	procRegDeleteValueW = advapi32.NewProc("RegDeleteValueW")
 )
 
 const (
@@ -76,13 +76,13 @@ const (
 	swpNoSize        = 0x0001
 	swpNoMove        = 0x0002
 
-	gwlExStyle       uintptr = ^uintptr(19) // -20
-	gwlStyle         uintptr = ^uintptr(15) // -16
-	gwOwner          = 4 // GetWindow(hwnd, GW_OWNER)
+	gwlExStyle uintptr = ^uintptr(19) // -20
+	gwlStyle   uintptr = ^uintptr(15) // -16
+	gwOwner            = 4            // GetWindow(hwnd, GW_OWNER)
 
-	wsExAppWindow    = 0x00040000
-	wsExNoActivate2  = 0x08000000
-	wsChild          = 0x40000000
+	wsExAppWindow   = 0x00040000
+	wsExNoActivate2 = 0x08000000
+	wsChild         = 0x40000000
 )
 
 type rect struct {
@@ -102,11 +102,11 @@ var win32Chan = make(chan win32Request, 16)
 
 // threadHealth tracks whether critical goroutines are alive.
 var threadHealth struct {
-	win32    atomic.Int64
-	hotkey   atomic.Int64
-	tray     atomic.Int64
-	overlay  atomic.Int64
-	refresh  atomic.Int64
+	win32   atomic.Int64
+	hotkey  atomic.Int64
+	tray    atomic.Int64
+	overlay atomic.Int64
+	refresh atomic.Int64
 }
 
 func initWin32Thread(logger *log.Logger) {
@@ -193,16 +193,16 @@ func moveWindowCompensated(hwnd uintptr, x, y, w, h, border int32) {
 // ---------------------------------------------------------------------------
 
 var (
-	procRegisterHotKey   = user32.NewProc("RegisterHotKey")
-	procUnregisterHotKey = user32.NewProc("UnregisterHotKey")
-	procGetMessageW      = user32.NewProc("GetMessageW")
-	procGetForegroundWindow  = user32.NewProc("GetForegroundWindow")
-	procPostThreadMessageW   = user32.NewProc("PostThreadMessageW")
-	procGetCurrentThreadId   = kernel32.NewProc("GetCurrentThreadId")
+	procRegisterHotKey      = user32.NewProc("RegisterHotKey")
+	procUnregisterHotKey    = user32.NewProc("UnregisterHotKey")
+	procGetMessageW         = user32.NewProc("GetMessageW")
+	procGetForegroundWindow = user32.NewProc("GetForegroundWindow")
+	procPostThreadMessageW  = user32.NewProc("PostThreadMessageW")
+	procGetCurrentThreadId  = kernel32.NewProc("GetCurrentThreadId")
 )
 
 const wmHotkey = 0x0312
-const wmUser   = 0x0400
+const wmUser = 0x0400
 
 // Win32 modifier flags for RegisterHotKey
 const (
@@ -258,7 +258,7 @@ var keyNameToVK = map[string]uint32{
 	"return": 0x0D, "enter": 0x0D, "space": 0x20, "tab": 0x09,
 	"escape": 0x1B, "esc": 0x1B, "delete": 0x08, "backspace": 0x08,
 	"forwarddelete": 0x2E,
-	"home": 0x24, "end": 0x23, "pageup": 0x21, "pagedown": 0x22,
+	"home":          0x24, "end": 0x23, "pageup": 0x21, "pagedown": 0x22,
 	"grave": 0xC0, "`": 0xC0,
 	"-": 0xBD, "=": 0xBB, "[": 0xDB, "]": 0xDD, "\\": 0xDC,
 	";": 0xBA, "'": 0xDE, ",": 0xBC, ".": 0xBE, "/": 0xBF,
@@ -1049,10 +1049,10 @@ func retileVisibleWindows(as *AppState, logger *log.Logger, widthFraction float6
 	}
 
 	type tileCandidate struct {
-		rows, cols       int
-		tileW, tileH     float64
-		aspectDelta      float64
-		usedArea         float64
+		rows, cols   int
+		tileW, tileH float64
+		aspectDelta  float64
+		usedArea     float64
 	}
 
 	wa := getWorkArea()
@@ -1260,30 +1260,39 @@ func defaultConfig() map[string]any {
 	return map[string]any{
 		"version": 1,
 		"settings": map[string]any{
-			"defaultGridColumns":                     12,
-			"defaultGridRows":                        8,
-			"gap":                                    0,
-			"frameBorderCompensation":                7,
-			"defaultCycleDisplaysOnWrap":             false,
-			"animationDuration":                      0,
-			"controlCenterScale":                     1,
-			"themeMode":                              "system",
-			"moveEverythingMoveOnSelection":          "miniControlCenterOnTop",
-			"moveEverythingCenterWidthPercent":       33,
-			"moveEverythingCenterHeightPercent":      70,
-			"moveEverythingStartAlwaysOnTop":         false,
-			"moveEverythingStartMoveToBottom":        false,
-			"moveEverythingAdvancedControlCenterHover": true,
-			"moveEverythingStickyHoverStealFocus":    false,
-			"moveEverythingCloseHideHotkeysOutsideMode": false,
-			"moveEverythingExcludeControlCenter":     false,
-			"moveEverythingMiniRetileWidthPercent":   25,
-			"moveEverythingBackgroundRefreshInterval": 5,
-			"moveEverythingOverlayMode":              "persistent",
-			"moveEverythingOverlayDuration":          2,
-			"moveEverythingCloseWindowHotkey":        nil,
-			"moveEverythingHideWindowHotkey":         nil,
-			"largerFonts":                            true,
+			"defaultGridColumns":                            12,
+			"defaultGridRows":                               8,
+			"gap":                                           0,
+			"frameBorderCompensation":                       7,
+			"defaultCycleDisplaysOnWrap":                    false,
+			"animationDuration":                             0,
+			"controlCenterScale":                            1,
+			"themeMode":                                     "system",
+			"moveEverythingMoveOnSelection":                 "miniControlCenterOnTop",
+			"moveEverythingCenterWidthPercent":              33,
+			"moveEverythingCenterHeightPercent":             70,
+			"moveEverythingStartAlwaysOnTop":                false,
+			"moveEverythingStartMoveToBottom":               false,
+			"moveEverythingAdvancedControlCenterHover":      true,
+			"moveEverythingStickyHoverStealFocus":           false,
+			"moveEverythingCloseHideHotkeysOutsideMode":     false,
+			"moveEverythingExcludeControlCenter":            false,
+			"moveEverythingMiniRetileWidthPercent":          25,
+			"moveEverythingBackgroundRefreshInterval":       5,
+			"moveEverythingITermRecentActivityTimeout":      10,
+			"moveEverythingITermRecentActivityActiveText":   "[ACTIVE]",
+			"moveEverythingITermRecentActivityIdleText":     "",
+			"moveEverythingITermRecentActivityBadgeEnabled": true,
+			"moveEverythingITermRecentActivityColorize":     true,
+			"moveEverythingActiveWindowHighlightColorize":   true,
+			"moveEverythingActiveWindowHighlightColor":      "#4D88D4",
+			"moveEverythingITermRecentActivityActiveColor":  "#2F8F4E",
+			"moveEverythingITermRecentActivityIdleColor":    "#BA4D4D",
+			"moveEverythingOverlayMode":                     "persistent",
+			"moveEverythingOverlayDuration":                 2,
+			"moveEverythingCloseWindowHotkey":               nil,
+			"moveEverythingHideWindowHotkey":                nil,
+			"largerFonts":                                   true,
 		},
 		"shortcuts": defaultShortcuts(),
 	}
@@ -1375,8 +1384,8 @@ func (as *AppState) saveConfig(cfg map[string]any) error {
 // ---------------------------------------------------------------------------
 
 type statePush struct {
-	Version int64  `json:"version"`
-	Message any    `json:"message,omitempty"`
+	Version int64 `json:"version"`
+	Message any   `json:"message,omitempty"`
 }
 
 var (
@@ -1427,21 +1436,21 @@ func buildFullState(as *AppState, logger *log.Logger, icons *iconCache) map[stri
 	return map[string]any{
 		"type": "state",
 		"payload": map[string]any{
-			"config":                    as.getConfig(),
-			"hotKeyIssues":              []any{},
-			"configPath":                as.configPath,
-			"permissions":               map[string]any{"accessibility": true},
-			"runtime":                   map[string]any{"sandboxed": false, "message": ""},
-			"launchAtLogin":             map[string]any{"supported": true, "enabled": isLaunchAtStartupEnabled(), "requiresApproval": false, "message": ""},
-			"moveEverythingActive":      true,
-			"moveEverythingWindows":     windows,
-			"controlCenterFocused":      true,
+			"config":                             as.getConfig(),
+			"hotKeyIssues":                       []any{},
+			"configPath":                         as.configPath,
+			"permissions":                        map[string]any{"accessibility": true},
+			"runtime":                            map[string]any{"sandboxed": false, "message": ""},
+			"launchAtLogin":                      map[string]any{"supported": true, "enabled": isLaunchAtStartupEnabled(), "requiresApproval": false, "message": ""},
+			"moveEverythingActive":               true,
+			"moveEverythingWindows":              windows,
+			"controlCenterFocused":               true,
 			"moveEverythingControlCenterFocused": true,
-			"moveEverythingAlwaysOnTop": false,
-			"moveEverythingMoveToBottom": false,
-			"moveEverythingDontMoveVibeGrid": false,
-			"moveEverythingShowOverlays": false,
-			"yaml":                      "",
+			"moveEverythingAlwaysOnTop":          false,
+			"moveEverythingMoveToBottom":         false,
+			"moveEverythingDontMoveVibeGrid":     false,
+			"moveEverythingShowOverlays":         false,
+			"yaml":                               "",
 		},
 	}
 }

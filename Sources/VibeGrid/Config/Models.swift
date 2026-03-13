@@ -216,8 +216,23 @@ struct Settings: Codable {
     var moveEverythingExcludeControlCenter: Bool
     var moveEverythingMiniRetileWidthPercent: Double
     var moveEverythingBackgroundRefreshInterval: Double
+    var moveEverythingITermRecentActivityTimeout: Double
+    var moveEverythingITermRecentActivityActiveText: String
+    var moveEverythingITermRecentActivityIdleText: String
+    var moveEverythingITermRecentActivityBadgeEnabled: Bool
+    var moveEverythingITermRecentActivityColorize: Bool
+    var moveEverythingActiveWindowHighlightColorize: Bool
+    var moveEverythingActiveWindowHighlightColor: String
+    var moveEverythingITermRecentActivityActiveColor: String
+    var moveEverythingITermRecentActivityIdleColor: String
+    var moveEverythingITermBadgeTopMargin: Int
+    var moveEverythingITermBadgeRightMargin: Int
+    var moveEverythingITermBadgeMaxWidth: Int
+    var moveEverythingITermBadgeMaxHeight: Int
+    var moveEverythingITermBadgeFromTitle: Bool
     var moveEverythingCloseWindowHotkey: Hotkey?
     var moveEverythingHideWindowHotkey: Hotkey?
+    var moveEverythingNameWindowHotkey: Hotkey?
 
     static var `default`: Settings {
         Settings(
@@ -242,8 +257,23 @@ struct Settings: Codable {
             moveEverythingExcludeControlCenter: false,
             moveEverythingMiniRetileWidthPercent: 25,
             moveEverythingBackgroundRefreshInterval: 5,
+            moveEverythingITermRecentActivityTimeout: 10,
+            moveEverythingITermRecentActivityActiveText: "[ACTIVE]",
+            moveEverythingITermRecentActivityIdleText: "",
+            moveEverythingITermRecentActivityBadgeEnabled: false,
+            moveEverythingITermRecentActivityColorize: true,
+            moveEverythingActiveWindowHighlightColorize: true,
+            moveEverythingActiveWindowHighlightColor: "#4D88D4",
+            moveEverythingITermRecentActivityActiveColor: "#2F8F4E",
+            moveEverythingITermRecentActivityIdleColor: "#BA4D4D",
+            moveEverythingITermBadgeTopMargin: 6,
+            moveEverythingITermBadgeRightMargin: 8,
+            moveEverythingITermBadgeMaxWidth: 120,
+            moveEverythingITermBadgeMaxHeight: 28,
+            moveEverythingITermBadgeFromTitle: false,
             moveEverythingCloseWindowHotkey: nil,
-            moveEverythingHideWindowHotkey: nil
+            moveEverythingHideWindowHotkey: nil,
+            moveEverythingNameWindowHotkey: nil
         )
     }
 
@@ -269,8 +299,23 @@ struct Settings: Codable {
         moveEverythingExcludeControlCenter: Bool = false,
         moveEverythingMiniRetileWidthPercent: Double = 25,
         moveEverythingBackgroundRefreshInterval: Double = 5,
+        moveEverythingITermRecentActivityTimeout: Double = 10,
+        moveEverythingITermRecentActivityActiveText: String = "[ACTIVE]",
+        moveEverythingITermRecentActivityIdleText: String = "",
+        moveEverythingITermRecentActivityBadgeEnabled: Bool = false,
+        moveEverythingITermRecentActivityColorize: Bool = true,
+        moveEverythingActiveWindowHighlightColorize: Bool = true,
+        moveEverythingActiveWindowHighlightColor: String = "#4D88D4",
+        moveEverythingITermRecentActivityActiveColor: String = "#2F8F4E",
+        moveEverythingITermRecentActivityIdleColor: String = "#BA4D4D",
+        moveEverythingITermBadgeTopMargin: Int = 6,
+        moveEverythingITermBadgeRightMargin: Int = 8,
+        moveEverythingITermBadgeMaxWidth: Int = 120,
+        moveEverythingITermBadgeMaxHeight: Int = 28,
+        moveEverythingITermBadgeFromTitle: Bool = false,
         moveEverythingCloseWindowHotkey: Hotkey? = nil,
-        moveEverythingHideWindowHotkey: Hotkey? = nil
+        moveEverythingHideWindowHotkey: Hotkey? = nil,
+        moveEverythingNameWindowHotkey: Hotkey? = nil
     ) {
         self.defaultGridColumns = defaultGridColumns
         self.defaultGridRows = defaultGridRows
@@ -293,8 +338,23 @@ struct Settings: Codable {
         self.moveEverythingExcludeControlCenter = moveEverythingExcludeControlCenter
         self.moveEverythingMiniRetileWidthPercent = moveEverythingMiniRetileWidthPercent
         self.moveEverythingBackgroundRefreshInterval = moveEverythingBackgroundRefreshInterval
+        self.moveEverythingITermRecentActivityTimeout = moveEverythingITermRecentActivityTimeout
+        self.moveEverythingITermRecentActivityActiveText = moveEverythingITermRecentActivityActiveText
+        self.moveEverythingITermRecentActivityIdleText = moveEverythingITermRecentActivityIdleText
+        self.moveEverythingITermRecentActivityBadgeEnabled = moveEverythingITermRecentActivityBadgeEnabled
+        self.moveEverythingITermRecentActivityColorize = moveEverythingITermRecentActivityColorize
+        self.moveEverythingActiveWindowHighlightColorize = moveEverythingActiveWindowHighlightColorize
+        self.moveEverythingActiveWindowHighlightColor = moveEverythingActiveWindowHighlightColor
+        self.moveEverythingITermRecentActivityActiveColor = moveEverythingITermRecentActivityActiveColor
+        self.moveEverythingITermRecentActivityIdleColor = moveEverythingITermRecentActivityIdleColor
+        self.moveEverythingITermBadgeTopMargin = moveEverythingITermBadgeTopMargin
+        self.moveEverythingITermBadgeRightMargin = moveEverythingITermBadgeRightMargin
+        self.moveEverythingITermBadgeMaxWidth = moveEverythingITermBadgeMaxWidth
+        self.moveEverythingITermBadgeMaxHeight = moveEverythingITermBadgeMaxHeight
+        self.moveEverythingITermBadgeFromTitle = moveEverythingITermBadgeFromTitle
         self.moveEverythingCloseWindowHotkey = moveEverythingCloseWindowHotkey
         self.moveEverythingHideWindowHotkey = moveEverythingHideWindowHotkey
+        self.moveEverythingNameWindowHotkey = moveEverythingNameWindowHotkey
     }
 
     enum CodingKeys: String, CodingKey {
@@ -320,8 +380,23 @@ struct Settings: Codable {
         case moveEverythingExcludeControlCenter
         case moveEverythingMiniRetileWidthPercent
         case moveEverythingBackgroundRefreshInterval
+        case moveEverythingITermRecentActivityTimeout
+        case moveEverythingITermRecentActivityActiveText
+        case moveEverythingITermRecentActivityIdleText
+        case moveEverythingITermRecentActivityBadgeEnabled
+        case moveEverythingITermRecentActivityColorize
+        case moveEverythingActiveWindowHighlightColorize
+        case moveEverythingActiveWindowHighlightColor
+        case moveEverythingITermRecentActivityActiveColor
+        case moveEverythingITermRecentActivityIdleColor
+        case moveEverythingITermBadgeTopMargin
+        case moveEverythingITermBadgeRightMargin
+        case moveEverythingITermBadgeMaxWidth
+        case moveEverythingITermBadgeMaxHeight
+        case moveEverythingITermBadgeFromTitle
         case moveEverythingCloseWindowHotkey
         case moveEverythingHideWindowHotkey
+        case moveEverythingNameWindowHotkey
     }
 
     init(from decoder: Decoder) throws {
@@ -352,8 +427,65 @@ struct Settings: Codable {
         moveEverythingExcludeControlCenter = try container.decodeIfPresent(Bool.self, forKey: .moveEverythingExcludeControlCenter) ?? false
         moveEverythingMiniRetileWidthPercent = try container.decodeIfPresent(Double.self, forKey: .moveEverythingMiniRetileWidthPercent) ?? 25
         moveEverythingBackgroundRefreshInterval = try container.decodeIfPresent(Double.self, forKey: .moveEverythingBackgroundRefreshInterval) ?? 5
+        moveEverythingITermRecentActivityTimeout = try container.decodeIfPresent(
+            Double.self,
+            forKey: .moveEverythingITermRecentActivityTimeout
+        ) ?? 10
+        moveEverythingITermRecentActivityActiveText = try container.decodeIfPresent(
+            String.self,
+            forKey: .moveEverythingITermRecentActivityActiveText
+        ) ?? "[ACTIVE]"
+        moveEverythingITermRecentActivityIdleText = try container.decodeIfPresent(
+            String.self,
+            forKey: .moveEverythingITermRecentActivityIdleText
+        ) ?? ""
+        moveEverythingITermRecentActivityBadgeEnabled = try container.decodeIfPresent(
+            Bool.self,
+            forKey: .moveEverythingITermRecentActivityBadgeEnabled
+        ) ?? false
+        moveEverythingITermRecentActivityColorize = try container.decodeIfPresent(
+            Bool.self,
+            forKey: .moveEverythingITermRecentActivityColorize
+        ) ?? true
+        moveEverythingActiveWindowHighlightColorize = try container.decodeIfPresent(
+            Bool.self,
+            forKey: .moveEverythingActiveWindowHighlightColorize
+        ) ?? true
+        moveEverythingActiveWindowHighlightColor = try container.decodeIfPresent(
+            String.self,
+            forKey: .moveEverythingActiveWindowHighlightColor
+        ) ?? "#4D88D4"
+        moveEverythingITermRecentActivityActiveColor = try container.decodeIfPresent(
+            String.self,
+            forKey: .moveEverythingITermRecentActivityActiveColor
+        ) ?? "#2F8F4E"
+        moveEverythingITermRecentActivityIdleColor = try container.decodeIfPresent(
+            String.self,
+            forKey: .moveEverythingITermRecentActivityIdleColor
+        ) ?? "#BA4D4D"
+        moveEverythingITermBadgeTopMargin = try container.decodeIfPresent(
+            Int.self,
+            forKey: .moveEverythingITermBadgeTopMargin
+        ) ?? 6
+        moveEverythingITermBadgeRightMargin = try container.decodeIfPresent(
+            Int.self,
+            forKey: .moveEverythingITermBadgeRightMargin
+        ) ?? 8
+        moveEverythingITermBadgeMaxWidth = try container.decodeIfPresent(
+            Int.self,
+            forKey: .moveEverythingITermBadgeMaxWidth
+        ) ?? 120
+        moveEverythingITermBadgeMaxHeight = try container.decodeIfPresent(
+            Int.self,
+            forKey: .moveEverythingITermBadgeMaxHeight
+        ) ?? 28
+        moveEverythingITermBadgeFromTitle = try container.decodeIfPresent(
+            Bool.self,
+            forKey: .moveEverythingITermBadgeFromTitle
+        ) ?? false
         moveEverythingCloseWindowHotkey = try container.decodeIfPresent(Hotkey.self, forKey: .moveEverythingCloseWindowHotkey)
         moveEverythingHideWindowHotkey = try container.decodeIfPresent(Hotkey.self, forKey: .moveEverythingHideWindowHotkey)
+        moveEverythingNameWindowHotkey = try container.decodeIfPresent(Hotkey.self, forKey: .moveEverythingNameWindowHotkey)
         if let decodedThemeMode = try container.decodeIfPresent(ThemeMode.self, forKey: .themeMode) {
             themeMode = decodedThemeMode
         } else {
@@ -388,14 +520,36 @@ struct Settings: Codable {
         try container.encode(moveEverythingExcludeControlCenter, forKey: .moveEverythingExcludeControlCenter)
         try container.encode(moveEverythingMiniRetileWidthPercent, forKey: .moveEverythingMiniRetileWidthPercent)
         try container.encode(moveEverythingBackgroundRefreshInterval, forKey: .moveEverythingBackgroundRefreshInterval)
+        try container.encode(moveEverythingITermRecentActivityTimeout, forKey: .moveEverythingITermRecentActivityTimeout)
+        try container.encode(moveEverythingITermRecentActivityActiveText, forKey: .moveEverythingITermRecentActivityActiveText)
+        try container.encode(moveEverythingITermRecentActivityIdleText, forKey: .moveEverythingITermRecentActivityIdleText)
+        try container.encode(
+            moveEverythingITermRecentActivityBadgeEnabled,
+            forKey: .moveEverythingITermRecentActivityBadgeEnabled
+        )
+        try container.encode(moveEverythingITermRecentActivityColorize, forKey: .moveEverythingITermRecentActivityColorize)
+        try container.encode(
+            moveEverythingActiveWindowHighlightColorize,
+            forKey: .moveEverythingActiveWindowHighlightColorize
+        )
+        try container.encode(moveEverythingActiveWindowHighlightColor, forKey: .moveEverythingActiveWindowHighlightColor)
+        try container.encode(moveEverythingITermRecentActivityActiveColor, forKey: .moveEverythingITermRecentActivityActiveColor)
+        try container.encode(moveEverythingITermRecentActivityIdleColor, forKey: .moveEverythingITermRecentActivityIdleColor)
+        try container.encode(moveEverythingITermBadgeTopMargin, forKey: .moveEverythingITermBadgeTopMargin)
+        try container.encode(moveEverythingITermBadgeRightMargin, forKey: .moveEverythingITermBadgeRightMargin)
+        try container.encode(moveEverythingITermBadgeMaxWidth, forKey: .moveEverythingITermBadgeMaxWidth)
+        try container.encode(moveEverythingITermBadgeMaxHeight, forKey: .moveEverythingITermBadgeMaxHeight)
+        try container.encode(moveEverythingITermBadgeFromTitle, forKey: .moveEverythingITermBadgeFromTitle)
         try container.encodeIfPresent(moveEverythingCloseWindowHotkey, forKey: .moveEverythingCloseWindowHotkey)
         try container.encodeIfPresent(moveEverythingHideWindowHotkey, forKey: .moveEverythingHideWindowHotkey)
+        try container.encodeIfPresent(moveEverythingNameWindowHotkey, forKey: .moveEverythingNameWindowHotkey)
     }
 }
 
 enum MoveEverythingHotkeyAction: String, CaseIterable {
     case closeWindow
     case hideWindow
+    case nameWindow
 
     var displayName: String {
         switch self {
@@ -403,6 +557,8 @@ enum MoveEverythingHotkeyAction: String, CaseIterable {
             return "Close Window"
         case .hideWindow:
             return "Hide Window"
+        case .nameWindow:
+            return "Name Window"
         }
     }
 }
@@ -414,6 +570,8 @@ extension Settings {
             return moveEverythingCloseWindowHotkey
         case .hideWindow:
             return moveEverythingHideWindowHotkey
+        case .nameWindow:
+            return moveEverythingNameWindowHotkey
         }
     }
 }
@@ -617,8 +775,55 @@ extension AppConfig {
             copy.settings.moveEverythingOverlayDuration = 2
         }
         copy.settings.moveEverythingOverlayDuration = min(max(copy.settings.moveEverythingOverlayDuration, 0.2), 8)
+        if !copy.settings.moveEverythingBackgroundRefreshInterval.isFinite {
+            copy.settings.moveEverythingBackgroundRefreshInterval = 5
+        }
+        copy.settings.moveEverythingBackgroundRefreshInterval = min(
+            max(copy.settings.moveEverythingBackgroundRefreshInterval, 0.5),
+            30
+        )
+        if !copy.settings.moveEverythingITermRecentActivityTimeout.isFinite {
+            copy.settings.moveEverythingITermRecentActivityTimeout = 10
+        }
+        copy.settings.moveEverythingITermRecentActivityTimeout = min(
+            max(copy.settings.moveEverythingITermRecentActivityTimeout, 0),
+            300
+        )
+        copy.settings.moveEverythingITermRecentActivityActiveText = copy.settings.moveEverythingITermRecentActivityActiveText
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        copy.settings.moveEverythingITermRecentActivityIdleText = copy.settings.moveEverythingITermRecentActivityIdleText
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        copy.settings.moveEverythingActiveWindowHighlightColor = normalizeHexColor(
+            copy.settings.moveEverythingActiveWindowHighlightColor,
+            fallback: "#4D88D4"
+        )
+        copy.settings.moveEverythingITermRecentActivityActiveColor = normalizeHexColor(
+            copy.settings.moveEverythingITermRecentActivityActiveColor,
+            fallback: "#2F8F4E"
+        )
+        copy.settings.moveEverythingITermRecentActivityIdleColor = normalizeHexColor(
+            copy.settings.moveEverythingITermRecentActivityIdleColor,
+            fallback: "#BA4D4D"
+        )
+        copy.settings.moveEverythingITermBadgeTopMargin = min(
+            max(copy.settings.moveEverythingITermBadgeTopMargin, 0),
+            200
+        )
+        copy.settings.moveEverythingITermBadgeRightMargin = min(
+            max(copy.settings.moveEverythingITermBadgeRightMargin, 0),
+            200
+        )
+        copy.settings.moveEverythingITermBadgeMaxWidth = min(
+            max(copy.settings.moveEverythingITermBadgeMaxWidth, 32),
+            600
+        )
+        copy.settings.moveEverythingITermBadgeMaxHeight = min(
+            max(copy.settings.moveEverythingITermBadgeMaxHeight, 10),
+            200
+        )
         copy.settings.moveEverythingCloseWindowHotkey = normalizeHotkey(copy.settings.moveEverythingCloseWindowHotkey)
         copy.settings.moveEverythingHideWindowHotkey = normalizeHotkey(copy.settings.moveEverythingHideWindowHotkey)
+        copy.settings.moveEverythingNameWindowHotkey = normalizeHotkey(copy.settings.moveEverythingNameWindowHotkey)
 
         var seenShortcutIDs: Set<String> = []
         copy.shortcuts = copy.shortcuts.map { shortcut in
@@ -715,4 +920,25 @@ private func normalizeHotkey(_ hotkey: Hotkey?) -> Hotkey? {
         )
     ).sorted()
     return hotkey
+}
+
+private func normalizeHexColor(_ value: String, fallback: String) -> String {
+    let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard trimmed.hasPrefix("#") else {
+        return fallback
+    }
+    let raw = String(trimmed.dropFirst())
+    let hexSet = CharacterSet(charactersIn: "0123456789ABCDEFabcdef")
+    guard !raw.isEmpty,
+          raw.unicodeScalars.allSatisfy({ hexSet.contains($0) }) else {
+        return fallback
+    }
+    if raw.count == 6 {
+        return "#\(raw.uppercased())"
+    }
+    if raw.count == 3 {
+        let characters = Array(raw.uppercased())
+        return "#\(characters[0])\(characters[0])\(characters[1])\(characters[1])\(characters[2])\(characters[2])"
+    }
+    return fallback
 }

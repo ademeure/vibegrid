@@ -341,7 +341,54 @@ extension WindowManagerEngine {
             } else {
                 _ = hideFocusedWindowOutsideMoveEverythingMode()
             }
+
+        case .nameWindow:
+            nameWindowFromHotkey()
         }
+    }
+
+    func nameWindowFromHotkey() {
+        guard let focusedAXWindow = focusedWindow() else {
+            return
+        }
+        var focusedPID: pid_t = 0
+        AXUIElementGetPid(focusedAXWindow, &focusedPID)
+        guard focusedPID != ProcessInfo.processInfo.processIdentifier else {
+            return
+        }
+
+        let inventory = resolveMoveEverythingWindowInventory(forceRefresh: true)
+        let allWindows = inventory.visible + inventory.hidden
+
+        let candidates = allWindows.filter { $0.pid == focusedPID }
+        guard !candidates.isEmpty else {
+            return
+        }
+
+        var matchedKey: String?
+        if let focusedWindowNumber = copyIntAttribute(from: focusedAXWindow, attribute: "AXWindowNumber") {
+            matchedKey = candidates.first(where: { $0.windowNumber == focusedWindowNumber })?.key
+        }
+        if matchedKey == nil {
+            matchedKey = candidates.first(where: { CFEqual($0.window, focusedAXWindow) })?.key
+        }
+        if matchedKey == nil, let focusedFrame = currentWindowRect(for: focusedAXWindow)?.integral {
+            matchedKey = candidates.first(where: { managedWindow in
+                guard let frame = currentWindowRect(for: managedWindow.window)?.integral else {
+                    return false
+                }
+                return frame == focusedFrame
+            })?.key
+        }
+        if matchedKey == nil, candidates.count == 1 {
+            matchedKey = candidates.first?.key
+        }
+
+        guard let key = matchedKey else {
+            return
+        }
+
+        onMoveEverythingNameWindowRequested?(key)
     }
 
     // MARK: - Placement cycling

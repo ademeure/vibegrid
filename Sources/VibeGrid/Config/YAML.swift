@@ -264,6 +264,70 @@ struct YAMLConfigCodec {
                             lineNumber: line.number,
                             field: "moveEverythingBackgroundRefreshInterval"
                         )
+                    case "moveEverythingITermRecentActivityTimeout":
+                        config.settings.moveEverythingITermRecentActivityTimeout = try parseDouble(
+                            effectiveValue,
+                            lineNumber: line.number,
+                            field: "moveEverythingITermRecentActivityTimeout"
+                        )
+                    case "moveEverythingITermRecentActivityActiveText":
+                        config.settings.moveEverythingITermRecentActivityActiveText = parseScalar(effectiveValue)
+                    case "moveEverythingITermRecentActivityIdleText":
+                        config.settings.moveEverythingITermRecentActivityIdleText = parseScalar(effectiveValue)
+                    case "moveEverythingITermRecentActivityBadgeEnabled":
+                        config.settings.moveEverythingITermRecentActivityBadgeEnabled = try parseBoolean(
+                            effectiveValue,
+                            lineNumber: line.number,
+                            field: "moveEverythingITermRecentActivityBadgeEnabled"
+                        )
+                    case "moveEverythingITermRecentActivityColorize":
+                        config.settings.moveEverythingITermRecentActivityColorize = try parseBoolean(
+                            effectiveValue,
+                            lineNumber: line.number,
+                            field: "moveEverythingITermRecentActivityColorize"
+                        )
+                    case "moveEverythingActiveWindowHighlightColorize":
+                        config.settings.moveEverythingActiveWindowHighlightColorize = try parseBoolean(
+                            effectiveValue,
+                            lineNumber: line.number,
+                            field: "moveEverythingActiveWindowHighlightColorize"
+                        )
+                    case "moveEverythingActiveWindowHighlightColor":
+                        config.settings.moveEverythingActiveWindowHighlightColor = parseScalar(effectiveValue)
+                    case "moveEverythingITermRecentActivityActiveColor":
+                        config.settings.moveEverythingITermRecentActivityActiveColor = parseScalar(effectiveValue)
+                    case "moveEverythingITermRecentActivityIdleColor":
+                        config.settings.moveEverythingITermRecentActivityIdleColor = parseScalar(effectiveValue)
+                    case "moveEverythingITermBadgeTopMargin":
+                        config.settings.moveEverythingITermBadgeTopMargin = try parseInt(
+                            effectiveValue,
+                            lineNumber: line.number,
+                            field: "moveEverythingITermBadgeTopMargin"
+                        )
+                    case "moveEverythingITermBadgeRightMargin":
+                        config.settings.moveEverythingITermBadgeRightMargin = try parseInt(
+                            effectiveValue,
+                            lineNumber: line.number,
+                            field: "moveEverythingITermBadgeRightMargin"
+                        )
+                    case "moveEverythingITermBadgeMaxWidth":
+                        config.settings.moveEverythingITermBadgeMaxWidth = try parseInt(
+                            effectiveValue,
+                            lineNumber: line.number,
+                            field: "moveEverythingITermBadgeMaxWidth"
+                        )
+                    case "moveEverythingITermBadgeMaxHeight":
+                        config.settings.moveEverythingITermBadgeMaxHeight = try parseInt(
+                            effectiveValue,
+                            lineNumber: line.number,
+                            field: "moveEverythingITermBadgeMaxHeight"
+                        )
+                    case "moveEverythingITermBadgeFromTitle":
+                        config.settings.moveEverythingITermBadgeFromTitle = try parseBoolean(
+                            effectiveValue,
+                            lineNumber: line.number,
+                            field: "moveEverythingITermBadgeFromTitle"
+                        )
                     case "moveEverythingCloseWindowHotkey":
                         config.settings.moveEverythingCloseWindowHotkey = try parseHotkey(
                             effectiveValue,
@@ -275,6 +339,12 @@ struct YAMLConfigCodec {
                             effectiveValue,
                             lineNumber: line.number,
                             field: "moveEverythingHideWindowHotkey"
+                        )
+                    case "moveEverythingNameWindowHotkey":
+                        config.settings.moveEverythingNameWindowHotkey = try parseHotkey(
+                            effectiveValue,
+                            lineNumber: line.number,
+                            field: "moveEverythingNameWindowHotkey"
                         )
                     default:
                         if Self.ignoredLegacySettingsKeys.contains(key) {
@@ -481,8 +551,23 @@ struct YAMLConfigCodec {
         lines.append("  moveEverythingExcludeControlCenter: \(normalized.settings.moveEverythingExcludeControlCenter ? "true" : "false")")
         lines.append("  moveEverythingMiniRetileWidthPercent: \(formatDouble(normalized.settings.moveEverythingMiniRetileWidthPercent))")
         lines.append("  moveEverythingBackgroundRefreshInterval: \(formatDouble(normalized.settings.moveEverythingBackgroundRefreshInterval))")
+        lines.append("  moveEverythingITermRecentActivityTimeout: \(formatDouble(normalized.settings.moveEverythingITermRecentActivityTimeout))")
+        lines.append("  moveEverythingITermRecentActivityActiveText: \(encodeScalar(normalized.settings.moveEverythingITermRecentActivityActiveText))")
+        lines.append("  moveEverythingITermRecentActivityIdleText: \(encodeScalar(normalized.settings.moveEverythingITermRecentActivityIdleText))")
+        lines.append("  moveEverythingITermRecentActivityBadgeEnabled: \(normalized.settings.moveEverythingITermRecentActivityBadgeEnabled ? "true" : "false")")
+        lines.append("  moveEverythingITermRecentActivityColorize: \(normalized.settings.moveEverythingITermRecentActivityColorize ? "true" : "false")")
+        lines.append("  moveEverythingActiveWindowHighlightColorize: \(normalized.settings.moveEverythingActiveWindowHighlightColorize ? "true" : "false")")
+        lines.append("  moveEverythingActiveWindowHighlightColor: \(encodeScalar(normalized.settings.moveEverythingActiveWindowHighlightColor))")
+        lines.append("  moveEverythingITermRecentActivityActiveColor: \(encodeScalar(normalized.settings.moveEverythingITermRecentActivityActiveColor))")
+        lines.append("  moveEverythingITermRecentActivityIdleColor: \(encodeScalar(normalized.settings.moveEverythingITermRecentActivityIdleColor))")
+        lines.append("  moveEverythingITermBadgeTopMargin: \(normalized.settings.moveEverythingITermBadgeTopMargin)")
+        lines.append("  moveEverythingITermBadgeRightMargin: \(normalized.settings.moveEverythingITermBadgeRightMargin)")
+        lines.append("  moveEverythingITermBadgeMaxWidth: \(normalized.settings.moveEverythingITermBadgeMaxWidth)")
+        lines.append("  moveEverythingITermBadgeMaxHeight: \(normalized.settings.moveEverythingITermBadgeMaxHeight)")
+        lines.append("  moveEverythingITermBadgeFromTitle: \(normalized.settings.moveEverythingITermBadgeFromTitle)")
         lines.append("  moveEverythingCloseWindowHotkey: \(encodeHotkey(normalized.settings.moveEverythingCloseWindowHotkey))")
         lines.append("  moveEverythingHideWindowHotkey: \(encodeHotkey(normalized.settings.moveEverythingHideWindowHotkey))")
+        lines.append("  moveEverythingNameWindowHotkey: \(encodeHotkey(normalized.settings.moveEverythingNameWindowHotkey))")
         lines.append("shortcuts:")
 
         for shortcut in normalized.shortcuts {

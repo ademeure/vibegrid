@@ -67,6 +67,10 @@ final class ControlCenterWindowController: NSWindowController, NSWindowDelegate,
         )
     }
 
+    func openWindowEditor(forKey key: String) {
+        bridge.sendOpenWindowEditor(key: key)
+    }
+
     func setMoveEverythingAlwaysOnTop(_ enabled: Bool) {
         guard let window else {
             return
@@ -209,6 +213,34 @@ final class ControlCenterWindowController: NSWindowController, NSWindowDelegate,
         windowFeatures: WKWindowFeatures
     ) -> WKWebView? {
         nil
+    }
+
+    func webView(
+        _ webView: WKWebView,
+        runJavaScriptTextInputPanelWithPrompt prompt: String,
+        defaultText: String?,
+        initiatedByFrame frame: WKFrameInfo,
+        completionHandler: @escaping (String?) -> Void
+    ) {
+        let alert = NSAlert()
+        alert.alertStyle = .informational
+        alert.messageText = prompt.isEmpty ? "Enter text" : prompt
+        alert.addButton(withTitle: "OK")
+        alert.addButton(withTitle: "Cancel")
+
+        let textField = NSTextField(string: defaultText ?? "")
+        textField.frame = NSRect(x: 0, y: 0, width: 360, height: 24)
+        alert.accessoryView = textField
+
+        guard let window else {
+            let response = alert.runModal()
+            completionHandler(response == .alertFirstButtonReturn ? textField.stringValue : nil)
+            return
+        }
+
+        alert.beginSheetModal(for: window) { response in
+            completionHandler(response == .alertFirstButtonReturn ? textField.stringValue : nil)
+        }
     }
 }
 

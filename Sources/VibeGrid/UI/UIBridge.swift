@@ -5,7 +5,6 @@ import WebKit
 final class UIBridge: NSObject, WKScriptMessageHandler {
     private weak var webView: WKWebView?
     private let appState: AppState
-    private let moveEverythingWindowRefreshInterval: TimeInterval = 0.6
     private var moveEverythingWindowInventoryCache: Any = UIBridge.emptyMoveEverythingWindowInventoryPayload
     private var moveEverythingWindowInventoryLastRefreshAt: Date?
 
@@ -27,8 +26,17 @@ final class UIBridge: NSObject, WKScriptMessageHandler {
         }
 
         switch type {
-        case "ready", "requestState":
+        case "ready":
             pushStateToWeb()
+
+        case "requestState":
+            let payload = body["payload"] as? [String: Any]
+            let forceMoveEverythingWindowRefresh = payload?["forceMoveEverythingWindowRefresh"] as? Bool ?? false
+            let allowMoveEverythingWindowRefresh = payload?["allowMoveEverythingWindowRefresh"] as? Bool ?? true
+            pushStateToWeb(
+                forceMoveEverythingWindowRefresh: forceMoveEverythingWindowRefresh,
+                allowMoveEverythingWindowRefresh: allowMoveEverythingWindowRefresh
+            )
 
         case "saveConfig":
             guard let payload = body["payload"] else {
@@ -59,11 +67,14 @@ final class UIBridge: NSObject, WKScriptMessageHandler {
                 let message = payload["message"] as? String ?? ""
                 if let details = payload["details"] as? String, !details.isEmpty {
                     NSLog("VibeGrid JS [%@]: %@ | %@", level, message, details)
+                    WindowListDebugLogger.log("js.\(level)", "\(message) | \(details)")
                 } else {
                     NSLog("VibeGrid JS [%@]: %@", level, message)
+                    WindowListDebugLogger.log("js.\(level)", message)
                 }
             } else {
                 NSLog("VibeGrid JS [info]: %@", body.description)
+                WindowListDebugLogger.log("js.info", body.description)
             }
 
         case "previewPlacement":
@@ -179,6 +190,92 @@ final class UIBridge: NSObject, WKScriptMessageHandler {
             }
             if !appState.maximizeMoveEverythingWindow(withKey: key) {
                 sendNotice(level: "error", message: "Unable to maximize that window")
+            }
+            pushStateToWeb(forceMoveEverythingWindowRefresh: true)
+
+        case "moveEverythingRenameITermWindow":
+            let payload = (body["payload"] as? [String: Any]) ?? [:]
+            let key = payload["key"] as? String ?? ""
+            guard !key.isEmpty else {
+                WindowListDebugLogger.log("rename", "bridge rejected request with missing key")
+                sendNotice(level: "error", message: "Missing Window List window key")
+                return
+            }
+            let windowNumber: Int? = {
+                if let number = payload["windowNumber"] as? NSNumber {
+                    let parsed = number.intValue
+                    return parsed >= 0 ? parsed : nil
+                }
+                if let numberText = payload["windowNumber"] as? String,
+                   let parsed = Int(numberText.trimmingCharacters(in: .whitespacesAndNewlines)),
+                   parsed >= 0 {
+                    return parsed
+                }
+                return nil
+            }()
+            let iTermWindowID = (payload["iTermWindowID"] as? String)?
+                .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let appName = payload["appName"] as? String ?? ""
+            let framePayload = payload["frame"] as? [String: Any]
+            let sourceFrame: MoveEverythingWindowFrameSnapshot? = {
+                guard let framePayload else {
+                    return nil
+                }
+                let x = (framePayload["x"] as? NSNumber)?.doubleValue
+                let y = (framePayload["y"] as? NSNumber)?.doubleValue
+                let width = (framePayload["width"] as? NSNumber)?.doubleValue
+                let height = (framePayload["height"] as? NSNumber)?.doubleValue
+                guard let x, let y, let width, let height else {
+                    return nil
+                }
+                return MoveEverythingWindowFrameSnapshot(x: x, y: y, width: width, height: height)
+            }()
+            let sourceTitle = payload["sourceTitle"] as? String ?? ""
+            let sourceDisplayedTitle = payload["sourceDisplayedTitle"] as? String ?? ""
+            let titleProvided = payload["titleProvided"] as? Bool ?? true
+            let title = payload["title"] as? String ?? ""
+            let badgeTextProvided = payload["badgeTextProvided"] as? Bool ?? true
+            let badgeText = payload["badgeText"] as? String ?? ""
+            let badgeColorProvided = payload["badgeColorProvided"] as? Bool ?? true
+            let badgeColor = payload["badgeColor"] as? String ?? ""
+            let badgeOpacity = payload["badgeOpacity"] as? Int ?? 55
+            let badgeSize = payload["badgeSize"] as? Int ?? 55
+            WindowListDebugLogger.log(
+                "rename",
+                "bridge received key=\(key) windowNumber=\(windowNumber?.description ?? "nil") " +
+                    "iTermWindowID=\(iTermWindowID.isEmpty ? "nil" : iTermWindowID) " +
+                    "appName=\(appName) sourceFrame=\(sourceFrame.map { "\($0.x),\($0.y),\($0.width),\($0.height)" } ?? "nil") " +
+                    "sourceTitle=\(sourceTitle) sourceDisplayedTitle=\(sourceDisplayedTitle) " +
+                    "titleProvided=\(titleProvided) title=\(title) " +
+                    "badgeTextProvided=\(badgeTextProvided) badgeText=\(badgeText) " +
+                    "badgeColorProvided=\(badgeColorProvided) badgeColor=\(badgeColor)"
+            )
+            if !appState.renameMoveEverythingITermWindow(
+                withKey: key,
+                windowNumber: windowNumber,
+                iTermWindowID: iTermWindowID,
+                sourceFrame: sourceFrame,
+                sourceAppName: appName,
+                sourceTitle: sourceTitle,
+                sourceDisplayedTitle: sourceDisplayedTitle,
+                titleProvided: titleProvided,
+                title: title,
+                badgeTextProvided: badgeTextProvided,
+                badgeText: badgeText,
+                badgeColorProvided: badgeColorProvided,
+                badgeColor: badgeColor,
+                badgeOpacity: badgeOpacity,
+                badgeSize: badgeSize
+            ) {
+                let debugLogName = URL(fileURLWithPath: appState.windowListDebugLogPath()).lastPathComponent
+                WindowListDebugLogger.log(
+                    "rename",
+                    "bridge rename failed key=\(key) debugLog=\(debugLogName)"
+                )
+                sendNotice(
+                    level: "error",
+                    message: "Unable to rename that iTerm2 window. See \(debugLogName)."
+                )
             }
             pushStateToWeb(forceMoveEverythingWindowRefresh: true)
 
@@ -324,6 +421,7 @@ final class UIBridge: NSObject, WKScriptMessageHandler {
             ],
             "moveEverythingActive": moveEverythingActive,
             "moveEverythingWindows": moveEverythingWindowInventoryPayload,
+            "moveEverythingFocusedWindowKey": appState.moveEverythingFocusedWindowKey() ?? "",
             "controlCenterFocused": appState.controlCenterFocused(),
             "moveEverythingControlCenterFocused": appState.moveEverythingControlCenterFocused(),
             "moveEverythingAlwaysOnTop": appState.moveEverythingAlwaysOnTopEnabled(),
@@ -341,6 +439,10 @@ final class UIBridge: NSObject, WKScriptMessageHandler {
         ]
 
         send(type: "state", payload: payload)
+    }
+
+    func sendOpenWindowEditor(key: String) {
+        send(type: "openWindowEditor", payload: ["key": key])
     }
 
     private func sendNotice(level: String, message: String) {
@@ -402,7 +504,7 @@ final class UIBridge: NSObject, WKScriptMessageHandler {
             guard let lastRefresh = moveEverythingWindowInventoryLastRefreshAt else {
                 return true
             }
-            return now.timeIntervalSince(lastRefresh) >= moveEverythingWindowRefreshInterval
+            return now.timeIntervalSince(lastRefresh) >= resolvedMoveEverythingWindowRefreshInterval()
         }()
 
         guard shouldRefresh else {
@@ -423,6 +525,14 @@ final class UIBridge: NSObject, WKScriptMessageHandler {
         moveEverythingWindowInventoryCache = refreshedPayload
         moveEverythingWindowInventoryLastRefreshAt = Date()
         return refreshedPayload
+    }
+
+    private func resolvedMoveEverythingWindowRefreshInterval() -> TimeInterval {
+        let configured = appState.config.settings.moveEverythingBackgroundRefreshInterval
+        if configured.isFinite {
+            return max(0.2, min(configured, 30))
+        }
+        return 0.6
     }
 
     private static let emptyMoveEverythingWindowInventoryPayload: [String: Any] = [

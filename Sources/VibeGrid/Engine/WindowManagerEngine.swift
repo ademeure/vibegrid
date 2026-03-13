@@ -22,6 +22,7 @@ final class WindowManagerEngine: WindowManagerEngineProtocol {
         let key: String
         let pid: pid_t
         let windowNumber: Int?
+        let iTermWindowID: String?
         let title: String?
         let appName: String
         let bundleIdentifier: String?
@@ -135,6 +136,7 @@ final class WindowManagerEngine: WindowManagerEngineProtocol {
     var hotkeyPassthroughRestoreWorkItem: DispatchWorkItem?
     var firefoxFrameRetryWorkItemsByKey: [String: [DispatchWorkItem]] = [:]
     var onMoveEverythingInventoryRefreshed: (() -> Void)?
+    var onMoveEverythingNameWindowRequested: ((String) -> Void)?
     var isMoveEverythingAlwaysOnTopEnabledProvider: (() -> Bool)?
 
     // MARK: - Init
@@ -271,6 +273,8 @@ final class WindowManagerEngine: WindowManagerEngineProtocol {
             actions.append(.closeWindow)
             actions.append(.hideWindow)
         }
+
+        actions.append(.nameWindow)
 
         return actions
     }
