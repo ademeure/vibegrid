@@ -1495,6 +1495,7 @@ extension WindowManagerEngine {
         func pulseMoveEverythingHoveredWindowToFront(_ managedWindow: MoveEverythingManagedWindow) {
             guard isMoveEverythingActive,
                   moveEverythingShowOverlays,
+                  shouldManipulateMoveEverythingWindowOnHover(managedWindow),
                   !isMoveEverythingControlCenterWindow(managedWindow) else {
                 return
             }
@@ -1516,6 +1517,9 @@ extension WindowManagerEngine {
                 return false
             }
             guard config.settings.moveEverythingMoveOnSelection == .miniControlCenterOnTop else {
+                return false
+            }
+            guard shouldManipulateMoveEverythingWindowOnHover(managedWindow) else {
                 return false
             }
             return !isMoveEverythingControlCenterWindow(managedWindow)
@@ -1604,6 +1608,7 @@ extension WindowManagerEngine {
         }
         func raiseMoveEverythingWindowWithoutFocus(_ managedWindow: MoveEverythingManagedWindow) {
             guard isMoveEverythingActive,
+                  shouldManipulateMoveEverythingWindowOnHover(managedWindow),
                   !isMoveEverythingControlCenterWindow(managedWindow) else {
                 return
             }
@@ -2637,6 +2642,14 @@ extension WindowManagerEngine {
                 .lowercased()
             return normalizedAppName.contains("iterm") ||
                 normalizedBundleIdentifier == "com.googlecode.iterm2"
+        }
+        func shouldManipulateMoveEverythingWindowOnHover(
+            _ managedWindow: MoveEverythingManagedWindow
+        ) -> Bool {
+            !moveEverythingApplicationLooksLikeITerm(
+                appName: managedWindow.appName,
+                bundleIdentifier: managedWindow.bundleIdentifier
+            )
         }
         func shouldIgnoreMoveEverythingWindow(_ managedWindow: MoveEverythingManagedWindow, frame: CGRect?) -> Bool {
             guard managedWindow.appName.caseInsensitiveCompare("Finder") == .orderedSame else {
