@@ -894,6 +894,10 @@ extension WindowManagerEngine {
                 applyMoveEverythingAdvancedHoverLayoutIfNeeded(to: hoveredWindow)
                 pulseMoveEverythingHoveredWindowToFront(hoveredWindow)
             }
+            WindowListDebugLogger.log(
+                "hover-raise",
+                "hover key=\(hoveredWindow.key) app=\(hoveredWindow.appName) smooth=\(didPerformSmoothTransition)"
+            )
             refreshMoveEverythingOverlayPresentation()
             return true
         }
@@ -1495,22 +1499,29 @@ extension WindowManagerEngine {
         func pulseMoveEverythingHoveredWindowToFront(_ managedWindow: MoveEverythingManagedWindow) {
             guard isMoveEverythingActive,
                   moveEverythingShowOverlays,
-                  shouldManipulateMoveEverythingWindowOnHover(managedWindow),
                   !isMoveEverythingControlCenterWindow(managedWindow) else {
                 return
             }
 
-            // Activate the target app so its windows come above all other apps,
-            // then raise the specific window within that app.
+            // Pin the control center above everything so it stays interactive
+            // even after we activate another app to bring its window to front.
+            temporarilyPinControlCenterWindowOnTopForMoveEverything()
+
+            // Activate the target app so its windows come above all other
+            // normal-level windows, then raise the specific window within it.
             if let app = NSRunningApplication(processIdentifier: managedWindow.pid) {
                 app.activate(options: [])
             }
             let hoveredWindow = managedWindow.window
             applyAXMessagingTimeout(to: hoveredWindow, timeout: axFocusMessagingTimeout)
-            _ = AXUIElementPerformAction(hoveredWindow, kAXRaiseAction as CFString)
+            let raiseResult = AXUIElementPerformAction(hoveredWindow, kAXRaiseAction as CFString)
+            WindowListDebugLogger.log(
+                "hover-raise",
+                "pulse key=\(managedWindow.key) app=\(managedWindow.appName) raise=\(raiseResult == .success ? "ok" : "err:\(raiseResult.rawValue)")"
+            )
 
-            // Immediately return focus to the control center so it stays interactive.
-            ensureControlCenterWindowVisibleForMoveEverything()
+            // Re-activate VibeGrid so the control center remains key for input.
+            NSApp.activate(ignoringOtherApps: true)
         }
         func shouldApplyMoveEverythingAdvancedHoverLayout(
             to managedWindow: MoveEverythingManagedWindow
@@ -1522,9 +1533,6 @@ extension WindowManagerEngine {
                 return false
             }
             guard config.settings.moveEverythingMoveOnSelection == .miniControlCenterOnTop else {
-                return false
-            }
-            guard shouldManipulateMoveEverythingWindowOnHover(managedWindow) else {
                 return false
             }
             return !isMoveEverythingControlCenterWindow(managedWindow)
@@ -1613,19 +1621,25 @@ extension WindowManagerEngine {
         }
         func raiseMoveEverythingWindowWithoutFocus(_ managedWindow: MoveEverythingManagedWindow) {
             guard isMoveEverythingActive,
-                  shouldManipulateMoveEverythingWindowOnHover(managedWindow),
                   !isMoveEverythingControlCenterWindow(managedWindow) else {
                 return
             }
 
             suppressMoveEverythingSelectionSyncForProgrammaticFocus()
+            temporarilyPinControlCenterWindowOnTopForMoveEverything()
+
             if let app = NSRunningApplication(processIdentifier: managedWindow.pid) {
                 app.activate(options: [])
             }
             let hoveredWindow = managedWindow.window
             applyAXMessagingTimeout(to: hoveredWindow, timeout: axFocusMessagingTimeout)
-            _ = AXUIElementPerformAction(hoveredWindow, kAXRaiseAction as CFString)
-            ensureControlCenterWindowVisibleForMoveEverything()
+            let raiseResult = AXUIElementPerformAction(hoveredWindow, kAXRaiseAction as CFString)
+            WindowListDebugLogger.log(
+                "hover-raise",
+                "noFocus key=\(managedWindow.key) app=\(managedWindow.appName) raise=\(raiseResult == .success ? "ok" : "err:\(raiseResult.rawValue)")"
+            )
+
+            NSApp.activate(ignoringOtherApps: true)
         }
         func restoreMoveEverythingAdvancedHoverLayoutIfNeeded(
             forKey key: String,
