@@ -133,16 +133,15 @@ struct ITermWindowInventoryResolver {
     }
 
     static func fetchRuntimeInventory(debugContext: String? = nil) -> [RuntimeWindowDescriptor] {
-        let fileManager = FileManager.default
-        let pythonURL = fileManager.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Application Support/iTerm2/window-activity-venv/bin/python")
-        guard fileManager.isExecutableFile(atPath: pythonURL.path) else {
+        let pythonURL = pythonURL()
+        guard FileManager.default.isExecutableFile(atPath: pythonURL.path) else {
             if let debugContext {
                 WindowListDebugLogger.log(
                     "iterm-runtime-resolver",
                     "\(debugContext) missing python runtime at \(pythonURL.path)"
                 )
             }
+            ensurePythonVenv(debugContext: debugContext)
             return []
         }
 
@@ -585,16 +584,15 @@ struct ITermWindowInventoryResolver {
         badgeSize: Int = 55,
         debugContext: String? = nil
     ) {
-        let fileManager = FileManager.default
-        let pythonURL = fileManager.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Application Support/iTerm2/window-activity-venv/bin/python")
-        guard fileManager.isExecutableFile(atPath: pythonURL.path) else {
+        let pythonURL = pythonURL()
+        guard FileManager.default.isExecutableFile(atPath: pythonURL.path) else {
             if let debugContext {
                 WindowListDebugLogger.log(
                     "iterm-badge",
                     "\(debugContext) missing python runtime at \(pythonURL.path)"
                 )
             }
+            ensurePythonVenv(debugContext: debugContext)
             return
         }
 
@@ -636,8 +634,19 @@ struct ITermWindowInventoryResolver {
             badge_width = \(badgeSizeWidth)
             badge_height = \(badgeSizeHeight)
             found = False
+            # Try to parse target as int for window_number matching (JXA IDs are integers)
+            try:
+                target_number = int(target_id)
+            except (ValueError, TypeError):
+                target_number = None
             for window in app.windows:
-                if window.window_id == target_id:
+                matched = window.window_id == target_id
+                if not matched and target_number is not None:
+                    try:
+                        matched = window.window_number == target_number
+                    except Exception:
+                        pass
+                if matched:
                     found = True
                     for tab in window.tabs:
                         for session in tab.sessions:
@@ -696,6 +705,107 @@ struct ITermWindowInventoryResolver {
             }
         }
     }
+
+    // MARK: - Python venv management
+
+    private static let venvRelativePath = "Library/Application Support/iTerm2/window-activity-venv"
+    private static var venvProvisioningInProgress = false
+
+    static func pythonURL() -> URL {
+        FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(venvRelativePath)
+            .appendingPathComponent("bin/python")
+    }
+
+    /// Ensures the Python venv with the iterm2 package exists.
+    /// Safe to call from any thread; runs pip install in the background.
+    /// Calls the completion handler on a background queue when done.
+    static func ensurePythonVenv(
+        debugContext: String? = nil,
+        completion: ((Bool) -> Void)? = nil
+    ) {
+        let python = pythonURL()
+        if FileManager.default.isExecutableFile(atPath: python.path) {
+            completion?(true)
+            return
+        }
+
+        // Avoid concurrent provisioning attempts
+        guard !venvProvisioningInProgress else {
+            if let debugContext {
+                WindowListDebugLogger.log("iterm-venv", "\(debugContext) provisioning already in progress")
+            }
+            completion?(false)
+            return
+        }
+        venvProvisioningInProgress = true
+
+        DispatchQueue.global(qos: .utility).async {
+            defer { venvProvisioningInProgress = false }
+
+            let venvDir = FileManager.default.homeDirectoryForCurrentUser
+                .appendingPathComponent(venvRelativePath)
+
+            // Step 1: create the venv
+            let venvProcess = Process()
+            venvProcess.executableURL = URL(fileURLWithPath: "/usr/bin/python3")
+            venvProcess.arguments = ["-m", "venv", venvDir.path]
+            venvProcess.standardOutput = FileHandle.nullDevice
+            venvProcess.standardError = FileHandle.nullDevice
+            do {
+                try venvProcess.run()
+            } catch {
+                NSLog("VibeGrid: failed to create Python venv: %@", error.localizedDescription)
+                if let debugContext {
+                    WindowListDebugLogger.log("iterm-venv", "\(debugContext) venv creation failed: \(error.localizedDescription)")
+                }
+                completion?(false)
+                return
+            }
+            venvProcess.waitUntilExit()
+            guard venvProcess.terminationStatus == 0 else {
+                NSLog("VibeGrid: python3 -m venv exited with status %d", venvProcess.terminationStatus)
+                if let debugContext {
+                    WindowListDebugLogger.log("iterm-venv", "\(debugContext) venv creation exited status=\(venvProcess.terminationStatus)")
+                }
+                completion?(false)
+                return
+            }
+
+            // Step 2: pip install iterm2
+            let pipURL = venvDir.appendingPathComponent("bin/pip")
+            let pipProcess = Process()
+            pipProcess.executableURL = pipURL
+            pipProcess.arguments = ["install", "--quiet", "iterm2"]
+            pipProcess.standardOutput = FileHandle.nullDevice
+            let pipErrorPipe = Pipe()
+            pipProcess.standardError = pipErrorPipe
+            do {
+                try pipProcess.run()
+            } catch {
+                NSLog("VibeGrid: failed to run pip install iterm2: %@", error.localizedDescription)
+                if let debugContext {
+                    WindowListDebugLogger.log("iterm-venv", "\(debugContext) pip install failed: \(error.localizedDescription)")
+                }
+                completion?(false)
+                return
+            }
+            pipProcess.waitUntilExit()
+            let pipOK = pipProcess.terminationStatus == 0
+            if !pipOK {
+                let errData = pipErrorPipe.fileHandleForReading.readDataToEndOfFile()
+                let errText = String(data: errData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                NSLog("VibeGrid: pip install iterm2 failed status=%d: %@", pipProcess.terminationStatus, errText)
+                if let debugContext {
+                    WindowListDebugLogger.log("iterm-venv", "\(debugContext) pip install iterm2 failed status=\(pipProcess.terminationStatus)")
+                }
+            } else if let debugContext {
+                WindowListDebugLogger.log("iterm-venv", "\(debugContext) venv provisioned at \(venvDir.path)")
+            }
+            completion?(pipOK)
+        }
+    }
+
 
     private static func framesMatch(_ left: CGRect, _ right: CGRect) -> Bool {
         let delta = abs(left.origin.x - right.origin.x) +

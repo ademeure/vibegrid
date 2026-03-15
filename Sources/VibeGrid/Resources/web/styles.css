@@ -544,7 +544,7 @@ input[type="number"] {
 }
 
 .move-window-section {
-  margin-bottom: 9px;
+  margin-bottom: 6px;
 }
 
 .move-window-section:last-child {
@@ -552,7 +552,7 @@ input[type="number"] {
 }
 
 .move-window-section h4 {
-  margin: 0 0 6px;
+  margin: 0 0 3px;
   font-size: calc(11px + var(--fb));
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -573,9 +573,14 @@ input[type="number"] {
   border: 1px solid #8fa7865a;
   border-radius: 10px;
   background: #f8fcf3;
-  margin-bottom: 5px;
+  margin-bottom: 0;
+  border-bottom-color: transparent;
   position: relative;
   isolation: isolate;
+}
+
+.move-window-row + .move-window-row {
+  margin-top: -1px;
 }
 
 .move-window-row.activity-status-box::before {

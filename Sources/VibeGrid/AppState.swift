@@ -55,6 +55,8 @@ final class AppState {
     private var quickViewActive = false
     private var quickViewSavedFrame: NSRect?
     private var quickViewWasVisible = false
+    private(set) var iTermActivityCache: [String: String] = [:]  // snapshot key → "active"/"idle"
+    private var iTermActivityPollInFlight = false
 
     private(set) var config: AppConfig
     private var controlCenter: ControlCenterWindowController?
@@ -67,6 +69,7 @@ final class AppState {
             iTermWindowOverridesByID: moveEverythingITermWindowOverridesByID,
             iTermWindowOverridesByNumber: moveEverythingITermWindowOverridesByNumber
         )
+        ITermWindowInventoryResolver.ensurePythonVenv(debugContext: "startup")
         windowManager = Self.makeWindowManager(initialConfig: initialConfig)
         windowManager.isMoveEverythingAlwaysOnTopEnabledProvider = { [weak self] in
             self?.moveEverythingAlwaysOnTop ?? false
@@ -634,6 +637,19 @@ final class AppState {
             ) {
                 return (resolved.windowID, resolved.windowNumber, "runtimeResolver.titles")
             }
+            // Fallback: use the JXA-sourced iTermWindowID directly as the override key.
+            // It's an integer (e.g. "1636"), not a "pty-" prefixed runtime ID, so it can't
+            // be used for badge application via the Python API — but it's perfectly valid
+            // for storing title/badge overrides and will be stable for the session.
+            if !providedITermWindowID.isEmpty {
+                return (providedITermWindowID, nil, "payload.jxaID")
+            }
+            if let matchedID = matchedWindow?.iTermWindowID, !matchedID.isEmpty {
+                return (matchedID, nil, "inventory.jxaID")
+            }
+            if let fallbackNumber = providedWindowNumber ?? matchedWindow?.windowNumber {
+                return (nil, fallbackNumber, "payload.windowNumber")
+            }
             return (nil, nil, "unresolved")
         }()
         let resolvedITermWindowID = resolvedIdentityAndSource.windowID?
@@ -670,7 +686,7 @@ final class AppState {
         let mergedTitle = titleProvided ? trimmedTitle : (existingOverride?.title ?? "")
         let mergedBadgeText = badgeTextProvided ? trimmedBadgeText : (existingOverride?.badgeText ?? "")
         let mergedBadgeColor = badgeColorProvided ? trimmedBadgeColor : (existingOverride?.badgeColor ?? "")
-        let mergedBadgeOpacity = badgeColorProvided ? max(10, min(100, badgeOpacity)) : (existingOverride?.badgeOpacity ?? 55)
+        let mergedBadgeOpacity = badgeColorProvided ? max(10, min(100, badgeOpacity)) : (existingOverride?.badgeOpacity ?? 60)
         let mergedBadgeSize = badgeTextProvided ? max(5, min(95, badgeSize)) : (existingOverride?.badgeSize ?? 55)
         WindowListDebugLogger.log(
             "rename",
@@ -684,7 +700,7 @@ final class AppState {
             badgeSize: mergedBadgeSize
         )
 
-        if mergedTitle.isEmpty && mergedBadgeText.isEmpty && mergedBadgeColor.isEmpty && mergedBadgeOpacity == 55 && mergedBadgeSize == 55 {
+        if mergedTitle.isEmpty && mergedBadgeText.isEmpty && mergedBadgeColor.isEmpty && mergedBadgeOpacity == 60 && mergedBadgeSize == 55 {
             if let resolvedITermWindowID, !resolvedITermWindowID.isEmpty {
                 moveEverythingITermWindowOverridesByID.removeValue(forKey: resolvedITermWindowID)
                 WindowListDebugLogger.log("rename", "cleared override windowID=\(resolvedITermWindowID)")
@@ -740,7 +756,7 @@ final class AppState {
             }
             return ""
         }()
-        if badgeTextProvided, let resolvedITermWindowID, !resolvedITermWindowID.isEmpty {
+        if (badgeTextProvided || titleProvided), let resolvedITermWindowID, !resolvedITermWindowID.isEmpty {
             ITermWindowInventoryResolver.applyBadge(
                 windowID: resolvedITermWindowID,
                 badgeText: effectiveBadgeText,
@@ -951,6 +967,134 @@ final class AppState {
             frame: moveEverythingRuntimeRect(fromTopLeftRect: frame),
             debugContext: debugContext
         )
+    }
+
+    // MARK: - iTerm activity (TTY mtime polling)
+
+    /// Kick off a background Python API poll to check TTY mtimes for each iTerm
+    /// window. Results are stored in `iTermActivityCache` keyed by snapshot key,
+    /// matched via (x, width, height) which is identical across coordinate systems.
+    func refreshITermActivity() {
+        guard !iTermActivityPollInFlight else { return }
+        let pythonURL = ITermWindowInventoryResolver.pythonURL()
+        guard FileManager.default.isExecutableFile(atPath: pythonURL.path) else {
+            WindowListDebugLogger.log("iterm-activity", "python not found at \(pythonURL.path)")
+            return
+        }
+
+        iTermActivityPollInFlight = true
+        let timeout = config.settings.moveEverythingITermRecentActivityTimeout
+        let currentInventory = moveEverythingWindowInventory()
+
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let activityEntries = Self.pollITermTTYActivity(
+                pythonURL: pythonURL,
+                timeout: timeout
+            )
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.iTermActivityPollInFlight = false
+
+                // Match Python activity entries to snapshots by (x, width, height)
+                var newCache: [String: String] = [:]
+                for snapshot in currentInventory.visible + currentInventory.hidden {
+                    let appName = snapshot.appName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+                    guard appName.contains("iterm"), let sf = snapshot.frame else { continue }
+                    let matched = activityEntries.first { entry in
+                        abs(entry.x - sf.x) <= 4 &&
+                        abs(entry.width - sf.width) <= 4 &&
+                        abs(entry.height - sf.height) <= 4
+                    }
+                    if let matched {
+                        newCache[snapshot.key] = matched.active ? "active" : "idle"
+                    } else {
+                        newCache[snapshot.key] = self.iTermActivityCache[snapshot.key] ?? "idle"
+                    }
+                }
+                self.iTermActivityCache = newCache
+                // Trigger a UI refresh so the updated cache is rendered
+                self.controlCenter?.refresh()
+            }
+        }
+    }
+
+    private struct ITermActivityEntry {
+        let active: Bool
+        let x: Double
+        let width: Double
+        let height: Double
+    }
+
+    private static func pollITermTTYActivity(
+        pythonURL: URL,
+        timeout: Double
+    ) -> [ITermActivityEntry] {
+        let process = Process()
+        process.executableURL = pythonURL
+        process.arguments = [
+            "-c",
+            """
+            import iterm2, os, time, json
+
+            async def main(connection):
+                app = await iterm2.async_get_app(connection)
+                now = time.time()
+                timeout = \(timeout)
+                result = []
+                for window in app.windows:
+                    min_age = 999999.0
+                    for tab in window.tabs:
+                        for session in tab.sessions:
+                            try:
+                                tty = await session.async_get_variable("tty")
+                                if tty:
+                                    age = now - os.stat(tty).st_mtime
+                                    if age < min_age:
+                                        min_age = age
+                            except Exception:
+                                pass
+                    f = window.frame
+                    result.append({
+                        "a": min_age < timeout,
+                        "x": f.origin.x,
+                        "w": f.size.width,
+                        "h": f.size.height,
+                    })
+                print(json.dumps(result))
+
+            iterm2.run_until_complete(main, retry=False)
+            """
+        ]
+
+        let outputPipe = Pipe()
+        process.standardOutput = outputPipe
+        process.standardError = FileHandle.nullDevice
+
+        do {
+            try process.run()
+        } catch {
+            return []
+        }
+
+        process.waitUntilExit()
+        guard process.terminationStatus == 0 else {
+            return []
+        }
+
+        let outputData = outputPipe.fileHandleForReading.readDataToEndOfFile()
+        guard let outputText = String(data: outputData, encoding: .utf8),
+              let data = outputText.data(using: .utf8),
+              let entries = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+            return []
+        }
+
+        return entries.compactMap { entry -> ITermActivityEntry? in
+            let active = entry["a"] as? Bool ?? false
+            let x = (entry["x"] as? NSNumber)?.doubleValue ?? 0
+            let w = (entry["w"] as? NSNumber)?.doubleValue ?? 0
+            let h = (entry["h"] as? NSNumber)?.doubleValue ?? 0
+            return ITermActivityEntry(active: active, x: x, width: w, height: h)
+        }
     }
 
     private var isRunningInAppSandbox: Bool {

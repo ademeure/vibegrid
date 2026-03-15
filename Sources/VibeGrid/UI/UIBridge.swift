@@ -6,6 +6,7 @@ final class UIBridge: NSObject, WKScriptMessageHandler {
     private weak var webView: WKWebView?
     private let appState: AppState
     private var moveEverythingWindowInventoryCache: Any = UIBridge.emptyMoveEverythingWindowInventoryPayload
+    private var moveEverythingRawInventoryCache: MoveEverythingWindowInventory?
     private var moveEverythingWindowInventoryLastRefreshAt: Date?
 
     init(webView: WKWebView, appState: AppState) {
@@ -247,7 +248,7 @@ final class UIBridge: NSObject, WKScriptMessageHandler {
             let badgeText = payload["badgeText"] as? String ?? ""
             let badgeColorProvided = payload["badgeColorProvided"] as? Bool ?? true
             let badgeColor = payload["badgeColor"] as? String ?? ""
-            let badgeOpacity = payload["badgeOpacity"] as? Int ?? 55
+            let badgeOpacity = payload["badgeOpacity"] as? Int ?? 60
             let badgeSize = payload["badgeSize"] as? Int ?? 55
             WindowListDebugLogger.log(
                 "rename",
@@ -500,12 +501,20 @@ final class UIBridge: NSObject, WKScriptMessageHandler {
     ) -> Any {
         let now = Date()
         guard active else {
+            moveEverythingRawInventoryCache = nil
             moveEverythingWindowInventoryCache = UIBridge.emptyMoveEverythingWindowInventoryPayload
             moveEverythingWindowInventoryLastRefreshAt = now
             return moveEverythingWindowInventoryCache
         }
 
         guard allowRefresh else {
+            // Even when not refreshing the inventory, re-enrich so activity status updates
+            if let rawInventory = moveEverythingRawInventoryCache {
+                return enrichInventoryWithActivity(
+                    codableToJSONObject(rawInventory) ?? moveEverythingWindowInventoryCache,
+                    inventory: rawInventory
+                )
+            }
             return moveEverythingWindowInventoryCache
         }
 
@@ -516,24 +525,35 @@ final class UIBridge: NSObject, WKScriptMessageHandler {
             return now.timeIntervalSince(lastRefresh) >= resolvedMoveEverythingWindowRefreshInterval()
         }()
 
-        guard shouldRefresh else {
-            return moveEverythingWindowInventoryCache
+        if shouldRefresh {
+            let startedAt = DispatchTime.now().uptimeNanoseconds
+            let rawInventory = appState.moveEverythingWindowInventory()
+            moveEverythingRawInventoryCache = rawInventory
+            let refreshedPayload = enrichInventoryWithActivity(
+                codableToJSONObject(rawInventory) ?? UIBridge.emptyMoveEverythingWindowInventoryPayload,
+                inventory: rawInventory
+            )
+            let elapsedMs = Double(DispatchTime.now().uptimeNanoseconds - startedAt) / 1_000_000
+            if elapsedMs >= 70 {
+                NSLog(
+                    "VibeGrid perf: ui.refreshMoveEverythingWindowInventory force=%@ took %.1fms",
+                    forceRefresh ? "true" : "false",
+                    elapsedMs
+                )
+            }
+            moveEverythingWindowInventoryCache = refreshedPayload
+            moveEverythingWindowInventoryLastRefreshAt = Date()
+            return refreshedPayload
         }
 
-        let startedAt = DispatchTime.now().uptimeNanoseconds
-        let refreshedPayload = codableToJSONObject(appState.moveEverythingWindowInventory()) ??
-            UIBridge.emptyMoveEverythingWindowInventoryPayload
-        let elapsedMs = Double(DispatchTime.now().uptimeNanoseconds - startedAt) / 1_000_000
-        if elapsedMs >= 70 {
-            NSLog(
-                "VibeGrid perf: ui.refreshMoveEverythingWindowInventory force=%@ took %.1fms",
-                forceRefresh ? "true" : "false",
-                elapsedMs
+        // Inventory hasn't changed but still re-enrich for fresh activity status
+        if let rawInventory = moveEverythingRawInventoryCache {
+            return enrichInventoryWithActivity(
+                codableToJSONObject(rawInventory) ?? moveEverythingWindowInventoryCache,
+                inventory: rawInventory
             )
         }
-        moveEverythingWindowInventoryCache = refreshedPayload
-        moveEverythingWindowInventoryLastRefreshAt = Date()
-        return refreshedPayload
+        return moveEverythingWindowInventoryCache
     }
 
     private func resolvedMoveEverythingWindowRefreshInterval() -> TimeInterval {
@@ -542,6 +562,28 @@ final class UIBridge: NSObject, WKScriptMessageHandler {
             return max(0.2, min(configured, 30))
         }
         return 0.6
+    }
+
+    private func enrichInventoryWithActivity(_ payload: Any, inventory: MoveEverythingWindowInventory) -> Any {
+        // Kick off an async TTY activity poll (results arrive and trigger refresh)
+        appState.refreshITermActivity()
+
+        guard var dict = payload as? [String: Any] else { return payload }
+        let cache = appState.iTermActivityCache
+        func enrichWindows(_ windows: Any?) -> Any? {
+            guard let arr = windows as? [[String: Any]] else { return windows }
+            return arr.map { window -> [String: Any] in
+                var w = window
+                let key = (w["key"] as? String) ?? ""
+                if let status = cache[key] {
+                    w["iTermActivityStatus"] = status
+                }
+                return w
+            }
+        }
+        dict["visible"] = enrichWindows(dict["visible"])
+        dict["hidden"] = enrichWindows(dict["hidden"])
+        return dict
     }
 
     private static let emptyMoveEverythingWindowInventoryPayload: [String: Any] = [

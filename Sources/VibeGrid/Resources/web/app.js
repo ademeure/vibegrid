@@ -278,7 +278,8 @@ const defaultMoveEverythingITermRecentActivityIdleColor = "#BA4D4D";
 const defaultMoveEverythingActiveWindowHighlightColor = "#4D88D4";
 const defaultMoveEverythingITermBadgeTopMargin = 6;
 const defaultMoveEverythingITermBadgeRightMargin = 8;
-const defaultMoveEverythingITermBadgeCustomColor = "#A05FE0";
+const defaultMoveEverythingITermBadgeCustomColor = "#4A90D9";
+const defaultMoveEverythingITermBadgeOpacity = 60;
 const moveEverythingHotkeyFieldOrder = [
   "moveEverythingCloseWindowHotkey",
   "moveEverythingHideWindowHotkey",
@@ -293,6 +294,7 @@ const moveEverythingHotkeyPreviewByField = {
 };
 let permissionPollTimer = null;
 let autosaveTimer = null;
+let configSaveGuardUntil = 0;
 let moveEverythingTitleMeasureCanvas = null;
 
 function sendJsLog(level, message, details = "") {
@@ -411,6 +413,9 @@ function receiveState(payload) {
   // to push back the correct config on the next cycle.
   if (autosaveTimer !== null) {
     flushAutosave();
+  } else if (performance.now() < configSaveGuardUntil) {
+    // Skip config overwrite — a save was just flushed and the server
+    // may not have processed it yet. The next push will have the correct config.
   } else {
     const previousSignature = state.config ? configSignature(state.config) : null;
     state.config = payload?.config || createDefaultConfig();
@@ -1243,7 +1248,6 @@ function patchMoveEverythingHoveredRows(previousKey, nextKey) {
 
   const nextRow = moveEverythingRowByWindowKey(nextKey);
   if (nextRow &&
-      !nextRow.classList.contains("hidden-window") &&
       nextRow.dataset.meControlCenter !== "1") {
     nextRow.classList.add("hovered");
     didPatch = true;
@@ -1297,7 +1301,7 @@ function resolveMoveEverythingHoverKeyFromTarget(target, pointerClientY = null) 
     return null;
   }
   const row = target?.closest?.(".move-window-row");
-  if (row && list.contains(row) && !row.classList.contains("hidden-window")) {
+  if (row && list.contains(row)) {
     if (row.dataset.meControlCenter === "1") {
       return null;
     }
@@ -1311,7 +1315,6 @@ function resolveMoveEverythingHoverKeyFromTarget(target, pointerClientY = null) 
 
   const rows = [...list.querySelectorAll(".move-window-row[data-me-window-key]")]
     .filter((candidateRow) =>
-      !candidateRow.classList.contains("hidden-window") &&
       candidateRow.dataset.meControlCenter !== "1"
     );
   if (!rows.length) {
@@ -1833,7 +1836,8 @@ function renderMoveEverythingWorkspace() {
   const namedCount = namedVisibleWindows.length + namedHiddenWindows.length;
 
   if (state.moveEverythingHoveredWindowKey &&
-      !allVisible.some((windowItem) => windowItem.key === state.moveEverythingHoveredWindowKey)) {
+      !allVisible.some((windowItem) => windowItem.key === state.moveEverythingHoveredWindowKey) &&
+      !allHidden.some((windowItem) => windowItem.key === state.moveEverythingHoveredWindowKey)) {
     setMoveEverythingHoveredWindow(null, { render: false, immediate: true });
   }
   ids.moveEverythingWindowList.innerHTML = "";
@@ -2128,6 +2132,7 @@ function stripMoveEverythingStatusMarkersForDisplay(rawTitle, windowItem) {
   return current.trim().length ? current.trim() : "Untitled Window";
 }
 
+
 function resolveMoveEverythingWindowActivityStatus(windowItem) {
   const settings = state.config?.settings || {};
   const activeText = String(settings.moveEverythingITermRecentActivityActiveText || "").trim();
@@ -2137,6 +2142,7 @@ function resolveMoveEverythingWindowActivityStatus(windowItem) {
   if (!rawTitle.length) {
     return "unknown";
   }
+  // Explicit title markers take priority
   if (titleContainsStatusMarker(rawTitle, activeText)) {
     return "active";
   }
@@ -2149,10 +2155,12 @@ function resolveMoveEverythingWindowActivityStatus(windowItem) {
   if (titleContainsStatusMarker(rawTitle, "[IDLE]")) {
     return "idle";
   }
+  // For iTerm windows: use process-level activity from the Python API poll
   if (isLikelyITermWindow(windowItem)) {
-    return "idle";
-  }
-  if (activeText.length && !idleText.length) {
+    const status = windowItem.iTermActivityStatus;
+    if (status === "active" || status === "idle") {
+      return status;
+    }
     return "idle";
   }
   return "unknown";
@@ -2290,11 +2298,11 @@ function renderMoveEverythingWindowEditorModal() {
     );
   }
   if (ids.moveEverythingWindowEditorBadgeOpacityInput) {
-    const opacityVal = Math.max(10, Math.min(100, Number(editor.badgeOpacityValue) || 80));
+    const opacityVal = Math.max(10, Math.min(100, Number(editor.badgeOpacityValue) || defaultMoveEverythingITermBadgeOpacity));
     ids.moveEverythingWindowEditorBadgeOpacityInput.value = String(opacityVal);
   }
   if (ids.moveEverythingWindowEditorBadgeOpacityLabel) {
-    const opacityVal = Math.max(10, Math.min(100, Number(editor.badgeOpacityValue) || 80));
+    const opacityVal = Math.max(10, Math.min(100, Number(editor.badgeOpacityValue) || defaultMoveEverythingITermBadgeOpacity));
     ids.moveEverythingWindowEditorBadgeOpacityLabel.textContent = `${opacityVal}%`;
   }
   syncMoveEverythingWindowEditorBadgeColorVisibility();
@@ -2347,7 +2355,7 @@ function openMoveEverythingWindowEditor(key) {
       state.moveEverythingCustomITermWindowBadgeColorByKey[normalizedKey],
       defaultMoveEverythingITermBadgeCustomColor
     ),
-    badgeOpacityValue: state.moveEverythingCustomITermWindowBadgeOpacityByKey[normalizedKey] ?? 80,
+    badgeOpacityValue: state.moveEverythingCustomITermWindowBadgeOpacityByKey[normalizedKey] ?? defaultMoveEverythingITermBadgeOpacity,
   };
   sendJsLog(
     "info",
@@ -2384,10 +2392,10 @@ function resetMoveEverythingWindowEditorFields() {
       ids.moveEverythingWindowEditorBadgeColorInput.value = defaultMoveEverythingITermBadgeCustomColor;
     }
     if (ids.moveEverythingWindowEditorBadgeOpacityInput) {
-      ids.moveEverythingWindowEditorBadgeOpacityInput.value = "80";
+      ids.moveEverythingWindowEditorBadgeOpacityInput.value = String(defaultMoveEverythingITermBadgeOpacity);
     }
     if (ids.moveEverythingWindowEditorBadgeOpacityLabel) {
-      ids.moveEverythingWindowEditorBadgeOpacityLabel.textContent = "80%";
+      ids.moveEverythingWindowEditorBadgeOpacityLabel.textContent = `${defaultMoveEverythingITermBadgeOpacity}%`;
     }
     syncMoveEverythingWindowEditorBadgeColorVisibility();
   }
@@ -2424,7 +2432,7 @@ function submitMoveEverythingITermWindowOverride(windowItem, payload = {}) {
     badgeText: String(payload.badgeText || ""),
     badgeColorProvided: Boolean(payload.badgeColorProvided),
     badgeColor: String(payload.badgeColor || ""),
-    badgeOpacity: Number.isFinite(payload.badgeOpacity) ? payload.badgeOpacity : 80,
+    badgeOpacity: Number.isFinite(payload.badgeOpacity) ? payload.badgeOpacity : defaultMoveEverythingITermBadgeOpacity,
   });
 }
 
@@ -2470,7 +2478,7 @@ function submitMoveEverythingWindowEditor() {
       const opacityVal = Math.max(10, Math.min(100, parseInt(ids.moveEverythingWindowEditorBadgeOpacityInput?.value, 10) || 80));
       state.moveEverythingCustomITermWindowBadgeOpacityByKey[editor.key] = opacityVal;
     }
-    const badgeOpacity = Math.max(10, Math.min(100, parseInt(ids.moveEverythingWindowEditorBadgeOpacityInput?.value, 10) || 80));
+    const badgeOpacity = Math.max(10, Math.min(100, parseInt(ids.moveEverythingWindowEditorBadgeOpacityInput?.value, 10) || defaultMoveEverythingITermBadgeOpacity));
     submitMoveEverythingITermWindowOverride(windowItem, {
       titleProvided: true,
       title: trimmedTitle,
@@ -3125,6 +3133,9 @@ function flushAutosave() {
     return;
   }
   saveConfig({ silent: true });
+  // Protect local config from being overwritten by stale server pushes
+  // that arrive before the server processes our save.
+  configSaveGuardUntil = performance.now() + 1500;
 }
 
 function persistCurrentConfigAfterUndoRedo() {
@@ -5061,6 +5072,8 @@ function normalizeMoveEverythingWindow(value) {
     ? rawFrame
     : null;
 
+  const iTermActivityStatus = typeof value.iTermActivityStatus === "string" ? value.iTermActivityStatus : null;
+
   return {
     key,
     windowNumber,
@@ -5071,6 +5084,7 @@ function normalizeMoveEverythingWindow(value) {
     isControlCenter: Boolean(value.isControlCenter),
     iconDataURL,
     isCoreGraphicsFallback: Boolean(value.isCoreGraphicsFallback),
+    iTermActivityStatus,
   };
 }
 
@@ -5206,7 +5220,7 @@ function createDefaultConfig() {
       moveEverythingITermRecentActivityActiveText: "[ACTIVE]",
       moveEverythingITermRecentActivityIdleText: "",
       moveEverythingITermRecentActivityBadgeEnabled: false,
-      moveEverythingITermBadgeFromTitle: false,
+      moveEverythingITermBadgeFromTitle: true,
       moveEverythingITermRecentActivityColorize: true,
       moveEverythingITermRecentActivityColorizeNamedOnly: false,
       moveEverythingActiveWindowHighlightColorize: true,

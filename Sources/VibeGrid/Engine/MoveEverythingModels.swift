@@ -23,6 +23,7 @@ struct MoveEverythingWindowSnapshot: Codable {
     let isControlCenter: Bool
     let iconDataURL: String?
     let isCoreGraphicsFallback: Bool
+    let iTermActivityStatus: String?
 }
 
 struct MoveEverythingWindowInventory: Codable {

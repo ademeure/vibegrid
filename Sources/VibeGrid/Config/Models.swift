@@ -273,7 +273,7 @@ struct Settings: Codable {
             moveEverythingITermBadgeRightMargin: 8,
             moveEverythingITermBadgeMaxWidth: 120,
             moveEverythingITermBadgeMaxHeight: 28,
-            moveEverythingITermBadgeFromTitle: false,
+            moveEverythingITermBadgeFromTitle: true,
             moveEverythingCloseWindowHotkey: nil,
             moveEverythingHideWindowHotkey: nil,
             moveEverythingNameWindowHotkey: nil,

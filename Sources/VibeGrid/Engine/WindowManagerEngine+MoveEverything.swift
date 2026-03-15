@@ -3081,7 +3081,8 @@ extension WindowManagerEngine {
                 appName: managedWindow.appName,
                 isControlCenter: isMoveEverythingControlCenterWindow(managedWindow),
                 iconDataURL: moveEverythingWindowIconDataURL(for: managedWindow.pid),
-                isCoreGraphicsFallback: isCoreGraphicsFallback
+                isCoreGraphicsFallback: isCoreGraphicsFallback,
+                iTermActivityStatus: nil
             )
         }
         func moveEverythingSnapshot(
@@ -3096,7 +3097,8 @@ extension WindowManagerEngine {
                 appName: fallbackWindow.appName,
                 isControlCenter: false,
                 iconDataURL: moveEverythingWindowIconDataURL(for: fallbackWindow.pid),
-                isCoreGraphicsFallback: true
+                isCoreGraphicsFallback: true,
+                iTermActivityStatus: nil
             )
         }
         func moveEverythingSnapshotFrame(from rect: CGRect) -> MoveEverythingWindowFrameSnapshot {
