@@ -996,13 +996,16 @@ final class AppState {
                 guard let self else { return }
                 self.iTermActivityPollInFlight = false
 
-                // Match Python activity entries to snapshots by (x, width, height)
                 var newCache: [String: String] = [:]
+                let desktopHeight = NSScreen.screens.reduce(CGRect.null) { $0.union($1.frame) }.height
+
                 for snapshot in currentInventory.visible + currentInventory.hidden {
                     let appName = snapshot.appName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
                     guard appName.contains("iterm"), let sf = snapshot.frame else { continue }
+                    let cocoaY = desktopHeight - sf.y - sf.height
                     let matched = activityEntries.first { entry in
                         abs(entry.x - sf.x) <= 4 &&
+                        abs(entry.y - cocoaY) <= 4 &&
                         abs(entry.width - sf.width) <= 4 &&
                         abs(entry.height - sf.height) <= 4
                     }
@@ -1022,6 +1025,7 @@ final class AppState {
     private struct ITermActivityEntry {
         let active: Bool
         let x: Double
+        let y: Double
         let width: Double
         let height: Double
     }
@@ -1058,6 +1062,7 @@ final class AppState {
                     result.append({
                         "a": min_age < timeout,
                         "x": f.origin.x,
+                        "y": f.origin.y,
                         "w": f.size.width,
                         "h": f.size.height,
                     })
@@ -1092,9 +1097,10 @@ final class AppState {
         return entries.compactMap { entry -> ITermActivityEntry? in
             let active = entry["a"] as? Bool ?? false
             let x = (entry["x"] as? NSNumber)?.doubleValue ?? 0
+            let y = (entry["y"] as? NSNumber)?.doubleValue ?? 0
             let w = (entry["w"] as? NSNumber)?.doubleValue ?? 0
             let h = (entry["h"] as? NSNumber)?.doubleValue ?? 0
-            return ITermActivityEntry(active: active, x: x, width: w, height: h)
+            return ITermActivityEntry(active: active, x: x, y: y, width: w, height: h)
         }
     }
 
