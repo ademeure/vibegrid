@@ -99,6 +99,14 @@ extension WindowManagerEngine {
         return cocoaRect(fromAXPosition: axPosition, size: axSize)
     }
 
+    func rawAXWindowRect(for window: AXUIElement) -> CGRect? {
+        guard let axPosition = copyCGPointAttribute(window: window, attribute: kAXPositionAttribute),
+              let axSize = copyCGSizeAttribute(window: window, attribute: kAXSizeAttribute) else {
+            return nil
+        }
+        return CGRect(origin: axPosition, size: axSize)
+    }
+
     // MARK: - Copy attribute helpers
 
     func copyCGPointAttribute(window: AXUIElement, attribute: String) -> CGPoint? {

@@ -51,6 +51,7 @@ func assertParityConfig(t *testing.T, cfg map[string]any) {
 	assertBool(t, settings, "defaultCycleDisplaysOnWrap", true)
 	assertFloat(t, settings, "animationDuration", 0.5)
 	assertFloat(t, settings, "controlCenterScale", 1.25)
+	assertBool(t, settings, "largerFonts", true)
 	assertString(t, settings, "themeMode", "dark")
 	assertString(t, settings, "moveEverythingMoveOnSelection", "always")
 	assertFloat(t, settings, "moveEverythingCenterWidthPercent", 50)
@@ -62,6 +63,13 @@ func assertParityConfig(t *testing.T, cfg map[string]any) {
 	assertBool(t, settings, "moveEverythingAdvancedControlCenterHover", false)
 	assertBool(t, settings, "moveEverythingStickyHoverStealFocus", true)
 	assertBool(t, settings, "moveEverythingCloseHideHotkeysOutsideMode", true)
+	assertFloat(t, settings, "moveEverythingITermRecentActivityTimeout", 7)
+	assertString(t, settings, "moveEverythingITermRecentActivityActiveText", "[LIVE]")
+	assertString(t, settings, "moveEverythingITermRecentActivityIdleText", "[idle]")
+	assertBool(t, settings, "moveEverythingITermRecentActivityBadgeEnabled", true)
+	assertBool(t, settings, "moveEverythingITermRecentActivityColorize", true)
+	assertString(t, settings, "moveEverythingITermRecentActivityActiveColor", "#228844")
+	assertString(t, settings, "moveEverythingITermRecentActivityIdleColor", "#AA3333")
 
 	// Hotkey settings are decoded from strings into {key, modifiers} maps
 	assertHotkey(t, settings, "moveEverythingCloseWindowHotkey", "w", []string{"cmd", "shift"})

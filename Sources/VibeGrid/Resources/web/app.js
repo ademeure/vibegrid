@@ -50,6 +50,7 @@ const state = {
   massRecordingIndex: -1,
   settingsModalOpen: false,
   moveEverythingModalOpen: false,
+  moveEverythingWindowEditor: null,
   recordingMoveEverythingField: null,
   didLogFirstState: false,
   gridDrag: null,
@@ -91,11 +92,18 @@ const state = {
     hidden: [],
   },
   moveEverythingHoveredWindowKey: null,
+  moveEverythingFocusedWindowKey: null,
   moveEverythingEnsureRequestedAt: 0,
   moveEverythingNarrowMode: null,
+  moveEverythingActionButtonsCompact: null,
   moveEverythingHoverLastSentAt: 0,
   moveEverythingHoverPendingKey: null,
   moveEverythingHoverSendTimer: null,
+  moveEverythingCustomWindowTitlesByKey: {},
+  moveEverythingCustomITermWindowTitlesByKey: {},
+  moveEverythingCustomITermWindowBadgeTextByKey: {},
+  moveEverythingCustomITermWindowBadgeColorByKey: {},
+  moveEverythingCustomITermWindowBadgeOpacityByKey: {},
 };
 
 const ids = {
@@ -184,9 +192,44 @@ const ids = {
   moveEverythingStickyHoverStealFocusSetting: document.getElementById("moveEverythingStickyHoverStealFocusSetting"),
   moveEverythingExcludeControlCenterSetting: document.getElementById("moveEverythingExcludeControlCenterSetting"),
   moveEverythingMiniRetileWidthPercentSetting: document.getElementById("moveEverythingMiniRetileWidthPercentSetting"),
+  moveEverythingBackgroundRefreshIntervalSetting: document.getElementById("moveEverythingBackgroundRefreshIntervalSetting"),
+  moveEverythingITermRecentActivityTimeoutSetting: document.getElementById("moveEverythingITermRecentActivityTimeoutSetting"),
+  moveEverythingITermRecentActivityActiveTextSetting: document.getElementById("moveEverythingITermRecentActivityActiveTextSetting"),
+  moveEverythingITermRecentActivityIdleTextSetting: document.getElementById("moveEverythingITermRecentActivityIdleTextSetting"),
+  moveEverythingITermRecentActivityBadgeEnabledSetting: document.getElementById("moveEverythingITermRecentActivityBadgeEnabledSetting"),
+  moveEverythingITermBadgeFromTitleSetting: document.getElementById("moveEverythingITermBadgeFromTitleSetting"),
+  moveEverythingITermRecentActivityColorizeSetting: document.getElementById("moveEverythingITermRecentActivityColorizeSetting"),
+  moveEverythingITermRecentActivityColorizeNamedOnlySetting: document.getElementById("moveEverythingITermRecentActivityColorizeNamedOnlySetting"),
+  moveEverythingITermRecentActivityActiveColorSetting: document.getElementById("moveEverythingITermRecentActivityActiveColorSetting"),
+  moveEverythingITermRecentActivityIdleColorSetting: document.getElementById("moveEverythingITermRecentActivityIdleColorSetting"),
+  moveEverythingITermBadgeTopMarginSetting: document.getElementById("moveEverythingITermBadgeTopMarginSetting"),
+  moveEverythingITermBadgeRightMarginSetting: document.getElementById("moveEverythingITermBadgeRightMarginSetting"),
+  moveEverythingActiveWindowHighlightColorizeSetting: document.getElementById("moveEverythingActiveWindowHighlightColorizeSetting"),
+  moveEverythingActiveWindowHighlightColorSetting: document.getElementById("moveEverythingActiveWindowHighlightColorSetting"),
+  moveEverythingITermRecentActivityHint: document.getElementById("moveEverythingITermRecentActivityHint"),
   moveEverythingCloseWindowPreview: document.getElementById("moveEverythingCloseWindowPreview"),
   moveEverythingHideWindowPreview: document.getElementById("moveEverythingHideWindowPreview"),
+  moveEverythingNameWindowPreview: document.getElementById("moveEverythingNameWindowPreview"),
+  moveEverythingQuickViewPreview: document.getElementById("moveEverythingQuickViewPreview"),
   moveEverythingCloseHideOutsideMode: document.getElementById("moveEverythingCloseHideOutsideMode"),
+  moveEverythingWindowEditorModal: document.getElementById("moveEverythingWindowEditorModal"),
+  moveEverythingWindowEditorTitle: document.getElementById("moveEverythingWindowEditorTitle"),
+  moveEverythingWindowEditorHint: document.getElementById("moveEverythingWindowEditorHint"),
+  moveEverythingWindowEditorForm: document.getElementById("moveEverythingWindowEditorForm"),
+  moveEverythingWindowEditorTitleField: document.getElementById("moveEverythingWindowEditorTitleField"),
+  moveEverythingWindowEditorTitleInput: document.getElementById("moveEverythingWindowEditorTitleInput"),
+  moveEverythingWindowEditorTitleMeta: document.getElementById("moveEverythingWindowEditorTitleMeta"),
+  moveEverythingWindowEditorBadgeTextField: document.getElementById("moveEverythingWindowEditorBadgeTextField"),
+  moveEverythingWindowEditorBadgeTextInput: document.getElementById("moveEverythingWindowEditorBadgeTextInput"),
+  moveEverythingWindowEditorBadgeTextMeta: document.getElementById("moveEverythingWindowEditorBadgeTextMeta"),
+  moveEverythingWindowEditorBadgeColorField: document.getElementById("moveEverythingWindowEditorBadgeColorField"),
+  moveEverythingWindowEditorBadgeColorSwatches: document.getElementById("moveEverythingWindowEditorBadgeColorSwatches"),
+  moveEverythingWindowEditorBadgeColorInput: document.getElementById("moveEverythingWindowEditorBadgeColorInput"),
+  moveEverythingWindowEditorBadgeOpacityInput: document.getElementById("moveEverythingWindowEditorBadgeOpacityInput"),
+  moveEverythingWindowEditorBadgeOpacityLabel: document.getElementById("moveEverythingWindowEditorBadgeOpacityLabel"),
+  moveEverythingWindowEditorResetBtn: document.getElementById("moveEverythingWindowEditorResetBtn"),
+  moveEverythingWindowEditorCancelBtn: document.getElementById("moveEverythingWindowEditorCancelBtn"),
+  moveEverythingWindowEditorSaveBtn: document.getElementById("moveEverythingWindowEditorSaveBtn"),
   flipHorizontalBtn: document.getElementById("flipHorizontalBtn"),
   flipVerticalBtn: document.getElementById("flipVerticalBtn"),
   flipAllSteps: document.getElementById("flipAllSteps"),
@@ -229,16 +272,29 @@ const moveEverythingPerfLogThresholdMs = 28;
 const moveEverythingTitleTruncatePaddingPx = 8;
 const moveEverythingTitleEllipsis = "...";
 const narrowModeWidthThresholdPx = 960;
+const moveEverythingActionCompactWidthThresholdPx = 1140;
+const defaultMoveEverythingITermRecentActivityActiveColor = "#2F8F4E";
+const defaultMoveEverythingITermRecentActivityIdleColor = "#BA4D4D";
+const defaultMoveEverythingActiveWindowHighlightColor = "#4D88D4";
+const defaultMoveEverythingITermBadgeTopMargin = 6;
+const defaultMoveEverythingITermBadgeRightMargin = 8;
+const defaultMoveEverythingITermBadgeCustomColor = "#4A90D9";
+const defaultMoveEverythingITermBadgeOpacity = 60;
 const moveEverythingHotkeyFieldOrder = [
   "moveEverythingCloseWindowHotkey",
   "moveEverythingHideWindowHotkey",
+  "moveEverythingNameWindowHotkey",
+  "moveEverythingQuickViewHotkey",
 ];
 const moveEverythingHotkeyPreviewByField = {
   moveEverythingCloseWindowHotkey: ids.moveEverythingCloseWindowPreview,
   moveEverythingHideWindowHotkey: ids.moveEverythingHideWindowPreview,
+  moveEverythingNameWindowHotkey: ids.moveEverythingNameWindowPreview,
+  moveEverythingQuickViewHotkey: ids.moveEverythingQuickViewPreview,
 };
 let permissionPollTimer = null;
 let autosaveTimer = null;
+let configSaveGuardUntil = 0;
 let moveEverythingTitleMeasureCanvas = null;
 
 function sendJsLog(level, message, details = "") {
@@ -333,6 +389,14 @@ window.vibeGridReceive = (message) => {
     return;
   }
 
+  if (type === "openWindowEditor") {
+    const key = payload?.key;
+    if (key) {
+      openMoveEverythingWindowEditor(key);
+    }
+    return;
+  }
+
   if (type === "notice") {
     showToast(payload?.message ?? "", payload?.level ?? "info");
   }
@@ -349,6 +413,9 @@ function receiveState(payload) {
   // to push back the correct config on the next cycle.
   if (autosaveTimer !== null) {
     flushAutosave();
+  } else if (performance.now() < configSaveGuardUntil) {
+    // Skip config overwrite — a save was just flushed and the server
+    // may not have processed it yet. The next push will have the correct config.
   } else {
     const previousSignature = state.config ? configSignature(state.config) : null;
     state.config = payload?.config || createDefaultConfig();
@@ -392,6 +459,7 @@ function receiveState(payload) {
     Boolean(payload?.moveEverythingDontMoveVibeGrid)
   );
   state.moveEverythingWindows = normalizeMoveEverythingWindowInventory(payload?.moveEverythingWindows);
+  state.moveEverythingFocusedWindowKey = String(payload?.moveEverythingFocusedWindowKey || "").trim() || null;
   applyTheme();
   applyLargerFonts();
 
@@ -506,6 +574,7 @@ pubsub.subscribe('selection', renderPlacementEditor);
 // 'moveEverything', 'selection' - workspace depends on window list + whether a placement is selected
 pubsub.subscribe('moveEverything', renderMoveEverythingWorkspace);
 pubsub.subscribe('selection', renderMoveEverythingWorkspace);
+pubsub.subscribe('theme', renderMoveEverythingWorkspace);
 
 // 'settings', 'moveEverything' - settings modal shows settings + launch-at-login state
 pubsub.subscribe('settings', renderSettingsModal);
@@ -524,6 +593,10 @@ function renderAll() {
 
 function narrowModeActive() {
   return state.moveEverythingNarrowMode === true || document.body.classList.contains("narrow-mode");
+}
+
+function moveEverythingActionCompactModeActive() {
+  return narrowModeActive() || window.innerWidth <= moveEverythingActionCompactWidthThresholdPx;
 }
 
 function syncNarrowModeLayout() {
@@ -551,6 +624,79 @@ function syncNarrowModeLayout() {
     didMutate = true;
   }
   return didMutate || wasNarrow !== isNarrow;
+}
+
+function normalizeHexColor(value, fallback) {
+  const trimmed = String(value ?? "").trim();
+  if (!trimmed.startsWith("#")) {
+    return fallback;
+  }
+  const raw = trimmed.slice(1);
+  if (/^[0-9a-fA-F]{3}$/.test(raw)) {
+    return `#${raw[0]}${raw[0]}${raw[1]}${raw[1]}${raw[2]}${raw[2]}`.toUpperCase();
+  }
+  if (/^[0-9a-fA-F]{6}$/.test(raw)) {
+    return `#${raw.toUpperCase()}`;
+  }
+  return fallback;
+}
+
+function parseHexColor(value) {
+  const normalized = normalizeHexColor(value, "");
+  if (!normalized) {
+    return null;
+  }
+  const raw = normalized.slice(1);
+  const red = Number.parseInt(raw.slice(0, 2), 16);
+  const green = Number.parseInt(raw.slice(2, 4), 16);
+  const blue = Number.parseInt(raw.slice(4, 6), 16);
+  if (!Number.isFinite(red) || !Number.isFinite(green) || !Number.isFinite(blue)) {
+    return null;
+  }
+  return { red, green, blue };
+}
+
+function blendColor(base, target, ratio) {
+  const clamped = clampNumber(Number(ratio), 0, 1);
+  return {
+    red: Math.round(base.red * (1 - clamped) + target.red * clamped),
+    green: Math.round(base.green * (1 - clamped) + target.green * clamped),
+    blue: Math.round(base.blue * (1 - clamped) + target.blue * clamped),
+  };
+}
+
+function colorToCss(color, alpha = null) {
+  if (!color) {
+    return "";
+  }
+  if (alpha === null) {
+    return `rgb(${color.red} ${color.green} ${color.blue})`;
+  }
+  return `rgb(${color.red} ${color.green} ${color.blue} / ${clampNumber(Number(alpha), 0, 1)})`;
+}
+
+function moveEverythingThemeIsDark() {
+  return document.documentElement.getAttribute("data-theme") === "dark";
+}
+
+function resolveMoveEverythingWindowActivityColorPair(baseHex) {
+  const parsed = parseHexColor(baseHex);
+  if (!parsed) {
+    return null;
+  }
+  const darkTheme = moveEverythingThemeIsDark();
+  if (darkTheme) {
+    const darkSurface = { red: 13, green: 19, blue: 23 };
+    return {
+      border: colorToCss(blendColor(parsed, darkSurface, 0.46)),
+      background: colorToCss(blendColor(parsed, darkSurface, 0.77), 0.92),
+    };
+  }
+  const lightSurface = { red: 255, green: 255, blue: 255 };
+  return {
+    border: colorToCss(blendColor(parsed, lightSurface, 0.1)),
+    background: colorToCss(blendColor(parsed, lightSurface, 0.84), 0.95),
+  };
 }
 
 function syncMoveEverythingMoveToBottomLabels(isNarrow) {
@@ -706,6 +852,42 @@ function renderMoveEverythingModal() {
     if (ids.moveEverythingExcludeControlCenterSetting && ids.moveEverythingExcludeControlCenterSetting.parentElement) {
       ids.moveEverythingExcludeControlCenterSetting.parentElement.style.display = "none";
     }
+    if (ids.moveEverythingITermRecentActivityTimeoutSetting && ids.moveEverythingITermRecentActivityTimeoutSetting.parentElement) {
+      ids.moveEverythingITermRecentActivityTimeoutSetting.parentElement.style.display = "none";
+    }
+    if (ids.moveEverythingITermRecentActivityActiveTextSetting && ids.moveEverythingITermRecentActivityActiveTextSetting.parentElement) {
+      ids.moveEverythingITermRecentActivityActiveTextSetting.parentElement.style.display = "none";
+    }
+    if (ids.moveEverythingITermRecentActivityIdleTextSetting && ids.moveEverythingITermRecentActivityIdleTextSetting.parentElement) {
+      ids.moveEverythingITermRecentActivityIdleTextSetting.parentElement.style.display = "none";
+    }
+    if (ids.moveEverythingITermRecentActivityBadgeEnabledSetting && ids.moveEverythingITermRecentActivityBadgeEnabledSetting.parentElement) {
+      ids.moveEverythingITermRecentActivityBadgeEnabledSetting.parentElement.style.display = "none";
+    }
+    if (ids.moveEverythingITermBadgeFromTitleSetting && ids.moveEverythingITermBadgeFromTitleSetting.parentElement) {
+      ids.moveEverythingITermBadgeFromTitleSetting.parentElement.style.display = "none";
+    }
+    if (ids.moveEverythingITermRecentActivityColorizeSetting && ids.moveEverythingITermRecentActivityColorizeSetting.parentElement) {
+      ids.moveEverythingITermRecentActivityColorizeSetting.parentElement.style.display = "none";
+    }
+    if (ids.moveEverythingITermRecentActivityColorizeNamedOnlySetting && ids.moveEverythingITermRecentActivityColorizeNamedOnlySetting.parentElement) {
+      ids.moveEverythingITermRecentActivityColorizeNamedOnlySetting.parentElement.style.display = "none";
+    }
+    if (ids.moveEverythingITermRecentActivityActiveColorSetting && ids.moveEverythingITermRecentActivityActiveColorSetting.parentElement) {
+      ids.moveEverythingITermRecentActivityActiveColorSetting.parentElement.style.display = "none";
+    }
+    if (ids.moveEverythingITermRecentActivityIdleColorSetting && ids.moveEverythingITermRecentActivityIdleColorSetting.parentElement) {
+      ids.moveEverythingITermRecentActivityIdleColorSetting.parentElement.style.display = "none";
+    }
+    if (ids.moveEverythingITermBadgeTopMarginSetting && ids.moveEverythingITermBadgeTopMarginSetting.parentElement) {
+      ids.moveEverythingITermBadgeTopMarginSetting.parentElement.style.display = "none";
+    }
+    if (ids.moveEverythingITermBadgeRightMarginSetting && ids.moveEverythingITermBadgeRightMarginSetting.parentElement) {
+      ids.moveEverythingITermBadgeRightMarginSetting.parentElement.style.display = "none";
+    }
+    if (ids.moveEverythingITermRecentActivityHint) {
+      ids.moveEverythingITermRecentActivityHint.style.display = "none";
+    }
   } else {
     ids.moveEverythingStartAlwaysOnTopSetting.checked = Boolean(
       settings.moveEverythingStartAlwaysOnTop
@@ -718,6 +900,42 @@ function renderMoveEverythingModal() {
         settings.moveEverythingExcludeControlCenter
       );
     }
+    if (ids.moveEverythingITermRecentActivityTimeoutSetting && ids.moveEverythingITermRecentActivityTimeoutSetting.parentElement) {
+      ids.moveEverythingITermRecentActivityTimeoutSetting.parentElement.style.display = "";
+    }
+    if (ids.moveEverythingITermRecentActivityActiveTextSetting && ids.moveEverythingITermRecentActivityActiveTextSetting.parentElement) {
+      ids.moveEverythingITermRecentActivityActiveTextSetting.parentElement.style.display = "";
+    }
+    if (ids.moveEverythingITermRecentActivityIdleTextSetting && ids.moveEverythingITermRecentActivityIdleTextSetting.parentElement) {
+      ids.moveEverythingITermRecentActivityIdleTextSetting.parentElement.style.display = "";
+    }
+    if (ids.moveEverythingITermRecentActivityBadgeEnabledSetting && ids.moveEverythingITermRecentActivityBadgeEnabledSetting.parentElement) {
+      ids.moveEverythingITermRecentActivityBadgeEnabledSetting.parentElement.style.display = "";
+    }
+    if (ids.moveEverythingITermBadgeFromTitleSetting && ids.moveEverythingITermBadgeFromTitleSetting.parentElement) {
+      ids.moveEverythingITermBadgeFromTitleSetting.parentElement.style.display = "";
+    }
+    if (ids.moveEverythingITermRecentActivityColorizeSetting && ids.moveEverythingITermRecentActivityColorizeSetting.parentElement) {
+      ids.moveEverythingITermRecentActivityColorizeSetting.parentElement.style.display = "";
+    }
+    if (ids.moveEverythingITermRecentActivityColorizeNamedOnlySetting && ids.moveEverythingITermRecentActivityColorizeNamedOnlySetting.parentElement) {
+      ids.moveEverythingITermRecentActivityColorizeNamedOnlySetting.parentElement.style.display = "";
+    }
+    if (ids.moveEverythingITermRecentActivityActiveColorSetting && ids.moveEverythingITermRecentActivityActiveColorSetting.parentElement) {
+      ids.moveEverythingITermRecentActivityActiveColorSetting.parentElement.style.display = "";
+    }
+    if (ids.moveEverythingITermRecentActivityIdleColorSetting && ids.moveEverythingITermRecentActivityIdleColorSetting.parentElement) {
+      ids.moveEverythingITermRecentActivityIdleColorSetting.parentElement.style.display = "";
+    }
+    if (ids.moveEverythingITermBadgeTopMarginSetting && ids.moveEverythingITermBadgeTopMarginSetting.parentElement) {
+      ids.moveEverythingITermBadgeTopMarginSetting.parentElement.style.display = "";
+    }
+    if (ids.moveEverythingITermBadgeRightMarginSetting && ids.moveEverythingITermBadgeRightMarginSetting.parentElement) {
+      ids.moveEverythingITermBadgeRightMarginSetting.parentElement.style.display = "";
+    }
+    if (ids.moveEverythingITermRecentActivityHint) {
+      ids.moveEverythingITermRecentActivityHint.style.display = "";
+    }
   }
   ids.moveEverythingCloseHideOutsideMode.checked = Boolean(
     settings.moveEverythingCloseHideHotkeysOutsideMode
@@ -729,7 +947,87 @@ function renderMoveEverythingModal() {
       100
     );
   }
-
+  if (ids.moveEverythingBackgroundRefreshIntervalSetting) {
+    ids.moveEverythingBackgroundRefreshIntervalSetting.value = clampNumber(
+      Number(settings.moveEverythingBackgroundRefreshInterval ?? 5),
+      0.5,
+      30
+    );
+  }
+  if (ids.moveEverythingITermRecentActivityTimeoutSetting) {
+    ids.moveEverythingITermRecentActivityTimeoutSetting.value = clampNumber(
+      Number(settings.moveEverythingITermRecentActivityTimeout ?? 10),
+      0,
+      300
+    );
+  }
+  if (ids.moveEverythingITermRecentActivityActiveTextSetting) {
+    ids.moveEverythingITermRecentActivityActiveTextSetting.value = String(
+      settings.moveEverythingITermRecentActivityActiveText ?? "[ACTIVE]"
+    );
+  }
+  if (ids.moveEverythingITermRecentActivityIdleTextSetting) {
+    ids.moveEverythingITermRecentActivityIdleTextSetting.value = String(
+      settings.moveEverythingITermRecentActivityIdleText ?? ""
+    );
+  }
+  if (ids.moveEverythingITermRecentActivityBadgeEnabledSetting) {
+    ids.moveEverythingITermRecentActivityBadgeEnabledSetting.checked = Boolean(
+      settings.moveEverythingITermRecentActivityBadgeEnabled
+    );
+  }
+  if (ids.moveEverythingITermBadgeFromTitleSetting) {
+    ids.moveEverythingITermBadgeFromTitleSetting.checked = Boolean(
+      settings.moveEverythingITermBadgeFromTitle
+    );
+  }
+  if (ids.moveEverythingITermRecentActivityColorizeSetting) {
+    ids.moveEverythingITermRecentActivityColorizeSetting.checked = Boolean(
+      settings.moveEverythingITermRecentActivityColorize
+    );
+  }
+  if (ids.moveEverythingITermRecentActivityColorizeNamedOnlySetting) {
+    ids.moveEverythingITermRecentActivityColorizeNamedOnlySetting.checked = Boolean(
+      settings.moveEverythingITermRecentActivityColorizeNamedOnly
+    );
+  }
+  if (ids.moveEverythingActiveWindowHighlightColorizeSetting) {
+    ids.moveEverythingActiveWindowHighlightColorizeSetting.checked = Boolean(
+      settings.moveEverythingActiveWindowHighlightColorize
+    );
+  }
+  if (ids.moveEverythingActiveWindowHighlightColorSetting) {
+    ids.moveEverythingActiveWindowHighlightColorSetting.value = normalizeHexColor(
+      settings.moveEverythingActiveWindowHighlightColor,
+      defaultMoveEverythingActiveWindowHighlightColor
+    );
+  }
+  if (ids.moveEverythingITermRecentActivityActiveColorSetting) {
+    ids.moveEverythingITermRecentActivityActiveColorSetting.value = normalizeHexColor(
+      settings.moveEverythingITermRecentActivityActiveColor,
+      defaultMoveEverythingITermRecentActivityActiveColor
+    );
+  }
+  if (ids.moveEverythingITermRecentActivityIdleColorSetting) {
+    ids.moveEverythingITermRecentActivityIdleColorSetting.value = normalizeHexColor(
+      settings.moveEverythingITermRecentActivityIdleColor,
+      defaultMoveEverythingITermRecentActivityIdleColor
+    );
+  }
+  if (ids.moveEverythingITermBadgeTopMarginSetting) {
+    ids.moveEverythingITermBadgeTopMarginSetting.value = clampInt(
+      Number(settings.moveEverythingITermBadgeTopMargin ?? defaultMoveEverythingITermBadgeTopMargin),
+      0,
+      200
+    );
+  }
+  if (ids.moveEverythingITermBadgeRightMarginSetting) {
+    ids.moveEverythingITermBadgeRightMarginSetting.value = clampInt(
+      Number(settings.moveEverythingITermBadgeRightMargin ?? defaultMoveEverythingITermBadgeRightMargin),
+      0,
+      200
+    );
+  }
   for (const field of moveEverythingHotkeyFieldOrder) {
     const preview = moveEverythingHotkeyPreviewByField[field];
     if (!preview) {
@@ -788,6 +1086,9 @@ function applyOptimisticMoveEverythingWindowAction(action, key) {
       hidden.splice(hiddenIndex, 1);
       didMutate = true;
     }
+    delete state.moveEverythingCustomWindowTitlesByKey[String(key)];
+    delete state.moveEverythingCustomITermWindowTitlesByKey[String(key)];
+    delete state.moveEverythingCustomITermWindowBadgeTextByKey[String(key)];
   } else if (action === "hide") {
     if (visibleIndex >= 0) {
       const [windowItem] = visible.splice(visibleIndex, 1);
@@ -947,7 +1248,6 @@ function patchMoveEverythingHoveredRows(previousKey, nextKey) {
 
   const nextRow = moveEverythingRowByWindowKey(nextKey);
   if (nextRow &&
-      !nextRow.classList.contains("hidden-window") &&
       nextRow.dataset.meControlCenter !== "1") {
     nextRow.classList.add("hovered");
     didPatch = true;
@@ -1001,7 +1301,7 @@ function resolveMoveEverythingHoverKeyFromTarget(target, pointerClientY = null) 
     return null;
   }
   const row = target?.closest?.(".move-window-row");
-  if (row && list.contains(row) && !row.classList.contains("hidden-window")) {
+  if (row && list.contains(row)) {
     if (row.dataset.meControlCenter === "1") {
       return null;
     }
@@ -1015,7 +1315,6 @@ function resolveMoveEverythingHoverKeyFromTarget(target, pointerClientY = null) 
 
   const rows = [...list.querySelectorAll(".move-window-row[data-me-window-key]")]
     .filter((candidateRow) =>
-      !candidateRow.classList.contains("hidden-window") &&
       candidateRow.dataset.meControlCenter !== "1"
     );
   if (!rows.length) {
@@ -1177,10 +1476,92 @@ function updateMoveEverythingSettings() {
       100
     );
   }
+  if (ids.moveEverythingBackgroundRefreshIntervalSetting) {
+    settings.moveEverythingBackgroundRefreshInterval = clampNumber(
+      Number(ids.moveEverythingBackgroundRefreshIntervalSetting.value),
+      0.5,
+      30
+    );
+  }
+  if (ids.moveEverythingITermRecentActivityTimeoutSetting) {
+    settings.moveEverythingITermRecentActivityTimeout = clampNumber(
+      Number(ids.moveEverythingITermRecentActivityTimeoutSetting.value),
+      0,
+      300
+    );
+  }
+  if (ids.moveEverythingITermRecentActivityActiveTextSetting) {
+    settings.moveEverythingITermRecentActivityActiveText = String(
+      ids.moveEverythingITermRecentActivityActiveTextSetting.value || ""
+    );
+  }
+  if (ids.moveEverythingITermRecentActivityIdleTextSetting) {
+    settings.moveEverythingITermRecentActivityIdleText = String(
+      ids.moveEverythingITermRecentActivityIdleTextSetting.value || ""
+    );
+  }
+  if (ids.moveEverythingITermRecentActivityBadgeEnabledSetting) {
+    settings.moveEverythingITermRecentActivityBadgeEnabled = Boolean(
+      ids.moveEverythingITermRecentActivityBadgeEnabledSetting.checked
+    );
+  }
+  if (ids.moveEverythingITermBadgeFromTitleSetting) {
+    settings.moveEverythingITermBadgeFromTitle = Boolean(
+      ids.moveEverythingITermBadgeFromTitleSetting.checked
+    );
+  }
+  if (ids.moveEverythingITermRecentActivityColorizeSetting) {
+    settings.moveEverythingITermRecentActivityColorize = Boolean(
+      ids.moveEverythingITermRecentActivityColorizeSetting.checked
+    );
+  }
+  if (ids.moveEverythingITermRecentActivityColorizeNamedOnlySetting) {
+    settings.moveEverythingITermRecentActivityColorizeNamedOnly = Boolean(
+      ids.moveEverythingITermRecentActivityColorizeNamedOnlySetting.checked
+    );
+  }
+  if (ids.moveEverythingActiveWindowHighlightColorizeSetting) {
+    settings.moveEverythingActiveWindowHighlightColorize = Boolean(
+      ids.moveEverythingActiveWindowHighlightColorizeSetting.checked
+    );
+  }
+  if (ids.moveEverythingActiveWindowHighlightColorSetting) {
+    settings.moveEverythingActiveWindowHighlightColor = normalizeHexColor(
+      ids.moveEverythingActiveWindowHighlightColorSetting.value,
+      defaultMoveEverythingActiveWindowHighlightColor
+    );
+  }
+  if (ids.moveEverythingITermRecentActivityActiveColorSetting) {
+    settings.moveEverythingITermRecentActivityActiveColor = normalizeHexColor(
+      ids.moveEverythingITermRecentActivityActiveColorSetting.value,
+      defaultMoveEverythingITermRecentActivityActiveColor
+    );
+  }
+  if (ids.moveEverythingITermRecentActivityIdleColorSetting) {
+    settings.moveEverythingITermRecentActivityIdleColor = normalizeHexColor(
+      ids.moveEverythingITermRecentActivityIdleColorSetting.value,
+      defaultMoveEverythingITermRecentActivityIdleColor
+    );
+  }
+  if (ids.moveEverythingITermBadgeTopMarginSetting) {
+    settings.moveEverythingITermBadgeTopMargin = clampInt(
+      Number(ids.moveEverythingITermBadgeTopMarginSetting.value),
+      0,
+      200
+    );
+  }
+  if (ids.moveEverythingITermBadgeRightMarginSetting) {
+    settings.moveEverythingITermBadgeRightMargin = clampInt(
+      Number(ids.moveEverythingITermBadgeRightMarginSetting.value),
+      0,
+      200
+    );
+  }
   state.config.settings = normalizeSettings(settings);
   markDirty();
   renderMoveEverythingButton();
   renderMoveEverythingModal();
+  renderMoveEverythingWorkspace();
 }
 
 function renderShortcutList() {
@@ -1439,19 +1820,58 @@ function renderMoveEverythingWorkspace() {
   }
 
   const inventory = state.moveEverythingWindows || { visible: [], hidden: [] };
-  const visibleWindows = Array.isArray(inventory.visible)
+  state.moveEverythingActionButtonsCompact = moveEverythingActionCompactModeActive();
+  const allVisible = Array.isArray(inventory.visible)
     ? [...inventory.visible].sort(compareMoveEverythingVisibleWindowsByAppThenTitle)
     : [];
-  const hiddenWindows = Array.isArray(inventory.hidden)
+  const allHidden = Array.isArray(inventory.hidden)
     ? inventory.hidden.filter((w) => w.canRestore !== false)
     : [];
+  pruneMoveEverythingCustomWindowTitles(allVisible, allHidden);
+
+  const namedVisibleWindows = allVisible.filter((w) => hasMoveEverythingCustomWindowTitle(w));
+  const namedHiddenWindows = allHidden.filter((w) => hasMoveEverythingCustomWindowTitle(w));
+  const visibleWindows = allVisible.filter((w) => !hasMoveEverythingCustomWindowTitle(w));
+  const hiddenWindows = allHidden.filter((w) => !hasMoveEverythingCustomWindowTitle(w));
+  const namedCount = namedVisibleWindows.length + namedHiddenWindows.length;
+
   if (state.moveEverythingHoveredWindowKey &&
-      !visibleWindows.some((windowItem) => windowItem.key === state.moveEverythingHoveredWindowKey)) {
+      !allVisible.some((windowItem) => windowItem.key === state.moveEverythingHoveredWindowKey) &&
+      !allHidden.some((windowItem) => windowItem.key === state.moveEverythingHoveredWindowKey)) {
     setMoveEverythingHoveredWindow(null, { render: false, immediate: true });
   }
   ids.moveEverythingWindowList.innerHTML = "";
 
   const fragment = document.createDocumentFragment();
+
+  if (namedCount > 0) {
+    const namedSection = document.createElement("section");
+    namedSection.className = "move-window-section";
+    const namedTitle = document.createElement("h4");
+    namedTitle.textContent = `Named Windows (${namedCount})`;
+    namedSection.appendChild(namedTitle);
+    namedVisibleWindows.forEach((windowItem) => {
+      const rowHovered = !windowItem.isControlCenter &&
+        state.moveEverythingHoveredWindowKey === windowItem.key;
+      const rowFocused = !windowItem.isControlCenter &&
+        state.moveEverythingFocusedWindowKey === windowItem.key;
+      namedSection.appendChild(
+        buildMoveEverythingWindowRow(windowItem, {
+          hovered: rowHovered,
+          focused: rowFocused,
+          hidden: false,
+        })
+      );
+    });
+    namedHiddenWindows.forEach((windowItem) => {
+      namedSection.appendChild(
+        buildMoveEverythingWindowRow(windowItem, {
+          hidden: true,
+        })
+      );
+    });
+    fragment.appendChild(namedSection);
+  }
 
   const visibleSection = document.createElement("section");
   visibleSection.className = "move-window-section";
@@ -1467,9 +1887,12 @@ function renderMoveEverythingWorkspace() {
       visibleWindows.forEach((windowItem) => {
         const rowHovered = !windowItem.isControlCenter &&
           state.moveEverythingHoveredWindowKey === windowItem.key;
+        const rowFocused = !windowItem.isControlCenter &&
+          state.moveEverythingFocusedWindowKey === windowItem.key;
         visibleSection.appendChild(
           buildMoveEverythingWindowRow(windowItem, {
             hovered: rowHovered,
+            focused: rowFocused,
             hidden: false,
           })
         );
@@ -1506,7 +1929,7 @@ function renderMoveEverythingWorkspace() {
     sendJsLog(
       "info",
       "perf.renderMoveEverythingWorkspace",
-      `ms=${elapsed.toFixed(1)} visible=${visibleWindows.length} hidden=${hiddenWindows.length}`
+      `ms=${elapsed.toFixed(1)} named=${namedCount} visible=${visibleWindows.length} hidden=${hiddenWindows.length}`
     );
   }
 }
@@ -1624,6 +2047,471 @@ function truncateMoveEverythingTitleByPixels(fullTitle, maxWidthPx, element) {
   return best || moveEverythingTitleEllipsis;
 }
 
+function titleContainsStatusMarker(rawTitle, markerText) {
+  const marker = String(markerText ?? "").trim();
+  if (!marker.length) {
+    return false;
+  }
+  const title = String(rawTitle || "").trim();
+  if (!title.length) {
+    return false;
+  }
+  const normalizedTitle = title.toLowerCase();
+  const normalizedMarker = marker.toLowerCase();
+  return normalizedTitle === normalizedMarker || normalizedTitle.includes(normalizedMarker);
+}
+
+function isLikelyITermWindow(windowItem) {
+  const appName = String(windowItem?.appName || "").trim().toLowerCase();
+  return appName === "iterm2" || appName === "iterm";
+}
+
+function stripLeadingMarkerToken(title, marker) {
+  const markerText = String(marker ?? "").trim();
+  if (!markerText.length) {
+    return title;
+  }
+
+  const normalizedTitle = String(title || "");
+  if (!normalizedTitle.length) {
+    return normalizedTitle;
+  }
+
+  const lowerTitle = normalizedTitle.toLowerCase();
+  const lowerMarker = markerText.toLowerCase();
+  if (!lowerTitle.startsWith(lowerMarker)) {
+    return normalizedTitle;
+  }
+
+  const suffix = normalizedTitle.slice(markerText.length).replace(/^[\s\-:|•]+/u, "");
+  return suffix.trimStart();
+}
+
+function stripMoveEverythingStatusMarkersForDisplay(rawTitle, windowItem) {
+  const title = String(rawTitle || "").trim();
+  if (!title.length || !isLikelyITermWindow(windowItem)) {
+    return title;
+  }
+
+  const settings = state.config?.settings || {};
+  const knownMarkers = [
+    settings.moveEverythingITermRecentActivityActiveText,
+    settings.moveEverythingITermRecentActivityIdleText,
+    "[ACTIVE]",
+    "[IDLE]",
+  ]
+    .map((item) => String(item || "").trim())
+    .filter((item) => item.length > 0);
+
+  let current = title;
+  for (let i = 0; i < 8; i += 1) {
+    let stripped = false;
+
+    for (const marker of knownMarkers) {
+      const next = stripLeadingMarkerToken(current, marker);
+      if (next !== current) {
+        current = next;
+        stripped = true;
+        break;
+      }
+    }
+
+    if (!stripped) {
+      const next = current.replace(/^\s*\[[^\]]{1,32}\]\s*/u, "").trimStart();
+      if (next !== current) {
+        current = next;
+        stripped = true;
+      }
+    }
+
+    if (!stripped) {
+      break;
+    }
+  }
+
+  return current.trim().length ? current.trim() : "Untitled Window";
+}
+
+
+function resolveMoveEverythingWindowActivityStatus(windowItem) {
+  const settings = state.config?.settings || {};
+  const activeText = String(settings.moveEverythingITermRecentActivityActiveText || "").trim();
+  const idleText = String(settings.moveEverythingITermRecentActivityIdleText || "").trim();
+  const rawTitle = String(windowItem?.title || "").trim();
+
+  if (!rawTitle.length) {
+    return "unknown";
+  }
+  // Explicit title markers take priority
+  if (titleContainsStatusMarker(rawTitle, activeText)) {
+    return "active";
+  }
+  if (titleContainsStatusMarker(rawTitle, idleText)) {
+    return "idle";
+  }
+  if (titleContainsStatusMarker(rawTitle, "[ACTIVE]")) {
+    return "active";
+  }
+  if (titleContainsStatusMarker(rawTitle, "[IDLE]")) {
+    return "idle";
+  }
+  // For iTerm windows: use process-level activity from the Python API poll
+  if (isLikelyITermWindow(windowItem)) {
+    const status = windowItem.iTermActivityStatus;
+    if (status === "active" || status === "idle") {
+      return status;
+    }
+    return "idle";
+  }
+  return "unknown";
+}
+
+function resolveMoveEverythingDisplayedWindowTitle(windowItem) {
+  const key = String(windowItem?.key || "").trim();
+  const renamed = isLikelyITermWindow(windowItem)
+    ? (key ? state.moveEverythingCustomITermWindowTitlesByKey[key] : "")
+    : (key ? state.moveEverythingCustomWindowTitlesByKey[key] : "");
+  if (typeof renamed === "string" && renamed.trim().length) {
+    return renamed.trim();
+  }
+  const rawTitle = String(windowItem?.title || "");
+  return stripMoveEverythingStatusMarkersForDisplay(rawTitle, windowItem);
+}
+
+function pruneMoveEverythingCustomWindowTitles(visibleWindows, hiddenWindows) {
+  const liveKeys = new Set();
+  for (const windowItem of visibleWindows || []) {
+    if (windowItem?.key) {
+      liveKeys.add(String(windowItem.key));
+    }
+  }
+  for (const windowItem of hiddenWindows || []) {
+    if (windowItem?.key) {
+      liveKeys.add(String(windowItem.key));
+    }
+  }
+
+  for (const key of Object.keys(state.moveEverythingCustomWindowTitlesByKey || {})) {
+    if (!liveKeys.has(key)) {
+      delete state.moveEverythingCustomWindowTitlesByKey[key];
+    }
+  }
+  for (const key of Object.keys(state.moveEverythingCustomITermWindowTitlesByKey || {})) {
+    if (!liveKeys.has(key)) {
+      delete state.moveEverythingCustomITermWindowTitlesByKey[key];
+    }
+  }
+  for (const key of Object.keys(state.moveEverythingCustomITermWindowBadgeTextByKey || {})) {
+    if (!liveKeys.has(key)) {
+      delete state.moveEverythingCustomITermWindowBadgeTextByKey[key];
+    }
+  }
+  for (const key of Object.keys(state.moveEverythingCustomITermWindowBadgeColorByKey || {})) {
+    if (!liveKeys.has(key)) {
+      delete state.moveEverythingCustomITermWindowBadgeColorByKey[key];
+    }
+  }
+}
+
+function findMoveEverythingWindowByKey(key) {
+  const normalizedKey = String(key || "").trim();
+  if (!normalizedKey) {
+    return null;
+  }
+  const inventory = state.moveEverythingWindows || { visible: [], hidden: [] };
+  const visible = Array.isArray(inventory.visible) ? inventory.visible : [];
+  const hidden = Array.isArray(inventory.hidden) ? inventory.hidden : [];
+  return [...visible, ...hidden].find((item) => item?.key === normalizedKey) || null;
+}
+
+function syncMoveEverythingWindowEditorBadgeColorVisibility() {
+  syncMoveEverythingWindowEditorBadgeColorSwatchSelection();
+}
+
+function syncMoveEverythingWindowEditorBadgeColorSwatchSelection() {
+  const container = ids.moveEverythingWindowEditorBadgeColorSwatches;
+  if (!container) {
+    return;
+  }
+  const currentValue = normalizeHexColor(
+    ids.moveEverythingWindowEditorBadgeColorInput?.value,
+    ""
+  );
+  for (const swatch of container.querySelectorAll(".badge-color-swatch")) {
+    const swatchColor = normalizeHexColor(swatch.dataset.color, "");
+    swatch.classList.toggle("selected", swatchColor === currentValue && currentValue !== "");
+  }
+}
+
+function renderMoveEverythingWindowEditorModal() {
+  if (!ids.moveEverythingWindowEditorModal) {
+    return;
+  }
+
+  const editor = state.moveEverythingWindowEditor;
+  ids.moveEverythingWindowEditorModal.classList.toggle("hidden", !editor);
+  if (!editor) {
+    return;
+  }
+
+  const isITerm = editor.isITermWindow;
+  const currentTitle = editor.displayedTitle || editor.sourceTitle || "Untitled Window";
+  if (ids.moveEverythingWindowEditorTitle) {
+    ids.moveEverythingWindowEditorTitle.textContent = isITerm
+      ? "Edit iTerm2 Window"
+      : "Rename Window";
+  }
+  if (ids.moveEverythingWindowEditorHint) {
+    ids.moveEverythingWindowEditorHint.textContent = isITerm
+      ? `${editor.appName || "iTerm2"} Window List label and badge for this window.`
+      : `${editor.appName || "Window"} title override for this VibeGrid session.`;
+  }
+  if (ids.moveEverythingWindowEditorTitleField) {
+    ids.moveEverythingWindowEditorTitleField.classList.toggle("hidden", false);
+  }
+  if (ids.moveEverythingWindowEditorBadgeTextField) {
+    ids.moveEverythingWindowEditorBadgeTextField.classList.toggle("hidden", !isITerm);
+  }
+  if (ids.moveEverythingWindowEditorBadgeColorField) {
+    ids.moveEverythingWindowEditorBadgeColorField.classList.toggle("hidden", !isITerm);
+  }
+  if (ids.moveEverythingWindowEditorTitleInput) {
+    ids.moveEverythingWindowEditorTitleInput.value = String(editor.titleValue || "");
+  }
+  if (ids.moveEverythingWindowEditorTitleMeta) {
+    ids.moveEverythingWindowEditorTitleMeta.textContent = isITerm
+      ? `Leave empty to use the live title: ${currentTitle}. This only changes the Window List label.`
+      : `Leave empty to use the live title: ${currentTitle}`;
+  }
+  if (ids.moveEverythingWindowEditorBadgeTextInput) {
+    ids.moveEverythingWindowEditorBadgeTextInput.value = isITerm ? String(editor.badgeTextValue || "") : "";
+  }
+  if (ids.moveEverythingWindowEditorBadgeTextMeta) {
+    ids.moveEverythingWindowEditorBadgeTextMeta.textContent = isITerm
+      ? "Leave empty to remove the custom badge text. Activity badges still work if enabled."
+      : "";
+  }
+  if (ids.moveEverythingWindowEditorBadgeColorInput) {
+    ids.moveEverythingWindowEditorBadgeColorInput.value = normalizeHexColor(
+      editor.badgeColorValue,
+      defaultMoveEverythingITermBadgeCustomColor
+    );
+  }
+  if (ids.moveEverythingWindowEditorBadgeOpacityInput) {
+    const opacityVal = Math.max(10, Math.min(100, Number(editor.badgeOpacityValue) || defaultMoveEverythingITermBadgeOpacity));
+    ids.moveEverythingWindowEditorBadgeOpacityInput.value = String(opacityVal);
+  }
+  if (ids.moveEverythingWindowEditorBadgeOpacityLabel) {
+    const opacityVal = Math.max(10, Math.min(100, Number(editor.badgeOpacityValue) || defaultMoveEverythingITermBadgeOpacity));
+    ids.moveEverythingWindowEditorBadgeOpacityLabel.textContent = `${opacityVal}%`;
+  }
+  syncMoveEverythingWindowEditorBadgeColorVisibility();
+}
+
+function closeMoveEverythingWindowEditorModal() {
+  state.moveEverythingWindowEditor = null;
+  renderMoveEverythingWindowEditorModal();
+  sendToNative("windowEditorClosed", {});
+}
+
+function focusMoveEverythingWindowEditorPrimaryField() {
+  window.requestAnimationFrame(() => {
+    const editor = state.moveEverythingWindowEditor;
+    if (!editor) {
+      return;
+    }
+    const targetInput = ids.moveEverythingWindowEditorTitleInput;
+    if (!targetInput) {
+      return;
+    }
+    targetInput.focus();
+    targetInput.select();
+  });
+}
+
+function openMoveEverythingWindowEditor(key) {
+  const normalizedKey = String(key || "").trim();
+  if (!normalizedKey) {
+    sendJsLog("error", "moveEverythingWindowEditor.missingKey");
+    return;
+  }
+  const windowItem = findMoveEverythingWindowByKey(normalizedKey);
+  if (!windowItem) {
+    sendJsLog("error", "moveEverythingWindowEditor.windowNotFound", normalizedKey);
+    return;
+  }
+  const isITermWindow = isLikelyITermWindow(windowItem);
+  state.moveEverythingWindowEditor = {
+    key: normalizedKey,
+    isITermWindow,
+    appName: String(windowItem.appName || ""),
+    sourceTitle: String(windowItem.title || ""),
+    displayedTitle: String(resolveMoveEverythingDisplayedWindowTitle(windowItem) || windowItem.title || ""),
+    titleValue: isITermWindow
+      ? String(state.moveEverythingCustomITermWindowTitlesByKey[normalizedKey] || "")
+      : String(state.moveEverythingCustomWindowTitlesByKey[normalizedKey] || ""),
+    badgeTextValue: String(state.moveEverythingCustomITermWindowBadgeTextByKey[normalizedKey] || ""),
+    badgeColorValue: normalizeHexColor(
+      state.moveEverythingCustomITermWindowBadgeColorByKey[normalizedKey],
+      defaultMoveEverythingITermBadgeCustomColor
+    ),
+    badgeOpacityValue: state.moveEverythingCustomITermWindowBadgeOpacityByKey[normalizedKey] ?? defaultMoveEverythingITermBadgeOpacity,
+  };
+  sendJsLog(
+    "info",
+    "moveEverythingWindowEditor.open",
+    `key=${normalizedKey} isITerm=${isITermWindow} appName=${windowItem.appName || ""} windowNumber=${windowItem.windowNumber ?? "nil"} iTermWindowID=${windowItem.iTermWindowID || "nil"}`
+  );
+  renderMoveEverythingWindowEditorModal();
+  focusMoveEverythingWindowEditorPrimaryField();
+  // Measure the rendered card so Swift can size the window precisely
+  window.requestAnimationFrame(() => {
+    const card = document.querySelector("#moveEverythingWindowEditorModal .modal-card");
+    if (!card) return;
+    const rect = card.getBoundingClientRect();
+    sendToNative("windowEditorOpened", {
+      cardWidth: Math.ceil(rect.width),
+      cardHeight: Math.ceil(rect.height),
+    });
+  });
+}
+
+function resetMoveEverythingWindowEditorFields() {
+  const editor = state.moveEverythingWindowEditor;
+  if (!editor) {
+    return;
+  }
+  if (ids.moveEverythingWindowEditorTitleInput) {
+    ids.moveEverythingWindowEditorTitleInput.value = "";
+  }
+  if (editor.isITermWindow) {
+    if (ids.moveEverythingWindowEditorBadgeTextInput) {
+      ids.moveEverythingWindowEditorBadgeTextInput.value = "";
+    }
+    if (ids.moveEverythingWindowEditorBadgeColorInput) {
+      ids.moveEverythingWindowEditorBadgeColorInput.value = defaultMoveEverythingITermBadgeCustomColor;
+    }
+    if (ids.moveEverythingWindowEditorBadgeOpacityInput) {
+      ids.moveEverythingWindowEditorBadgeOpacityInput.value = String(defaultMoveEverythingITermBadgeOpacity);
+    }
+    if (ids.moveEverythingWindowEditorBadgeOpacityLabel) {
+      ids.moveEverythingWindowEditorBadgeOpacityLabel.textContent = `${defaultMoveEverythingITermBadgeOpacity}%`;
+    }
+    syncMoveEverythingWindowEditorBadgeColorVisibility();
+  }
+}
+
+function submitMoveEverythingITermWindowOverride(windowItem, payload = {}) {
+  const normalizedKey = String(windowItem?.key || "").trim();
+  const displayedTitle = String(resolveMoveEverythingDisplayedWindowTitle(windowItem) || windowItem?.title || "");
+  sendJsLog(
+    "info",
+    "moveEverythingWindowEditor.submitITerm",
+    `key=${normalizedKey} titleProvided=${Boolean(payload.titleProvided)} title=${payload.title || ""} ` +
+      `badgeTextProvided=${Boolean(payload.badgeTextProvided)} badgeText=${payload.badgeText || ""} ` +
+      `badgeColorProvided=${Boolean(payload.badgeColorProvided)} badgeColor=${payload.badgeColor || ""}`
+  );
+  sendToNative("moveEverythingRenameITermWindow", {
+    key: normalizedKey,
+    windowNumber: Number.isInteger(windowItem.windowNumber) ? windowItem.windowNumber : null,
+    iTermWindowID: typeof windowItem.iTermWindowID === "string" ? windowItem.iTermWindowID : "",
+    frame: windowItem.frame && Number.isFinite(windowItem.frame.x)
+      ? {
+          x: windowItem.frame.x,
+          y: windowItem.frame.y,
+          width: windowItem.frame.width,
+          height: windowItem.frame.height,
+        }
+      : null,
+    appName: String(windowItem.appName || ""),
+    sourceTitle: String(windowItem.title || ""),
+    sourceDisplayedTitle: displayedTitle,
+    titleProvided: Boolean(payload.titleProvided),
+    title: String(payload.title || ""),
+    badgeTextProvided: Boolean(payload.badgeTextProvided),
+    badgeText: String(payload.badgeText || ""),
+    badgeColorProvided: Boolean(payload.badgeColorProvided),
+    badgeColor: String(payload.badgeColor || ""),
+    badgeOpacity: Number.isFinite(payload.badgeOpacity) ? payload.badgeOpacity : defaultMoveEverythingITermBadgeOpacity,
+  });
+}
+
+function submitMoveEverythingWindowEditor() {
+  const editor = state.moveEverythingWindowEditor;
+  if (!editor) {
+    return;
+  }
+  const windowItem = findMoveEverythingWindowByKey(editor.key);
+  if (!windowItem) {
+    showToast("That window is no longer available.", "error");
+    closeMoveEverythingWindowEditorModal();
+    return;
+  }
+
+  const trimmedTitle = String(ids.moveEverythingWindowEditorTitleInput?.value || "").trim();
+
+  if (editor.isITermWindow) {
+    // Title: stored locally in Window List only (does not change real iTerm title)
+    if (!trimmedTitle.length) {
+      delete state.moveEverythingCustomITermWindowTitlesByKey[editor.key];
+    } else {
+      state.moveEverythingCustomITermWindowTitlesByKey[editor.key] = trimmedTitle;
+    }
+    delete state.moveEverythingCustomWindowTitlesByKey[editor.key];
+
+    // Badge: sent to native to apply to iTerm
+    const trimmedBadgeText = String(ids.moveEverythingWindowEditorBadgeTextInput?.value || "").trim();
+    const trimmedBadgeColor = normalizeHexColor(
+      ids.moveEverythingWindowEditorBadgeColorInput?.value,
+      defaultMoveEverythingITermBadgeCustomColor
+    );
+    if (!trimmedBadgeText.length) {
+      delete state.moveEverythingCustomITermWindowBadgeTextByKey[editor.key];
+    } else {
+      state.moveEverythingCustomITermWindowBadgeTextByKey[editor.key] = trimmedBadgeText;
+    }
+    if (!trimmedBadgeColor.length) {
+      delete state.moveEverythingCustomITermWindowBadgeColorByKey[editor.key];
+      delete state.moveEverythingCustomITermWindowBadgeOpacityByKey[editor.key];
+    } else {
+      state.moveEverythingCustomITermWindowBadgeColorByKey[editor.key] = trimmedBadgeColor;
+      const opacityVal = Math.max(10, Math.min(100, parseInt(ids.moveEverythingWindowEditorBadgeOpacityInput?.value, 10) || 80));
+      state.moveEverythingCustomITermWindowBadgeOpacityByKey[editor.key] = opacityVal;
+    }
+    const badgeOpacity = Math.max(10, Math.min(100, parseInt(ids.moveEverythingWindowEditorBadgeOpacityInput?.value, 10) || defaultMoveEverythingITermBadgeOpacity));
+    submitMoveEverythingITermWindowOverride(windowItem, {
+      titleProvided: true,
+      title: trimmedTitle,
+      badgeTextProvided: true,
+      badgeText: trimmedBadgeText,
+      badgeColorProvided: true,
+      badgeColor: trimmedBadgeColor,
+      badgeOpacity: badgeOpacity,
+    });
+  } else {
+    if (!trimmedTitle.length) {
+      delete state.moveEverythingCustomWindowTitlesByKey[editor.key];
+    } else {
+      state.moveEverythingCustomWindowTitlesByKey[editor.key] = trimmedTitle;
+    }
+    sendJsLog(
+      "info",
+      "moveEverythingWindowEditor.submitLocal",
+      `key=${editor.key} title=${trimmedTitle}`
+    );
+  }
+
+  closeMoveEverythingWindowEditorModal();
+  if (moveEverythingWorkspaceVisible()) {
+    renderMoveEverythingWorkspace();
+  }
+  sendToNative("requestState", { forceMoveEverythingWindowRefresh: true });
+}
+
+function renameMoveEverythingWindow(key) {
+  openMoveEverythingWindowEditor(key);
+}
+
 function moveEverythingCoreGraphicsFallbackWindowLabel(windowItem) {
   const key = String(windowItem?.key || "");
   const match = key.match(/(?:-cg-|-)(\d+)$/);
@@ -1631,6 +2519,20 @@ function moveEverythingCoreGraphicsFallbackWindowLabel(windowItem) {
     return "Window";
   }
   return `Window ${match[1]}`;
+}
+
+function hasMoveEverythingCustomWindowTitle(windowItem) {
+  const key = String(windowItem?.key || "").trim();
+  if (!key) {
+    return false;
+  }
+  if (state.moveEverythingCustomITermWindowTitlesByKey[key]) {
+    return true;
+  }
+  if (state.moveEverythingCustomWindowTitlesByKey[key]) {
+    return true;
+  }
+  return false;
 }
 
 function compareMoveEverythingVisibleWindowsByAppThenTitle(leftWindow, rightWindow) {
@@ -1644,8 +2546,8 @@ function compareMoveEverythingVisibleWindowsByAppThenTitle(leftWindow, rightWind
     return appNameComparison;
   }
 
-  const leftTitle = String(leftWindow?.title || "").trim();
-  const rightTitle = String(rightWindow?.title || "").trim();
+  const leftTitle = String(resolveMoveEverythingDisplayedWindowTitle(leftWindow) || "").trim();
+  const rightTitle = String(resolveMoveEverythingDisplayedWindowTitle(rightWindow) || "").trim();
   const titleComparison = leftTitle.localeCompare(rightTitle, undefined, {
     sensitivity: "base",
     numeric: true,
@@ -1661,10 +2563,13 @@ function compareMoveEverythingVisibleWindowsByAppThenTitle(leftWindow, rightWind
 }
 
 function buildMoveEverythingWindowRow(windowItem, options = {}) {
-  const { hovered = false, hidden = false } = options;
+  const { hovered = false, focused = false, hidden = false } = options;
   const isControlCenterRow = Boolean(windowItem.isControlCenter);
+  const compactActions = moveEverythingActionCompactModeActive();
+  const activityStatus = resolveMoveEverythingWindowActivityStatus(windowItem);
+  const settings = state.config?.settings || {};
   const row = document.createElement("div");
-  row.className = `move-window-row${hovered ? " hovered" : ""}${hidden ? " hidden-window" : ""}`;
+  row.className = `move-window-row${hovered ? " hovered" : ""}${focused ? " focused-window" : ""}${hidden ? " hidden-window" : ""}`;
   row.dataset.meWindowKey = windowItem.key;
   row.dataset.meControlCenter = isControlCenterRow ? "1" : "0";
 
@@ -1687,9 +2592,43 @@ function buildMoveEverythingWindowRow(windowItem, options = {}) {
   const copy = document.createElement("span");
   copy.className = "move-window-copy";
   const title = document.createElement("strong");
-  const rawTitle = String(windowItem.title || "");
-  title.dataset.fullTitle = rawTitle;
-  title.textContent = rawTitle;
+  const displayedTitle = String(resolveMoveEverythingDisplayedWindowTitle(windowItem) || "");
+  title.dataset.fullTitle = displayedTitle;
+  title.textContent = displayedTitle;
+  const activeWindowHighlightColorizeEnabled = Boolean(settings.moveEverythingActiveWindowHighlightColorize);
+  if (focused && activeWindowHighlightColorizeEnabled) {
+    const activeWindowColorPair = resolveMoveEverythingWindowActivityColorPair(
+      settings.moveEverythingActiveWindowHighlightColor
+    );
+    if (activeWindowColorPair) {
+      row.classList.add("activity-status-box", "active-window-highlight-box");
+      row.style.setProperty("--activity-status-border-color", activeWindowColorPair.border);
+      row.style.setProperty("--activity-status-background-color", activeWindowColorPair.background);
+      row.style.setProperty("--selected-window-row-border-color", activeWindowColorPair.border);
+      row.style.setProperty("--selected-window-row-background-color", activeWindowColorPair.background);
+      row.style.setProperty("--selected-window-row-ring-color", activeWindowColorPair.border);
+      copy.classList.add("activity-status-box");
+    }
+  }
+  const activityColorizeEnabled = Boolean(settings.moveEverythingITermRecentActivityColorize);
+  const activityColorizeNamedOnly = Boolean(settings.moveEverythingITermRecentActivityColorizeNamedOnly);
+  const windowKey = String(windowItem.key || "");
+  const windowIsNamed = Boolean(
+    state.moveEverythingCustomITermWindowTitlesByKey[windowKey] ||
+    state.moveEverythingCustomWindowTitlesByKey[windowKey]
+  );
+  if (!hovered && activityColorizeEnabled && (!activityColorizeNamedOnly || windowIsNamed) && (activityStatus === "active" || activityStatus === "idle")) {
+    const baseColor = activityStatus === "active"
+      ? settings.moveEverythingITermRecentActivityActiveColor
+      : settings.moveEverythingITermRecentActivityIdleColor;
+    const colorPair = resolveMoveEverythingWindowActivityColorPair(baseColor);
+    if (colorPair) {
+      row.classList.add("activity-status-box", `activity-status-${activityStatus}`);
+      row.style.setProperty("--activity-status-border-color", colorPair.border);
+      row.style.setProperty("--activity-status-background-color", colorPair.background);
+      copy.classList.add("activity-status-box", `activity-status-${activityStatus}`);
+    }
+  }
   const isCoreGraphicsFallback = Boolean(windowItem.isCoreGraphicsFallback);
   const coreGraphicsFallbackWindowLabel = moveEverythingCoreGraphicsFallbackWindowLabel(windowItem);
   const subtitle = document.createElement("small");
@@ -1705,13 +2644,16 @@ function buildMoveEverythingWindowRow(windowItem, options = {}) {
   if (!isControlCenterRow) {
     const actions = document.createElement("div");
     actions.className = "move-window-actions";
+    if (compactActions) {
+      actions.classList.add("compact");
+    }
 
     if (hidden) {
       if (isCoreGraphicsFallback) {
         const closeBtn = document.createElement("button");
         closeBtn.type = "button";
         closeBtn.className = "btn tiny danger";
-        closeBtn.textContent = "Close";
+        closeBtn.textContent = compactActions ? "X" : "Exit";
         closeBtn.dataset.meWindowAction = "close";
         closeBtn.dataset.meWindowKey = windowItem.key;
         actions.appendChild(closeBtn);
@@ -1720,7 +2662,7 @@ function buildMoveEverythingWindowRow(windowItem, options = {}) {
         const maxBtn = document.createElement("button");
         maxBtn.type = "button";
         maxBtn.className = "btn tiny primary";
-        maxBtn.textContent = narrowModeActive() ? "M" : "Max";
+        maxBtn.textContent = compactActions ? "M" : "Max";
         maxBtn.dataset.meWindowAction = "max";
         maxBtn.dataset.meWindowKey = windowItem.key;
         actions.appendChild(maxBtn);
@@ -1730,27 +2672,36 @@ function buildMoveEverythingWindowRow(windowItem, options = {}) {
       showBtn.type = "button";
       showBtn.className = "btn tiny move-everything";
       showBtn.textContent = isCoreGraphicsFallback
-        ? (narrowModeActive() ? "O" : "Open")
-        : (narrowModeActive() ? "S" : "Show");
+        ? (compactActions ? "O" : "Open")
+        : (compactActions ? "S" : "Show");
       showBtn.dataset.meWindowAction = "show";
       showBtn.dataset.meWindowKey = windowItem.key;
       actions.appendChild(showBtn);
     } else {
-      const closeBtn = document.createElement("button");
-      closeBtn.type = "button";
-      closeBtn.className = "btn tiny danger";
-      closeBtn.textContent = "Close";
-      closeBtn.dataset.meWindowAction = "close";
-      closeBtn.dataset.meWindowKey = windowItem.key;
-      actions.appendChild(closeBtn);
+      const renameBtn = document.createElement("button");
+      renameBtn.type = "button";
+      renameBtn.className = "btn tiny rename";
+      renameBtn.textContent = compactActions ? "N" : "Name";
+      renameBtn.dataset.meRenameWindow = "1";
+      renameBtn.dataset.meWindowKey = windowItem.key;
+      actions.appendChild(renameBtn);
 
       const hideBtn = document.createElement("button");
       hideBtn.type = "button";
       hideBtn.className = "btn tiny warning";
-      hideBtn.textContent = "Hide";
+      hideBtn.textContent = compactActions ? "H" : "Hide";
       hideBtn.dataset.meWindowAction = "hide";
       hideBtn.dataset.meWindowKey = windowItem.key;
       actions.appendChild(hideBtn);
+
+      const closeBtn = document.createElement("button");
+      closeBtn.type = "button";
+      closeBtn.className = "btn tiny danger";
+      closeBtn.textContent = compactActions ? "X" : "Exit";
+      closeBtn.dataset.meWindowAction = "close";
+      closeBtn.dataset.meWindowKey = windowItem.key;
+      actions.appendChild(closeBtn);
+
     }
     row.appendChild(actions);
   }
@@ -2182,6 +3133,9 @@ function flushAutosave() {
     return;
   }
   saveConfig({ silent: true });
+  // Protect local config from being overwritten by stale server pushes
+  // that arrive before the server processes our save.
+  configSaveGuardUntil = performance.now() + 1500;
 }
 
 function persistCurrentConfigAfterUndoRedo() {
@@ -3989,6 +4943,73 @@ function normalizeSettings(settings) {
       0.5,
       30
     ),
+    moveEverythingITermRecentActivityTimeout: clampNumber(
+      Number(
+        source.moveEverythingITermRecentActivityTimeout ??
+          defaults.moveEverythingITermRecentActivityTimeout
+      ),
+      0,
+      300
+    ),
+    moveEverythingITermRecentActivityActiveText: String(
+      source.moveEverythingITermRecentActivityActiveText ??
+        defaults.moveEverythingITermRecentActivityActiveText
+    ).trim(),
+    moveEverythingITermRecentActivityIdleText: String(
+      source.moveEverythingITermRecentActivityIdleText ??
+        defaults.moveEverythingITermRecentActivityIdleText
+    ).trim(),
+    moveEverythingITermRecentActivityBadgeEnabled: Boolean(
+      source.moveEverythingITermRecentActivityBadgeEnabled ??
+        defaults.moveEverythingITermRecentActivityBadgeEnabled
+    ),
+    moveEverythingITermBadgeFromTitle: Boolean(
+      source.moveEverythingITermBadgeFromTitle ??
+        defaults.moveEverythingITermBadgeFromTitle
+    ),
+    moveEverythingITermRecentActivityColorize: Boolean(
+      source.moveEverythingITermRecentActivityColorize ??
+        defaults.moveEverythingITermRecentActivityColorize
+    ),
+    moveEverythingITermRecentActivityColorizeNamedOnly: Boolean(
+      source.moveEverythingITermRecentActivityColorizeNamedOnly ??
+        defaults.moveEverythingITermRecentActivityColorizeNamedOnly
+    ),
+    moveEverythingActiveWindowHighlightColorize: Boolean(
+      source.moveEverythingActiveWindowHighlightColorize ??
+        defaults.moveEverythingActiveWindowHighlightColorize
+    ),
+    moveEverythingActiveWindowHighlightColor: normalizeHexColor(
+      source.moveEverythingActiveWindowHighlightColor ??
+        defaults.moveEverythingActiveWindowHighlightColor,
+      defaultMoveEverythingActiveWindowHighlightColor
+    ),
+    moveEverythingITermRecentActivityActiveColor: normalizeHexColor(
+      source.moveEverythingITermRecentActivityActiveColor ??
+        defaults.moveEverythingITermRecentActivityActiveColor,
+      defaultMoveEverythingITermRecentActivityActiveColor
+    ),
+    moveEverythingITermRecentActivityIdleColor: normalizeHexColor(
+      source.moveEverythingITermRecentActivityIdleColor ??
+        defaults.moveEverythingITermRecentActivityIdleColor,
+      defaultMoveEverythingITermRecentActivityIdleColor
+    ),
+    moveEverythingITermBadgeTopMargin: clampInt(
+      Number(
+        source.moveEverythingITermBadgeTopMargin ??
+          defaults.moveEverythingITermBadgeTopMargin
+      ),
+      0,
+      200
+    ),
+    moveEverythingITermBadgeRightMargin: clampInt(
+      Number(
+        source.moveEverythingITermBadgeRightMargin ??
+          defaults.moveEverythingITermBadgeRightMargin
+      ),
+      0,
+      200
+    ),
     moveEverythingOverlayMode: normalizeMoveEverythingOverlayMode(
       source.moveEverythingOverlayMode ?? defaults.moveEverythingOverlayMode
     ),
@@ -3999,6 +5020,7 @@ function normalizeSettings(settings) {
     ),
     moveEverythingCloseWindowHotkey: normalizeHotkeyObject(source.moveEverythingCloseWindowHotkey),
     moveEverythingHideWindowHotkey: normalizeHotkeyObject(source.moveEverythingHideWindowHotkey),
+    moveEverythingNameWindowHotkey: normalizeHotkeyObject(source.moveEverythingNameWindowHotkey),
   };
 }
 
@@ -4027,14 +5049,42 @@ function normalizeMoveEverythingWindow(value) {
   const iconDataURL = typeof value.iconDataURL === "string" && value.iconDataURL.startsWith("data:image/")
     ? value.iconDataURL
     : "";
+  const parsedWindowNumber = Number(value.windowNumber);
+  const windowNumber = Number.isInteger(parsedWindowNumber) && parsedWindowNumber >= 0
+    ? parsedWindowNumber
+    : null;
+  const iTermWindowID = typeof value.iTermWindowID === "string" && value.iTermWindowID.trim()
+    ? value.iTermWindowID.trim()
+    : null;
+  const rawFrame = value.frame && typeof value.frame === "object"
+    ? {
+        x: Number(value.frame.x),
+        y: Number(value.frame.y),
+        width: Number(value.frame.width),
+        height: Number(value.frame.height),
+      }
+    : null;
+  const frame = rawFrame &&
+    Number.isFinite(rawFrame.x) &&
+    Number.isFinite(rawFrame.y) &&
+    Number.isFinite(rawFrame.width) &&
+    Number.isFinite(rawFrame.height)
+    ? rawFrame
+    : null;
+
+  const iTermActivityStatus = typeof value.iTermActivityStatus === "string" ? value.iTermActivityStatus : null;
 
   return {
     key,
+    windowNumber,
+    iTermWindowID,
+    frame,
     title,
     appName,
     isControlCenter: Boolean(value.isControlCenter),
     iconDataURL,
     isCoreGraphicsFallback: Boolean(value.isCoreGraphicsFallback),
+    iTermActivityStatus,
   };
 }
 
@@ -4166,10 +5216,26 @@ function createDefaultConfig() {
       moveEverythingExcludeControlCenter: false,
       moveEverythingMiniRetileWidthPercent: 25,
       moveEverythingBackgroundRefreshInterval: 5,
+      moveEverythingITermRecentActivityTimeout: 10,
+      moveEverythingITermRecentActivityActiveText: "[ACTIVE]",
+      moveEverythingITermRecentActivityIdleText: "",
+      moveEverythingITermRecentActivityBadgeEnabled: false,
+      moveEverythingITermBadgeFromTitle: true,
+      moveEverythingITermRecentActivityColorize: true,
+      moveEverythingITermRecentActivityColorizeNamedOnly: false,
+      moveEverythingActiveWindowHighlightColorize: true,
+      moveEverythingActiveWindowHighlightColor: "#4D88D4",
+      moveEverythingITermBadgeTopMargin: 6,
+      moveEverythingITermBadgeRightMargin: 8,
+      // Keep literal defaults here because createDefaultConfig() runs during
+      // top-level state initialization, before later const defaults are initialized.
+      moveEverythingITermRecentActivityActiveColor: "#2F8F4E",
+      moveEverythingITermRecentActivityIdleColor: "#BA4D4D",
       moveEverythingOverlayMode: "persistent",
       moveEverythingOverlayDuration: 2,
       moveEverythingCloseWindowHotkey: null,
       moveEverythingHideWindowHotkey: null,
+      moveEverythingNameWindowHotkey: null,
     },
     shortcuts: [],
   };
@@ -4294,6 +5360,12 @@ function handleWindowKeyDown(event) {
     return;
   }
 
+  if (state.moveEverythingWindowEditor && event.key === "Escape") {
+    event.preventDefault();
+    closeMoveEverythingWindowEditorModal();
+    return;
+  }
+
   if (event.key !== "ArrowUp" && event.key !== "ArrowDown") {
     return;
   }
@@ -4331,7 +5403,16 @@ function wireEvents() {
   ids.exitBtn.addEventListener("click", () => sendToNative("exitApp"));
   on(ids.moveEverythingBtn, "click", toggleMoveEverythingFromButton);
   on(ids.moveEverythingWindowList, "click", (event) => {
-    const actionButton = event.target.closest("button[data-me-window-action]");
+    const target = event.target instanceof Element ? event.target : null;
+    if (!target) {
+      return;
+    }
+    const renameButton = target.closest("button[data-me-rename-window]");
+    if (renameButton) {
+      renameMoveEverythingWindow(renameButton.dataset.meWindowKey);
+      return;
+    }
+    const actionButton = target.closest("button[data-me-window-action]");
     if (actionButton) {
       performMoveEverythingWindowAction(
         actionButton.dataset.meWindowAction,
@@ -4741,12 +5822,64 @@ function wireEvents() {
       clearMoveEverythingHotkey(clearBtn.dataset.meClear);
     }
   });
+  on(ids.moveEverythingWindowEditorCancelBtn, "click", closeMoveEverythingWindowEditorModal);
+  on(ids.moveEverythingWindowEditorResetBtn, "click", resetMoveEverythingWindowEditorFields);
+  on(ids.moveEverythingWindowEditorBadgeColorInput, "input", syncMoveEverythingWindowEditorBadgeColorSwatchSelection);
+  on(ids.moveEverythingWindowEditorBadgeOpacityInput, "input", () => {
+    if (ids.moveEverythingWindowEditorBadgeOpacityLabel && ids.moveEverythingWindowEditorBadgeOpacityInput) {
+      ids.moveEverythingWindowEditorBadgeOpacityLabel.textContent = `${ids.moveEverythingWindowEditorBadgeOpacityInput.value}%`;
+    }
+  });
+  if (ids.moveEverythingWindowEditorBadgeColorSwatches) {
+    ids.moveEverythingWindowEditorBadgeColorSwatches.addEventListener("click", (event) => {
+      const swatch = event.target.closest(".badge-color-swatch");
+      if (!swatch) {
+        return;
+      }
+      const color = normalizeHexColor(swatch.dataset.color, "");
+      if (color && ids.moveEverythingWindowEditorBadgeColorInput) {
+        ids.moveEverythingWindowEditorBadgeColorInput.value = color;
+        syncMoveEverythingWindowEditorBadgeColorSwatchSelection();
+      }
+    });
+  }
+  on(ids.moveEverythingWindowEditorModal, "click", (event) => {
+    if (event.target === ids.moveEverythingWindowEditorModal) {
+      closeMoveEverythingWindowEditorModal();
+    }
+  });
+  on(ids.moveEverythingWindowEditorForm, "submit", (event) => {
+    event.preventDefault();
+    submitMoveEverythingWindowEditor();
+  });
   on(ids.moveEverythingCloseHideOutsideMode, "change", updateMoveEverythingSettings);
   on(ids.moveEverythingStartAlwaysOnTopSetting, "change", updateMoveEverythingSettings);
   on(ids.moveEverythingStickyHoverStealFocusSetting, "change", updateMoveEverythingSettings);
   on(ids.moveEverythingExcludeControlCenterSetting, "change", updateMoveEverythingSettings);
   on(ids.moveEverythingMiniRetileWidthPercentSetting, "change", updateMoveEverythingSettings);
-
+  on(ids.moveEverythingBackgroundRefreshIntervalSetting, "change", updateMoveEverythingSettings);
+  on(ids.moveEverythingBackgroundRefreshIntervalSetting, "input", updateMoveEverythingSettings);
+  on(ids.moveEverythingITermRecentActivityTimeoutSetting, "change", updateMoveEverythingSettings);
+  on(ids.moveEverythingITermRecentActivityTimeoutSetting, "input", updateMoveEverythingSettings);
+  on(ids.moveEverythingITermRecentActivityActiveTextSetting, "change", updateMoveEverythingSettings);
+  on(ids.moveEverythingITermRecentActivityActiveTextSetting, "input", updateMoveEverythingSettings);
+  on(ids.moveEverythingITermRecentActivityIdleTextSetting, "change", updateMoveEverythingSettings);
+  on(ids.moveEverythingITermRecentActivityIdleTextSetting, "input", updateMoveEverythingSettings);
+  on(ids.moveEverythingITermRecentActivityBadgeEnabledSetting, "change", updateMoveEverythingSettings);
+  on(ids.moveEverythingITermBadgeFromTitleSetting, "change", updateMoveEverythingSettings);
+  on(ids.moveEverythingITermRecentActivityColorizeSetting, "change", updateMoveEverythingSettings);
+  on(ids.moveEverythingITermRecentActivityColorizeNamedOnlySetting, "change", updateMoveEverythingSettings);
+  on(ids.moveEverythingActiveWindowHighlightColorizeSetting, "change", updateMoveEverythingSettings);
+  on(ids.moveEverythingActiveWindowHighlightColorSetting, "change", updateMoveEverythingSettings);
+  on(ids.moveEverythingActiveWindowHighlightColorSetting, "input", updateMoveEverythingSettings);
+  on(ids.moveEverythingITermRecentActivityActiveColorSetting, "change", updateMoveEverythingSettings);
+  on(ids.moveEverythingITermRecentActivityActiveColorSetting, "input", updateMoveEverythingSettings);
+  on(ids.moveEverythingITermRecentActivityIdleColorSetting, "change", updateMoveEverythingSettings);
+  on(ids.moveEverythingITermRecentActivityIdleColorSetting, "input", updateMoveEverythingSettings);
+  on(ids.moveEverythingITermBadgeTopMarginSetting, "change", updateMoveEverythingSettings);
+  on(ids.moveEverythingITermBadgeTopMarginSetting, "input", updateMoveEverythingSettings);
+  on(ids.moveEverythingITermBadgeRightMarginSetting, "change", updateMoveEverythingSettings);
+  on(ids.moveEverythingITermBadgeRightMarginSetting, "input", updateMoveEverythingSettings);
   window.addEventListener("beforeunload", () => {
     cancelListReorderDrag();
     stopHotkeyRecording();
@@ -4770,6 +5903,14 @@ function wireEvents() {
     const didLayoutChange = syncNarrowModeLayout();
     if (didLayoutChange) {
       renderAll();
+      return;
+    }
+    const compactNow = moveEverythingActionCompactModeActive();
+    if (state.moveEverythingActionButtonsCompact !== compactNow) {
+      state.moveEverythingActionButtonsCompact = compactNow;
+      if (moveEverythingWorkspaceVisible()) {
+        renderMoveEverythingWorkspace();
+      }
       return;
     }
     if (!moveEverythingWorkspaceVisible()) {

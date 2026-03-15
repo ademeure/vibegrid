@@ -22,6 +22,7 @@ final class WindowManagerEngine: WindowManagerEngineProtocol {
         let key: String
         let pid: pid_t
         let windowNumber: Int?
+        let iTermWindowID: String?
         let title: String?
         let appName: String
         let bundleIdentifier: String?
@@ -110,6 +111,9 @@ final class WindowManagerEngine: WindowManagerEngineProtocol {
         label: "vibegrid.moveEverything.inventory.refresh",
         qos: .userInitiated
     )
+    var moveEverythingITermFetchCache: [ITermWindowInventoryResolver.WindowDescriptor] = []
+    var moveEverythingITermFetchCacheAt: Date?
+    let moveEverythingITermFetchCacheTTL: TimeInterval = 2.0
     var moveEverythingInventoryRefreshInFlight = false
     var moveEverythingInventoryRefreshQueued = false
     var moveEverythingInventoryRefreshRevision: UInt64 = 0
@@ -135,6 +139,8 @@ final class WindowManagerEngine: WindowManagerEngineProtocol {
     var hotkeyPassthroughRestoreWorkItem: DispatchWorkItem?
     var firefoxFrameRetryWorkItemsByKey: [String: [DispatchWorkItem]] = [:]
     var onMoveEverythingInventoryRefreshed: (() -> Void)?
+    var onMoveEverythingNameWindowRequested: ((String) -> Void)?
+    var onMoveEverythingQuickViewRequested: (() -> Void)?
     var isMoveEverythingAlwaysOnTopEnabledProvider: (() -> Bool)?
 
     // MARK: - Init
@@ -271,6 +277,9 @@ final class WindowManagerEngine: WindowManagerEngineProtocol {
             actions.append(.closeWindow)
             actions.append(.hideWindow)
         }
+
+        actions.append(.nameWindow)
+        actions.append(.quickView)
 
         return actions
     }

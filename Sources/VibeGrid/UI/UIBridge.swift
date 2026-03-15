@@ -5,8 +5,8 @@ import WebKit
 final class UIBridge: NSObject, WKScriptMessageHandler {
     private weak var webView: WKWebView?
     private let appState: AppState
-    private let moveEverythingWindowRefreshInterval: TimeInterval = 0.6
     private var moveEverythingWindowInventoryCache: Any = UIBridge.emptyMoveEverythingWindowInventoryPayload
+    private var moveEverythingRawInventoryCache: MoveEverythingWindowInventory?
     private var moveEverythingWindowInventoryLastRefreshAt: Date?
 
     init(webView: WKWebView, appState: AppState) {
@@ -27,8 +27,17 @@ final class UIBridge: NSObject, WKScriptMessageHandler {
         }
 
         switch type {
-        case "ready", "requestState":
+        case "ready":
             pushStateToWeb()
+
+        case "requestState":
+            let payload = body["payload"] as? [String: Any]
+            let forceMoveEverythingWindowRefresh = payload?["forceMoveEverythingWindowRefresh"] as? Bool ?? false
+            let allowMoveEverythingWindowRefresh = payload?["allowMoveEverythingWindowRefresh"] as? Bool ?? true
+            pushStateToWeb(
+                forceMoveEverythingWindowRefresh: forceMoveEverythingWindowRefresh,
+                allowMoveEverythingWindowRefresh: allowMoveEverythingWindowRefresh
+            )
 
         case "saveConfig":
             guard let payload = body["payload"] else {
@@ -59,11 +68,14 @@ final class UIBridge: NSObject, WKScriptMessageHandler {
                 let message = payload["message"] as? String ?? ""
                 if let details = payload["details"] as? String, !details.isEmpty {
                     NSLog("VibeGrid JS [%@]: %@ | %@", level, message, details)
+                    WindowListDebugLogger.log("js.\(level)", "\(message) | \(details)")
                 } else {
                     NSLog("VibeGrid JS [%@]: %@", level, message)
+                    WindowListDebugLogger.log("js.\(level)", message)
                 }
             } else {
                 NSLog("VibeGrid JS [info]: %@", body.description)
+                WindowListDebugLogger.log("js.info", body.description)
             }
 
         case "previewPlacement":
@@ -94,6 +106,15 @@ final class UIBridge: NSObject, WKScriptMessageHandler {
 
         case "hideControlCenter":
             appState.hideControlCenter()
+
+        case "windowEditorOpened":
+            let payload = body["payload"] as? [String: Any]
+            let cardWidth = (payload?["cardWidth"] as? NSNumber)?.intValue ?? 540
+            let cardHeight = (payload?["cardHeight"] as? NSNumber)?.intValue ?? 400
+            appState.handleWindowEditorOpened(cardWidth: cardWidth, cardHeight: cardHeight)
+
+        case "windowEditorClosed":
+            appState.handleWindowEditorClosed()
 
         case "toggleMoveEverythingMode":
             let result = appState.toggleMoveEverythingMode()
@@ -179,6 +200,92 @@ final class UIBridge: NSObject, WKScriptMessageHandler {
             }
             if !appState.maximizeMoveEverythingWindow(withKey: key) {
                 sendNotice(level: "error", message: "Unable to maximize that window")
+            }
+            pushStateToWeb(forceMoveEverythingWindowRefresh: true)
+
+        case "moveEverythingRenameITermWindow":
+            let payload = (body["payload"] as? [String: Any]) ?? [:]
+            let key = payload["key"] as? String ?? ""
+            guard !key.isEmpty else {
+                WindowListDebugLogger.log("rename", "bridge rejected request with missing key")
+                sendNotice(level: "error", message: "Missing Window List window key")
+                return
+            }
+            let windowNumber: Int? = {
+                if let number = payload["windowNumber"] as? NSNumber {
+                    let parsed = number.intValue
+                    return parsed >= 0 ? parsed : nil
+                }
+                if let numberText = payload["windowNumber"] as? String,
+                   let parsed = Int(numberText.trimmingCharacters(in: .whitespacesAndNewlines)),
+                   parsed >= 0 {
+                    return parsed
+                }
+                return nil
+            }()
+            let iTermWindowID = (payload["iTermWindowID"] as? String)?
+                .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let appName = payload["appName"] as? String ?? ""
+            let framePayload = payload["frame"] as? [String: Any]
+            let sourceFrame: MoveEverythingWindowFrameSnapshot? = {
+                guard let framePayload else {
+                    return nil
+                }
+                let x = (framePayload["x"] as? NSNumber)?.doubleValue
+                let y = (framePayload["y"] as? NSNumber)?.doubleValue
+                let width = (framePayload["width"] as? NSNumber)?.doubleValue
+                let height = (framePayload["height"] as? NSNumber)?.doubleValue
+                guard let x, let y, let width, let height else {
+                    return nil
+                }
+                return MoveEverythingWindowFrameSnapshot(x: x, y: y, width: width, height: height)
+            }()
+            let sourceTitle = payload["sourceTitle"] as? String ?? ""
+            let sourceDisplayedTitle = payload["sourceDisplayedTitle"] as? String ?? ""
+            let titleProvided = payload["titleProvided"] as? Bool ?? true
+            let title = payload["title"] as? String ?? ""
+            let badgeTextProvided = payload["badgeTextProvided"] as? Bool ?? true
+            let badgeText = payload["badgeText"] as? String ?? ""
+            let badgeColorProvided = payload["badgeColorProvided"] as? Bool ?? true
+            let badgeColor = payload["badgeColor"] as? String ?? ""
+            let badgeOpacity = payload["badgeOpacity"] as? Int ?? 60
+            let badgeSize = payload["badgeSize"] as? Int ?? 55
+            WindowListDebugLogger.log(
+                "rename",
+                "bridge received key=\(key) windowNumber=\(windowNumber?.description ?? "nil") " +
+                    "iTermWindowID=\(iTermWindowID.isEmpty ? "nil" : iTermWindowID) " +
+                    "appName=\(appName) sourceFrame=\(sourceFrame.map { "\($0.x),\($0.y),\($0.width),\($0.height)" } ?? "nil") " +
+                    "sourceTitle=\(sourceTitle) sourceDisplayedTitle=\(sourceDisplayedTitle) " +
+                    "titleProvided=\(titleProvided) title=\(title) " +
+                    "badgeTextProvided=\(badgeTextProvided) badgeText=\(badgeText) " +
+                    "badgeColorProvided=\(badgeColorProvided) badgeColor=\(badgeColor)"
+            )
+            if !appState.renameMoveEverythingITermWindow(
+                withKey: key,
+                windowNumber: windowNumber,
+                iTermWindowID: iTermWindowID,
+                sourceFrame: sourceFrame,
+                sourceAppName: appName,
+                sourceTitle: sourceTitle,
+                sourceDisplayedTitle: sourceDisplayedTitle,
+                titleProvided: titleProvided,
+                title: title,
+                badgeTextProvided: badgeTextProvided,
+                badgeText: badgeText,
+                badgeColorProvided: badgeColorProvided,
+                badgeColor: badgeColor,
+                badgeOpacity: badgeOpacity,
+                badgeSize: badgeSize
+            ) {
+                let debugLogName = URL(fileURLWithPath: appState.windowListDebugLogPath()).lastPathComponent
+                WindowListDebugLogger.log(
+                    "rename",
+                    "bridge rename failed key=\(key) debugLog=\(debugLogName)"
+                )
+                sendNotice(
+                    level: "error",
+                    message: "Unable to rename that iTerm2 window. See \(debugLogName)."
+                )
             }
             pushStateToWeb(forceMoveEverythingWindowRefresh: true)
 
@@ -324,6 +431,7 @@ final class UIBridge: NSObject, WKScriptMessageHandler {
             ],
             "moveEverythingActive": moveEverythingActive,
             "moveEverythingWindows": moveEverythingWindowInventoryPayload,
+            "moveEverythingFocusedWindowKey": appState.moveEverythingFocusedWindowKey() ?? "",
             "controlCenterFocused": appState.controlCenterFocused(),
             "moveEverythingControlCenterFocused": appState.moveEverythingControlCenterFocused(),
             "moveEverythingAlwaysOnTop": appState.moveEverythingAlwaysOnTopEnabled(),
@@ -341,6 +449,10 @@ final class UIBridge: NSObject, WKScriptMessageHandler {
         ]
 
         send(type: "state", payload: payload)
+    }
+
+    func sendOpenWindowEditor(key: String) {
+        send(type: "openWindowEditor", payload: ["key": key])
     }
 
     private func sendNotice(level: String, message: String) {
@@ -389,12 +501,20 @@ final class UIBridge: NSObject, WKScriptMessageHandler {
     ) -> Any {
         let now = Date()
         guard active else {
+            moveEverythingRawInventoryCache = nil
             moveEverythingWindowInventoryCache = UIBridge.emptyMoveEverythingWindowInventoryPayload
             moveEverythingWindowInventoryLastRefreshAt = now
             return moveEverythingWindowInventoryCache
         }
 
         guard allowRefresh else {
+            // Even when not refreshing the inventory, re-enrich so activity status updates
+            if let rawInventory = moveEverythingRawInventoryCache {
+                return enrichInventoryWithActivity(
+                    codableToJSONObject(rawInventory) ?? moveEverythingWindowInventoryCache,
+                    inventory: rawInventory
+                )
+            }
             return moveEverythingWindowInventoryCache
         }
 
@@ -402,27 +522,105 @@ final class UIBridge: NSObject, WKScriptMessageHandler {
             guard let lastRefresh = moveEverythingWindowInventoryLastRefreshAt else {
                 return true
             }
-            return now.timeIntervalSince(lastRefresh) >= moveEverythingWindowRefreshInterval
+            return now.timeIntervalSince(lastRefresh) >= resolvedMoveEverythingWindowRefreshInterval()
         }()
 
-        guard shouldRefresh else {
-            return moveEverythingWindowInventoryCache
+        if shouldRefresh {
+            let startedAt = DispatchTime.now().uptimeNanoseconds
+            let rawInventory = appState.moveEverythingWindowInventory()
+            moveEverythingRawInventoryCache = rawInventory
+            let refreshedPayload = enrichInventoryWithActivity(
+                codableToJSONObject(rawInventory) ?? UIBridge.emptyMoveEverythingWindowInventoryPayload,
+                inventory: rawInventory
+            )
+            let elapsedMs = Double(DispatchTime.now().uptimeNanoseconds - startedAt) / 1_000_000
+            if elapsedMs >= 70 {
+                NSLog(
+                    "VibeGrid perf: ui.refreshMoveEverythingWindowInventory force=%@ took %.1fms",
+                    forceRefresh ? "true" : "false",
+                    elapsedMs
+                )
+            }
+            moveEverythingWindowInventoryCache = refreshedPayload
+            moveEverythingWindowInventoryLastRefreshAt = Date()
+            return refreshedPayload
         }
 
-        let startedAt = DispatchTime.now().uptimeNanoseconds
-        let refreshedPayload = codableToJSONObject(appState.moveEverythingWindowInventory()) ??
-            UIBridge.emptyMoveEverythingWindowInventoryPayload
-        let elapsedMs = Double(DispatchTime.now().uptimeNanoseconds - startedAt) / 1_000_000
-        if elapsedMs >= 70 {
-            NSLog(
-                "VibeGrid perf: ui.refreshMoveEverythingWindowInventory force=%@ took %.1fms",
-                forceRefresh ? "true" : "false",
-                elapsedMs
+        // Inventory hasn't changed but still re-enrich for fresh activity status
+        if let rawInventory = moveEverythingRawInventoryCache {
+            return enrichInventoryWithActivity(
+                codableToJSONObject(rawInventory) ?? moveEverythingWindowInventoryCache,
+                inventory: rawInventory
             )
         }
-        moveEverythingWindowInventoryCache = refreshedPayload
-        moveEverythingWindowInventoryLastRefreshAt = Date()
-        return refreshedPayload
+        return moveEverythingWindowInventoryCache
+    }
+
+    private func resolvedMoveEverythingWindowRefreshInterval() -> TimeInterval {
+        let configured = appState.config.settings.moveEverythingBackgroundRefreshInterval
+        if configured.isFinite {
+            return max(0.2, min(configured, 30))
+        }
+        return 0.6
+    }
+
+    private func enrichInventoryWithActivity(_ payload: Any, inventory: MoveEverythingWindowInventory) -> Any {
+        // Kick off an async TTY activity poll (results arrive and trigger refresh)
+        appState.refreshITermActivity()
+
+        // Update title-change tracker and compute combined activity status
+        let timeout = appState.config.settings.moveEverythingITermRecentActivityTimeout
+        let now = Date()
+        let ttyCache = appState.iTermActivityCache
+        var statusByKey: [String: String] = [:]
+
+        for snapshot in inventory.visible + inventory.hidden {
+            let appName = snapshot.appName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            guard appName.contains("iterm") else { continue }
+
+            // Signal 1: TTY mtime from Python poll
+            let ttyActive = ttyCache[snapshot.key] == "active"
+
+            // Signal 2: title changed recently
+            let titleActive: Bool = {
+                let key = snapshot.key
+                let title = snapshot.title
+                if let existing = appState.iTermTitleTracker[key] {
+                    if existing.title != title {
+                        appState.iTermTitleTracker[key] = (title: title, changedAt: now)
+                        return true
+                    }
+                    return now.timeIntervalSince(existing.changedAt) < timeout
+                } else {
+                    appState.iTermTitleTracker[key] = (title: title, changedAt: now)
+                    return true
+                }
+            }()
+
+            statusByKey[snapshot.key] = (ttyActive || titleActive) ? "active" : "idle"
+        }
+
+        // Prune stale title tracker entries
+        let liveKeys = Set((inventory.visible + inventory.hidden).map(\.key))
+        for key in appState.iTermTitleTracker.keys where !liveKeys.contains(key) {
+            appState.iTermTitleTracker.removeValue(forKey: key)
+        }
+
+        guard var dict = payload as? [String: Any] else { return payload }
+        func enrichWindows(_ windows: Any?) -> Any? {
+            guard let arr = windows as? [[String: Any]] else { return windows }
+            return arr.map { window -> [String: Any] in
+                var w = window
+                let key = (w["key"] as? String) ?? ""
+                if let status = statusByKey[key] {
+                    w["iTermActivityStatus"] = status
+                }
+                return w
+            }
+        }
+        dict["visible"] = enrichWindows(dict["visible"])
+        dict["hidden"] = enrichWindows(dict["hidden"])
+        return dict
     }
 
     private static let emptyMoveEverythingWindowInventoryPayload: [String: Any] = [

@@ -331,13 +331,76 @@
                 Mini Retile Width (%)
                 <input id="moveEverythingMiniRetileWidthPercentSetting" type="number" min="5" max="100" />
               </label>
+              <label>
+                Window List Refresh (sec)
+                <input id="moveEverythingBackgroundRefreshIntervalSetting" type="number" min="0.5" max="30" step="0.1" />
+              </label>
             </div>
+            <div class="settings-grid" style="margin-top: 8px;">
+              <label>
+                iTerm2 Activity Timeout (sec)
+                <input id="moveEverythingITermRecentActivityTimeoutSetting" type="number" min="0" max="300" step="0.5" />
+              </label>
+              <label>
+                iTerm2 Active Text
+                <input id="moveEverythingITermRecentActivityActiveTextSetting" type="text" placeholder="[ACTIVE]" />
+              </label>
+              <label>
+                iTerm2 Idle Text
+                <input id="moveEverythingITermRecentActivityIdleTextSetting" type="text" placeholder="Leave blank to omit" />
+              </label>
+            </div>
+            <label class="toggle-line move-everything-modal-toggle" style="margin-top: 8px;">
+              <input id="moveEverythingITermRecentActivityBadgeEnabledSetting" type="checkbox" />
+              Show iTerm2 activity badge
+            </label>
+            <label class="toggle-line move-everything-modal-toggle" style="margin-top: 8px;">
+              <input id="moveEverythingITermBadgeFromTitleSetting" type="checkbox" />
+              Auto badge from window title
+            </label>
+            <label class="toggle-line move-everything-modal-toggle" style="margin-top: 8px;">
+              <input id="moveEverythingITermRecentActivityColorizeSetting" type="checkbox" />
+              Color-code by iTerm2 activity
+            </label>
+            <label class="toggle-line move-everything-modal-toggle" style="margin-top: 8px;">
+              <input id="moveEverythingITermRecentActivityColorizeNamedOnlySetting" type="checkbox" />
+              Only color-code named windows
+            </label>
+            <label class="toggle-line move-everything-modal-toggle" style="margin-top: 8px;">
+              <input id="moveEverythingActiveWindowHighlightColorizeSetting" type="checkbox" />
+              Highlight OS-focused window in list
+            </label>
+            <div class="settings-grid" style="margin-top: 8px;">
+              <label>
+                iTerm2 Active Color
+                <input id="moveEverythingITermRecentActivityActiveColorSetting" type="color" />
+              </label>
+              <label>
+                iTerm2 Idle Color
+                <input id="moveEverythingITermRecentActivityIdleColorSetting" type="color" />
+              </label>
+              <label>
+                Focused Window Color
+                <input id="moveEverythingActiveWindowHighlightColorSetting" type="color" />
+              </label>
+            </div>
+            <div class="settings-grid" style="margin-top: 8px;">
+              <label>
+                Badge Top (pt)
+                <input id="moveEverythingITermBadgeTopMarginSetting" type="number" min="0" max="200" step="1" />
+              </label>
+              <label>
+                Badge Right (pt)
+                <input id="moveEverythingITermBadgeRightMarginSetting" type="number" min="0" max="200" step="1" />
+              </label>
+            </div>
+            <p id="moveEverythingITermRecentActivityHint" class="settings-hint">Activity labels update iTerm2 titles. Use per-window Badge button for custom text/color.</p>
           </div>
           <div class="settings-section">
             <h4>Hotkeys</h4>
             <label class="toggle-line move-everything-modal-toggle">
               <input id="moveEverythingCloseHideOutsideMode" type="checkbox" />
-              Close/Hide hotkeys also work outside Window List mode
+              Close/Hide hotkeys work outside Window List mode
             </label>
             <div class="move-hotkey-list">
               <div class="move-hotkey-row">
@@ -358,10 +421,73 @@
                 <button class="btn tiny capture" type="button" data-me-record="moveEverythingHideWindowHotkey">Record</button>
                 <button class="btn tiny ghost" type="button" data-me-clear="moveEverythingHideWindowHotkey">Clear</button>
               </div>
+              <div class="move-hotkey-row">
+                <div class="move-hotkey-meta">
+                  <strong>Name Window</strong>
+                  <small>Optional</small>
+                </div>
+                <span id="moveEverythingNameWindowPreview" class="hotkey-preview move-hotkey-preview"></span>
+                <button class="btn tiny capture" type="button" data-me-record="moveEverythingNameWindowHotkey">Record</button>
+                <button class="btn tiny ghost" type="button" data-me-clear="moveEverythingNameWindowHotkey">Clear</button>
+              </div>
+              <div class="move-hotkey-row">
+                <div class="move-hotkey-meta">
+                  <strong>Quick View</strong>
+                  <small>Optional</small>
+                </div>
+                <span id="moveEverythingQuickViewPreview" class="hotkey-preview move-hotkey-preview"></span>
+                <button class="btn tiny capture" type="button" data-me-record="moveEverythingQuickViewHotkey">Record</button>
+                <button class="btn tiny ghost" type="button" data-me-clear="moveEverythingQuickViewHotkey">Clear</button>
+              </div>
             </div>
           </div>
           <div class="modal-actions">
             <button id="moveEverythingCloseBtn" class="btn primary">Done</button>
+          </div>
+        </div>
+      </div>
+      <div id="moveEverythingWindowEditorModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="moveEverythingWindowEditorTitle">
+        <div class="modal-card move-window-editor-card">
+          <h3 id="moveEverythingWindowEditorTitle">Edit Window</h3>
+          <p id="moveEverythingWindowEditorHint"></p>
+          <form id="moveEverythingWindowEditorForm" class="move-window-editor-form">
+            <label id="moveEverythingWindowEditorTitleField" class="move-window-editor-field">
+              Window Title
+              <input id="moveEverythingWindowEditorTitleInput" type="text" autocomplete="off" />
+              <small id="moveEverythingWindowEditorTitleMeta" class="settings-hint"></small>
+            </label>
+            <label id="moveEverythingWindowEditorBadgeTextField" class="move-window-editor-field">
+              Badge Text
+              <input id="moveEverythingWindowEditorBadgeTextInput" type="text" autocomplete="off" />
+              <small id="moveEverythingWindowEditorBadgeTextMeta" class="settings-hint"></small>
+            </label>
+            <div id="moveEverythingWindowEditorBadgeColorField" class="move-window-editor-field hidden">
+              <span>Badge Color</span>
+              <div class="badge-color-swatches" id="moveEverythingWindowEditorBadgeColorSwatches">
+                <button type="button" class="badge-color-swatch" data-color="#BE1E1E" style="background:#BE1E1E" title="Default (iTerm red)"></button>
+                <button type="button" class="badge-color-swatch" data-color="#E04040" style="background:#E04040" title="Red"></button>
+                <button type="button" class="badge-color-swatch" data-color="#E08020" style="background:#E08020" title="Orange"></button>
+                <button type="button" class="badge-color-swatch" data-color="#D0C020" style="background:#D0C020" title="Yellow"></button>
+                <button type="button" class="badge-color-swatch" data-color="#40B040" style="background:#40B040" title="Green"></button>
+                <button type="button" class="badge-color-swatch" data-color="#2090D0" style="background:#2090D0" title="Blue"></button>
+                <button type="button" class="badge-color-swatch" data-color="#A05FE0" style="background:#A05FE0" title="Purple"></button>
+                <button type="button" class="badge-color-swatch" data-color="#E060A0" style="background:#E060A0" title="Pink"></button>
+                <button type="button" class="badge-color-swatch" data-color="#FFFFFF" style="background:#FFFFFF" title="White"></button>
+              </div>
+              <input id="moveEverythingWindowEditorBadgeColorInput" type="text" placeholder="#A05FE0" autocomplete="off" maxlength="7" style="width:80px;font-family:monospace" />
+              <div class="badge-opacity-row">
+                <span>Opacity</span>
+                <input id="moveEverythingWindowEditorBadgeOpacityInput" type="range" min="10" max="100" value="80" style="flex:1" />
+                <span id="moveEverythingWindowEditorBadgeOpacityLabel" style="min-width:32px;text-align:right;font-family:monospace">80%</span>
+              </div>
+              <small class="settings-hint">Pick a swatch or type a hex color. Adjust opacity to match iTerm's default faded look.</small>
+            </div>
+
+          </form>
+          <div class="modal-actions">
+            <button id="moveEverythingWindowEditorResetBtn" class="btn ghost" type="button">Reset</button>
+            <button id="moveEverythingWindowEditorCancelBtn" class="btn" type="button">Cancel</button>
+            <button id="moveEverythingWindowEditorSaveBtn" class="btn primary" type="submit" form="moveEverythingWindowEditorForm">Save</button>
           </div>
         </div>
       </div>

@@ -9,6 +9,13 @@ extension WindowManagerEngine {
         func moveEverythingControlCenterFocused() -> Bool {
             isMoveEverythingActive && isMoveEverythingControlCenterInteractionFocused()
         }
+        func moveEverythingFocusedWindowKeySnapshot() -> String? {
+            guard isMoveEverythingActive else {
+                return nil
+            }
+            refreshMoveEverythingFocusedWindowKeyIfNeeded(force: false)
+            return moveEverythingFocusedWindowKey
+        }
         func moveEverythingWindowInventory() -> MoveEverythingWindowInventory {
             let liveInventory = resolveMoveEverythingWindowInventory()
             let suppressedHiddenKeys = activeMoveEverythingSuppressedHiddenWindowKeys()
@@ -887,6 +894,10 @@ extension WindowManagerEngine {
                 applyMoveEverythingAdvancedHoverLayoutIfNeeded(to: hoveredWindow)
                 pulseMoveEverythingHoveredWindowToFront(hoveredWindow)
             }
+            WindowListDebugLogger.log(
+                "hover-raise",
+                "hover key=\(hoveredWindow.key) app=\(hoveredWindow.appName) smooth=\(didPerformSmoothTransition)"
+            )
             refreshMoveEverythingOverlayPresentation()
             return true
         }
@@ -1492,12 +1503,25 @@ extension WindowManagerEngine {
                 return
             }
 
+            // Pin the control center above everything so it stays interactive
+            // even after we activate another app to bring its window to front.
+            temporarilyPinControlCenterWindowOnTopForMoveEverything()
+
+            // Activate the target app so its windows come above all other
+            // normal-level windows, then raise the specific window within it.
+            if let app = NSRunningApplication(processIdentifier: managedWindow.pid) {
+                app.activate(options: [])
+            }
             let hoveredWindow = managedWindow.window
             applyAXMessagingTimeout(to: hoveredWindow, timeout: axFocusMessagingTimeout)
-            _ = AXUIElementPerformAction(hoveredWindow, kAXRaiseAction as CFString)
+            let raiseResult = AXUIElementPerformAction(hoveredWindow, kAXRaiseAction as CFString)
+            WindowListDebugLogger.log(
+                "hover-raise",
+                "pulse key=\(managedWindow.key) app=\(managedWindow.appName) raise=\(raiseResult == .success ? "ok" : "err:\(raiseResult.rawValue)")"
+            )
 
-            // Keep control center in front for interaction while preserving the raise pulse.
-            ensureControlCenterWindowVisibleForMoveEverything()
+            // Re-activate VibeGrid so the control center remains key for input.
+            NSApp.activate(ignoringOtherApps: true)
         }
         func shouldApplyMoveEverythingAdvancedHoverLayout(
             to managedWindow: MoveEverythingManagedWindow
@@ -1602,10 +1626,20 @@ extension WindowManagerEngine {
             }
 
             suppressMoveEverythingSelectionSyncForProgrammaticFocus()
+            temporarilyPinControlCenterWindowOnTopForMoveEverything()
+
+            if let app = NSRunningApplication(processIdentifier: managedWindow.pid) {
+                app.activate(options: [])
+            }
             let hoveredWindow = managedWindow.window
             applyAXMessagingTimeout(to: hoveredWindow, timeout: axFocusMessagingTimeout)
-            _ = AXUIElementPerformAction(hoveredWindow, kAXRaiseAction as CFString)
-            ensureControlCenterWindowVisibleForMoveEverything()
+            let raiseResult = AXUIElementPerformAction(hoveredWindow, kAXRaiseAction as CFString)
+            WindowListDebugLogger.log(
+                "hover-raise",
+                "noFocus key=\(managedWindow.key) app=\(managedWindow.appName) raise=\(raiseResult == .success ? "ok" : "err:\(raiseResult.rawValue)")"
+            )
+
+            NSApp.activate(ignoringOtherApps: true)
         }
         func restoreMoveEverythingAdvancedHoverLayoutIfNeeded(
             forKey key: String,
@@ -2112,6 +2146,14 @@ extension WindowManagerEngine {
                 }
 
                 if forceRefresh {
+                    // If the cache is still fresh (within the normal refresh interval), skip the
+                    // expensive synchronous rebuild and let the background timer keep it current.
+                    // This prevents main-thread stalls from rapid forceRefresh calls.
+                    if let lastRefresh = moveEverythingResolvedInventoryLastRefreshAt,
+                       now.timeIntervalSince(lastRefresh) < moveEverythingResolvedInventoryRefreshInterval {
+                        requestMoveEverythingInventoryRefreshIfNeeded(force: true)
+                        return cachedInventory
+                    }
                     let refreshedInventory = resolveMoveEverythingWindowInventorySynchronously(
                         controlCenterWindowNumber: currentControlCenterWindowNumberSnapshot()
                     )
@@ -2237,6 +2279,14 @@ extension WindowManagerEngine {
             var hiddenWindows: [MoveEverythingManagedWindow] = []
             var hiddenCoreGraphicsFallbackWindows: [MoveEverythingCoreGraphicsFallbackWindow] = []
             var hiddenWindowKeys: Set<String> = []
+            // Use a short-lived cross-call cache for the osascript iTerm fetch so that
+            // multiple rapid inventory rebuilds don't each spawn a new subprocess.
+            let iTermFetchCacheValid: Bool = {
+                guard let at = moveEverythingITermFetchCacheAt else { return false }
+                return Date().timeIntervalSince(at) < moveEverythingITermFetchCacheTTL
+            }()
+            var cachedITermWindowInventory: [ITermWindowInventoryResolver.WindowDescriptor]? =
+                iTermFetchCacheValid ? moveEverythingITermFetchCache : nil
 
             for app in NSWorkspace.shared.runningApplications {
                 if app.isTerminated {
@@ -2251,6 +2301,25 @@ extension WindowManagerEngine {
                     : "PID \(app.processIdentifier)"
                 let bundleIdentifier = app.bundleIdentifier?
                     .trimmingCharacters(in: .whitespacesAndNewlines)
+                let isITermApplication = moveEverythingApplicationLooksLikeITerm(
+                    appName: appName,
+                    bundleIdentifier: bundleIdentifier
+                )
+                let iTermWindowInventory: [ITermWindowInventoryResolver.WindowDescriptor] = {
+                    guard isITermApplication else {
+                        return []
+                    }
+                    if let cachedITermWindowInventory {
+                        return cachedITermWindowInventory
+                    }
+                    let fetched = ITermWindowInventoryResolver.fetchInventory(
+                        debugContext: "inventory pid=\(app.processIdentifier) appName=\(appName)"
+                    )
+                    cachedITermWindowInventory = fetched
+                    moveEverythingITermFetchCache = fetched
+                    moveEverythingITermFetchCacheAt = Date()
+                    return fetched
+                }()
                 let appElement = applicationAXElement(for: app.processIdentifier)
                 guard let windows = copyWindowList(from: appElement), !windows.isEmpty else {
                     if let fallbackCandidates = hiddenCoreGraphicsFallbackCandidatesByPID[app.processIdentifier] {
@@ -2277,22 +2346,40 @@ extension WindowManagerEngine {
                 }
 
                 for window in windows {
+                    let title = copyStringAttribute(from: window, attribute: kAXTitleAttribute)
+                    let frame = currentWindowRect(for: window)
+                    let rawFrame = rawAXWindowRect(for: window)
+                    let resolvedITermWindow: ITermWindowInventoryResolver.WindowDescriptor? = {
+                        guard isITermApplication else {
+                            return nil
+                        }
+                        return ITermWindowInventoryResolver.resolveWindowDescriptor(
+                            from: iTermWindowInventory,
+                            titleCandidates: [title ?? ""],
+                            frame: rawFrame,
+                            debugContext:
+                                "inventory pid=\(app.processIdentifier) keyCandidate=\(CFHash(window)) " +
+                                "title=\(title ?? "") rawFrame=\(rawFrame.map { NSStringFromRect(NSRectFromCGRect($0)) } ?? "nil")"
+                        )
+                    }()
                     let windowNumber = copyIntAttribute(from: window, attribute: "AXWindowNumber")
+                    let iTermWindowID = resolvedITermWindow.map { String($0.id) }
                     let key: String
                     if let windowNumber {
                         key = "\(app.processIdentifier)-\(windowNumber)"
+                    } else if let iTermWindowID, !iTermWindowID.isEmpty {
+                        key = "\(app.processIdentifier)-iterm-\(iTermWindowID)"
                     } else {
                         // AXWindowNumber is not available for every app; use CFHash(window) as a
                         // stable fallback identifier across repeated AX queries.
                         key = "\(app.processIdentifier)-ax-\(CFHash(window))"
                     }
-                    let title = copyStringAttribute(from: window, attribute: kAXTitleAttribute)
-                    let frame = currentWindowRect(for: window)
 
                     let managed = MoveEverythingManagedWindow(
                         key: key,
                         pid: app.processIdentifier,
                         windowNumber: windowNumber,
+                        iTermWindowID: iTermWindowID,
                         title: title,
                         appName: appName,
                         bundleIdentifier: bundleIdentifier,
@@ -2564,6 +2651,27 @@ extension WindowManagerEngine {
                 .trimmingCharacters(in: .whitespacesAndNewlines)
                 .lowercased()
             return normalizedName == "notification center"
+        }
+        func moveEverythingApplicationLooksLikeITerm(
+            appName: String,
+            bundleIdentifier: String?
+        ) -> Bool {
+            let normalizedAppName = appName
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased()
+            let normalizedBundleIdentifier = (bundleIdentifier ?? "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased()
+            return normalizedAppName.contains("iterm") ||
+                normalizedBundleIdentifier == "com.googlecode.iterm2"
+        }
+        func shouldManipulateMoveEverythingWindowOnHover(
+            _ managedWindow: MoveEverythingManagedWindow
+        ) -> Bool {
+            !moveEverythingApplicationLooksLikeITerm(
+                appName: managedWindow.appName,
+                bundleIdentifier: managedWindow.bundleIdentifier
+            )
         }
         func shouldIgnoreMoveEverythingWindow(_ managedWindow: MoveEverythingManagedWindow, frame: CGRect?) -> Bool {
             guard managedWindow.appName.caseInsensitiveCompare("Finder") == .orderedSame else {
@@ -2985,13 +3093,18 @@ extension WindowManagerEngine {
             for managedWindow: MoveEverythingManagedWindow,
             isCoreGraphicsFallback: Bool = false
         ) -> MoveEverythingWindowSnapshot {
+            let rawFrame = rawAXWindowRect(for: managedWindow.window)
             return MoveEverythingWindowSnapshot(
                 key: managedWindow.key,
+                windowNumber: managedWindow.windowNumber,
+                iTermWindowID: managedWindow.iTermWindowID,
+                frame: rawFrame.map(moveEverythingSnapshotFrame(from:)),
                 title: moveEverythingWindowTitle(for: managedWindow),
                 appName: managedWindow.appName,
                 isControlCenter: isMoveEverythingControlCenterWindow(managedWindow),
                 iconDataURL: moveEverythingWindowIconDataURL(for: managedWindow.pid),
-                isCoreGraphicsFallback: isCoreGraphicsFallback
+                isCoreGraphicsFallback: isCoreGraphicsFallback,
+                iTermActivityStatus: nil
             )
         }
         func moveEverythingSnapshot(
@@ -2999,11 +3112,23 @@ extension WindowManagerEngine {
         ) -> MoveEverythingWindowSnapshot {
             return MoveEverythingWindowSnapshot(
                 key: fallbackWindow.key,
+                windowNumber: fallbackWindow.windowNumber,
+                iTermWindowID: nil,
+                frame: nil,
                 title: moveEverythingWindowTitle(for: fallbackWindow),
                 appName: fallbackWindow.appName,
                 isControlCenter: false,
                 iconDataURL: moveEverythingWindowIconDataURL(for: fallbackWindow.pid),
-                isCoreGraphicsFallback: true
+                isCoreGraphicsFallback: true,
+                iTermActivityStatus: nil
+            )
+        }
+        func moveEverythingSnapshotFrame(from rect: CGRect) -> MoveEverythingWindowFrameSnapshot {
+            MoveEverythingWindowFrameSnapshot(
+                x: rect.origin.x,
+                y: rect.origin.y,
+                width: rect.size.width,
+                height: rect.size.height
             )
         }
         func moveEverythingWindowTitle(for managedWindow: MoveEverythingManagedWindow) -> String {

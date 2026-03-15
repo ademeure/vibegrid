@@ -87,6 +87,15 @@ import Testing
     #expect(decoded.moveEverythingAdvancedControlCenterHover == true)
     #expect(decoded.moveEverythingStickyHoverStealFocus == false)
     #expect(decoded.moveEverythingCloseHideHotkeysOutsideMode == false)
+    #expect(decoded.moveEverythingITermRecentActivityTimeout == 10)
+    #expect(decoded.moveEverythingITermRecentActivityActiveText == "[ACTIVE]")
+    #expect(decoded.moveEverythingITermRecentActivityIdleText == "")
+    #expect(decoded.moveEverythingITermRecentActivityBadgeEnabled == false)
+    #expect(decoded.moveEverythingITermRecentActivityColorize == true)
+    #expect(decoded.moveEverythingActiveWindowHighlightColorize == true)
+    #expect(decoded.moveEverythingActiveWindowHighlightColor == "#4D88D4")
+    #expect(decoded.moveEverythingITermRecentActivityActiveColor == "#2F8F4E")
+    #expect(decoded.moveEverythingITermRecentActivityIdleColor == "#BA4D4D")
     #expect(decoded.moveEverythingCloseWindowHotkey == nil)
     #expect(decoded.moveEverythingHideWindowHotkey == nil)
 }
@@ -138,6 +147,34 @@ import Testing
 
     let normalized = config.normalized()
     #expect(normalized.settings.controlCenterScale == 2)
+}
+
+@Test func normalizedClampsWindowListITermActivitySettings() {
+    let config = AppConfig(
+        version: 1,
+        settings: Settings(
+            defaultGridColumns: 12,
+            defaultGridRows: 8,
+            gap: 2,
+            defaultCycleDisplaysOnWrap: false,
+            animationDuration: 0,
+            moveEverythingITermRecentActivityTimeout: 999,
+            moveEverythingITermRecentActivityActiveText: "  [LIVE]  ",
+            moveEverythingITermRecentActivityIdleText: "  ",
+            moveEverythingActiveWindowHighlightColor: "invalid",
+            moveEverythingITermRecentActivityActiveColor: "#1a2",
+            moveEverythingITermRecentActivityIdleColor: "invalid"
+        ),
+        shortcuts: []
+    )
+
+    let normalized = config.normalized()
+    #expect(normalized.settings.moveEverythingITermRecentActivityTimeout == 300)
+    #expect(normalized.settings.moveEverythingITermRecentActivityActiveText == "[LIVE]")
+    #expect(normalized.settings.moveEverythingITermRecentActivityIdleText == "")
+    #expect(normalized.settings.moveEverythingActiveWindowHighlightColor == "#4D88D4")
+    #expect(normalized.settings.moveEverythingITermRecentActivityActiveColor == "#11AA22")
+    #expect(normalized.settings.moveEverythingITermRecentActivityIdleColor == "#BA4D4D")
 }
 
 @Test func yamlShortcutWrapDefaultsToSettingsValueWhenMissing() throws {

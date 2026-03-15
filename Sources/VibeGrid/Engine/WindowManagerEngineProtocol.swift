@@ -5,6 +5,8 @@ protocol WindowManagerEngineProtocol: AnyObject {
     var isMoveEverythingAlwaysOnTopEnabledProvider: (() -> Bool)? { get set }
     var onMoveEverythingModeChanged: ((Bool) -> Void)? { get set }
     var onMoveEverythingInventoryRefreshed: (() -> Void)? { get set }
+    var onMoveEverythingNameWindowRequested: ((String) -> Void)? { get set }
+    var onMoveEverythingQuickViewRequested: (() -> Void)? { get set }
     var isMoveEverythingActive: Bool { get }
 
     func applyConfig(_ config: AppConfig)
@@ -13,6 +15,7 @@ protocol WindowManagerEngineProtocol: AnyObject {
     func previewRect(for placement: PlacementStep) -> CGRect?
     func registrationIssues() -> [HotKeyRegistrationIssue]
     func moveEverythingControlCenterFocused() -> Bool
+    func moveEverythingFocusedWindowKeySnapshot() -> String?
     func moveEverythingWindowInventory() -> MoveEverythingWindowInventory
     func toggleMoveEverythingMode() -> MoveEverythingToggleResult
     func closeMoveEverythingWindow(withKey key: String) -> Bool
