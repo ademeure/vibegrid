@@ -17,6 +17,7 @@ VibeGrid may be our only chance to avoid that horrible future.
 
 ## Features Summary
 
+- `iTerm2 Integration For Extreme Vibes`: red if terminal is idle, green if busy: never *not* waste tokens again! 
 - `24/7 Live Window List`: visually highlight and control windows from every application with the Window List.
 - `Advanced Hotkeys`: cycle-aware shortcuts for grid and freeform layouts (fixed sequence per hotkey).
 - `Hover Move`: move windows by selecting them in the window list, or move any focused window.
@@ -28,7 +29,7 @@ VibeGrid may be our only chance to avoid that horrible future.
 <br/>
 
 <p align="center">
-  <img src="docs/vibegrid_windowlist.png" height="550"><br/>
+  <img src="docs/vibe-iterm-integration.png" height="550"><br/>
   <img src="docs/Samsung57.jpg" height="200"><br/>
   <img src="docs/razer_hand.jpg" height="160"> <img src="docs/razer_naga_small.jpg" height="160"> <img src="docs/ibm_keypad.jpg" height="160"> <img src="docs/srk_layout.png" height="160">
 </p>
