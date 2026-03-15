@@ -568,14 +568,51 @@ final class UIBridge: NSObject, WKScriptMessageHandler {
         // Kick off an async TTY activity poll (results arrive and trigger refresh)
         appState.refreshITermActivity()
 
+        // Update title-change tracker and compute combined activity status
+        let timeout = appState.config.settings.moveEverythingITermRecentActivityTimeout
+        let now = Date()
+        let ttyCache = appState.iTermActivityCache
+        var statusByKey: [String: String] = [:]
+
+        for snapshot in inventory.visible + inventory.hidden {
+            let appName = snapshot.appName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            guard appName.contains("iterm") else { continue }
+
+            // Signal 1: TTY mtime from Python poll
+            let ttyActive = ttyCache[snapshot.key] == "active"
+
+            // Signal 2: title changed recently
+            let titleActive: Bool = {
+                let key = snapshot.key
+                let title = snapshot.title
+                if let existing = appState.iTermTitleTracker[key] {
+                    if existing.title != title {
+                        appState.iTermTitleTracker[key] = (title: title, changedAt: now)
+                        return true
+                    }
+                    return now.timeIntervalSince(existing.changedAt) < timeout
+                } else {
+                    appState.iTermTitleTracker[key] = (title: title, changedAt: now)
+                    return true
+                }
+            }()
+
+            statusByKey[snapshot.key] = (ttyActive || titleActive) ? "active" : "idle"
+        }
+
+        // Prune stale title tracker entries
+        let liveKeys = Set((inventory.visible + inventory.hidden).map(\.key))
+        for key in appState.iTermTitleTracker.keys where !liveKeys.contains(key) {
+            appState.iTermTitleTracker.removeValue(forKey: key)
+        }
+
         guard var dict = payload as? [String: Any] else { return payload }
-        let cache = appState.iTermActivityCache
         func enrichWindows(_ windows: Any?) -> Any? {
             guard let arr = windows as? [[String: Any]] else { return windows }
             return arr.map { window -> [String: Any] in
                 var w = window
                 let key = (w["key"] as? String) ?? ""
-                if let status = cache[key] {
+                if let status = statusByKey[key] {
                     w["iTermActivityStatus"] = status
                 }
                 return w

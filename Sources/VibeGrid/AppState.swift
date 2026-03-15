@@ -57,6 +57,7 @@ final class AppState {
     private var quickViewWasVisible = false
     private(set) var iTermActivityCache: [String: String] = [:]  // snapshot key → "active"/"idle"
     private var iTermActivityPollInFlight = false
+    var iTermTitleTracker: [String: (title: String, changedAt: Date)] = [:]
 
     private(set) var config: AppConfig
     private var controlCenter: ControlCenterWindowController?

@@ -1500,11 +1500,16 @@ extension WindowManagerEngine {
                 return
             }
 
+            // Activate the target app so its windows come above all other apps,
+            // then raise the specific window within that app.
+            if let app = NSRunningApplication(processIdentifier: managedWindow.pid) {
+                app.activate(options: [])
+            }
             let hoveredWindow = managedWindow.window
             applyAXMessagingTimeout(to: hoveredWindow, timeout: axFocusMessagingTimeout)
             _ = AXUIElementPerformAction(hoveredWindow, kAXRaiseAction as CFString)
 
-            // Keep control center in front for interaction while preserving the raise pulse.
+            // Immediately return focus to the control center so it stays interactive.
             ensureControlCenterWindowVisibleForMoveEverything()
         }
         func shouldApplyMoveEverythingAdvancedHoverLayout(
@@ -1614,6 +1619,9 @@ extension WindowManagerEngine {
             }
 
             suppressMoveEverythingSelectionSyncForProgrammaticFocus()
+            if let app = NSRunningApplication(processIdentifier: managedWindow.pid) {
+                app.activate(options: [])
+            }
             let hoveredWindow = managedWindow.window
             applyAXMessagingTimeout(to: hoveredWindow, timeout: axFocusMessagingTimeout)
             _ = AXUIElementPerformAction(hoveredWindow, kAXRaiseAction as CFString)
