@@ -8,10 +8,6 @@ final class UIBridge: NSObject, WKScriptMessageHandler {
     private var moveEverythingWindowInventoryCache: Any = UIBridge.emptyMoveEverythingWindowInventoryPayload
     private var moveEverythingRawInventoryCache: MoveEverythingWindowInventory?
     private var moveEverythingWindowInventoryLastRefreshAt: Date?
-    /// Activity status from the most recent non-hovered enrichment, per key.
-    private var moveEverythingLastActivityStatus: [String: String] = [:]
-    /// Frozen activity status used while a window is hovered, per key.
-    private var moveEverythingHoverFrozenActivityStatus: [String: String] = [:]
 
     init(webView: WKWebView, appState: AppState) {
         self.webView = webView
@@ -621,40 +617,13 @@ final class UIBridge: NSObject, WKScriptMessageHandler {
             appState.iTermTitleTracker.removeValue(forKey: key)
         }
 
-        // Freeze activity status for the hovered window so the hover-raise
-        // can't flip idle→active. Use the status from the last non-hovered
-        // enrichment as the frozen value.
-        for (key, status) in statusByKey {
-            if key == hoveredKey {
-                if moveEverythingHoverFrozenActivityStatus[key] == nil {
-                    moveEverythingHoverFrozenActivityStatus[key] =
-                        moveEverythingLastActivityStatus[key] ?? status
-                }
-            } else {
-                moveEverythingHoverFrozenActivityStatus.removeValue(forKey: key)
-                moveEverythingLastActivityStatus[key] = status
-            }
-        }
-        // Prune stale entries from the activity caches
-        for key in moveEverythingLastActivityStatus.keys where !liveKeys.contains(key) {
-            moveEverythingLastActivityStatus.removeValue(forKey: key)
-        }
-        for key in moveEverythingHoverFrozenActivityStatus.keys where !liveKeys.contains(key) {
-            moveEverythingHoverFrozenActivityStatus.removeValue(forKey: key)
-        }
-
         guard var dict = payload as? [String: Any] else { return payload }
         func enrichWindows(_ windows: Any?) -> Any? {
             guard let arr = windows as? [[String: Any]] else { return windows }
             return arr.map { window -> [String: Any] in
                 var w = window
                 let key = (w["key"] as? String) ?? ""
-                let frozenStatus = moveEverythingHoverFrozenActivityStatus[key]
-                if let frozenStatus {
-                    // Override both activity status AND title so the JS raw-title
-                    // marker check can't see post-raise [ACTIVE] markers.
-                    w["iTermActivityStatus"] = frozenStatus
-                } else if let status = statusByKey[key] {
+                if let status = statusByKey[key] {
                     w["iTermActivityStatus"] = status
                 }
                 if let badge = badgeTextCache[key] {

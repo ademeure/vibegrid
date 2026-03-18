@@ -2303,6 +2303,19 @@ function pruneMoveEverythingCustomWindowTitles(visibleWindows, hiddenWindows) {
     }
     delete state.moveEverythingCustomTitleStaleSince[staleKey];
   }
+
+  // Prune activity freeze caches for windows no longer in the inventory.
+  for (const map of [
+    state.moveEverythingActivityFrozenStatus,
+    state.moveEverythingActivityFrozenUntil,
+    state.moveEverythingActivityLastStatus,
+  ]) {
+    for (const key of Object.keys(map || {})) {
+      if (!liveKeys.has(key)) {
+        delete map[key];
+      }
+    }
+  }
 }
 
 function findMoveEverythingWindowByKey(key) {
@@ -2715,7 +2728,7 @@ function buildMoveEverythingWindowRow(windowItem, options = {}) {
     state.moveEverythingCustomITermWindowTitlesByKey[windowKey] ||
     state.moveEverythingCustomWindowTitlesByKey[windowKey]
   );
-  if (activityColorizeEnabled && (!activityColorizeNamedOnly || windowIsNamed) && (activityStatus === "active" || activityStatus === "idle")) {
+  if (!hovered && activityColorizeEnabled && (!activityColorizeNamedOnly || windowIsNamed) && (activityStatus === "active" || activityStatus === "idle")) {
     const baseColor = activityStatus === "active"
       ? settings.moveEverythingITermRecentActivityActiveColor
       : settings.moveEverythingITermRecentActivityIdleColor;
