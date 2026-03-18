@@ -56,6 +56,7 @@ final class AppState {
     private var quickViewSavedFrame: NSRect?
     private var quickViewWasVisible = false
     private(set) var iTermActivityCache: [String: String] = [:]  // snapshot key → "active"/"idle"
+    private(set) var iTermBadgeTextCache: [String: String] = [:]  // snapshot key → badge text
     private var iTermActivityPollInFlight = false
     var iTermTitleTracker: [String: (title: String, changedAt: Date)] = [:]
 
@@ -466,6 +467,10 @@ final class AppState {
 
     func moveEverythingFocusedWindowKey() -> String? {
         windowManager.moveEverythingFocusedWindowKeySnapshot()
+    }
+
+    func moveEverythingHoveredWindowKey() -> String? {
+        windowManager.moveEverythingHoveredWindowKey
     }
 
     func controlCenterFocused() -> Bool {
@@ -997,6 +1002,7 @@ final class AppState {
                 self.iTermActivityPollInFlight = false
 
                 var newCache: [String: String] = [:]
+                var newBadgeCache: [String: String] = [:]
                 let desktopHeight = NSScreen.screens.reduce(CGRect.null) { $0.union($1.frame) }.height
 
                 for snapshot in currentInventory.visible + currentInventory.hidden {
@@ -1011,11 +1017,18 @@ final class AppState {
                     }
                     if let matched {
                         newCache[snapshot.key] = matched.active ? "active" : "idle"
+                        if !matched.badgeText.isEmpty {
+                            newBadgeCache[snapshot.key] = matched.badgeText
+                        }
                     } else {
                         newCache[snapshot.key] = self.iTermActivityCache[snapshot.key] ?? "idle"
+                        if let existingBadge = self.iTermBadgeTextCache[snapshot.key] {
+                            newBadgeCache[snapshot.key] = existingBadge
+                        }
                     }
                 }
                 self.iTermActivityCache = newCache
+                self.iTermBadgeTextCache = newBadgeCache
                 // Trigger a UI refresh so the updated cache is rendered
                 self.controlCenter?.refresh()
             }
@@ -1028,6 +1041,7 @@ final class AppState {
         let y: Double
         let width: Double
         let height: Double
+        let badgeText: String
     }
 
     private static func pollITermTTYActivity(
@@ -1048,6 +1062,7 @@ final class AppState {
                 result = []
                 for window in app.windows:
                     min_age = 999999.0
+                    badge = ""
                     for tab in window.tabs:
                         for session in tab.sessions:
                             try:
@@ -1058,6 +1073,14 @@ final class AppState {
                                         min_age = age
                             except Exception:
                                 pass
+                    # Read rendered badge text from the current tab's current session
+                    try:
+                        cur = window.current_tab.current_session
+                        bt = await cur.async_get_variable("badge")
+                        if isinstance(bt, str) and bt.strip():
+                            badge = bt.strip()
+                    except Exception:
+                        pass
                     f = window.frame
                     result.append({
                         "a": min_age < timeout,
@@ -1065,6 +1088,7 @@ final class AppState {
                         "y": f.origin.y,
                         "w": f.size.width,
                         "h": f.size.height,
+                        "b": badge,
                     })
                 print(json.dumps(result))
 
@@ -1100,7 +1124,8 @@ final class AppState {
             let y = (entry["y"] as? NSNumber)?.doubleValue ?? 0
             let w = (entry["w"] as? NSNumber)?.doubleValue ?? 0
             let h = (entry["h"] as? NSNumber)?.doubleValue ?? 0
-            return ITermActivityEntry(active: active, x: x, y: y, width: w, height: h)
+            let badge = (entry["b"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            return ITermActivityEntry(active: active, x: x, y: y, width: w, height: h, badgeText: badge)
         }
     }
 

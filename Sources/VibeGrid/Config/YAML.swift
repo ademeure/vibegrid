@@ -334,6 +334,12 @@ struct YAMLConfigCodec {
                             lineNumber: line.number,
                             field: "moveEverythingITermBadgeFromTitle"
                         )
+                    case "moveEverythingITermTitleFromBadge":
+                        config.settings.moveEverythingITermTitleFromBadge = try parseBoolean(
+                            effectiveValue,
+                            lineNumber: line.number,
+                            field: "moveEverythingITermTitleFromBadge"
+                        )
                     case "moveEverythingCloseWindowHotkey":
                         config.settings.moveEverythingCloseWindowHotkey = try parseHotkey(
                             effectiveValue,
@@ -578,6 +584,7 @@ struct YAMLConfigCodec {
         lines.append("  moveEverythingITermBadgeMaxWidth: \(normalized.settings.moveEverythingITermBadgeMaxWidth)")
         lines.append("  moveEverythingITermBadgeMaxHeight: \(normalized.settings.moveEverythingITermBadgeMaxHeight)")
         lines.append("  moveEverythingITermBadgeFromTitle: \(normalized.settings.moveEverythingITermBadgeFromTitle)")
+        lines.append("  moveEverythingITermTitleFromBadge: \(normalized.settings.moveEverythingITermTitleFromBadge)")
         lines.append("  moveEverythingCloseWindowHotkey: \(encodeHotkey(normalized.settings.moveEverythingCloseWindowHotkey))")
         lines.append("  moveEverythingHideWindowHotkey: \(encodeHotkey(normalized.settings.moveEverythingHideWindowHotkey))")
         lines.append("  moveEverythingNameWindowHotkey: \(encodeHotkey(normalized.settings.moveEverythingNameWindowHotkey))")

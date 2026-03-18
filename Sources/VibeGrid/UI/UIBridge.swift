@@ -8,6 +8,10 @@ final class UIBridge: NSObject, WKScriptMessageHandler {
     private var moveEverythingWindowInventoryCache: Any = UIBridge.emptyMoveEverythingWindowInventoryPayload
     private var moveEverythingRawInventoryCache: MoveEverythingWindowInventory?
     private var moveEverythingWindowInventoryLastRefreshAt: Date?
+    /// Activity status from the most recent non-hovered enrichment, per key.
+    private var moveEverythingLastActivityStatus: [String: String] = [:]
+    /// Frozen activity status used while a window is hovered, per key.
+    private var moveEverythingHoverFrozenActivityStatus: [String: String] = [:]
 
     init(webView: WKWebView, appState: AppState) {
         self.webView = webView
@@ -572,6 +576,8 @@ final class UIBridge: NSObject, WKScriptMessageHandler {
         let timeout = appState.config.settings.moveEverythingITermRecentActivityTimeout
         let now = Date()
         let ttyCache = appState.iTermActivityCache
+        let badgeTextCache = appState.iTermBadgeTextCache
+        let hoveredKey = appState.moveEverythingHoveredWindowKey()
         var statusByKey: [String: String] = [:]
 
         for snapshot in inventory.visible + inventory.hidden {
@@ -581,12 +587,21 @@ final class UIBridge: NSObject, WKScriptMessageHandler {
             // Signal 1: TTY mtime from Python poll
             let ttyActive = ttyCache[snapshot.key] == "active"
 
-            // Signal 2: title changed recently
+            // Signal 2: title changed recently — but suppress for the currently
+            // hovered window, because hover-raise activates iTerm which refreshes
+            // the title bar, producing a spurious title change.
+            let isHovered = hoveredKey == snapshot.key
             let titleActive: Bool = {
                 let key = snapshot.key
                 let title = snapshot.title
                 if let existing = appState.iTermTitleTracker[key] {
                     if existing.title != title {
+                        if isHovered {
+                            // Update the tracked title silently without marking
+                            // the window as recently active.
+                            appState.iTermTitleTracker[key] = (title: title, changedAt: existing.changedAt)
+                            return now.timeIntervalSince(existing.changedAt) < timeout
+                        }
                         appState.iTermTitleTracker[key] = (title: title, changedAt: now)
                         return true
                     }
@@ -606,14 +621,44 @@ final class UIBridge: NSObject, WKScriptMessageHandler {
             appState.iTermTitleTracker.removeValue(forKey: key)
         }
 
+        // Freeze activity status for the hovered window so the hover-raise
+        // can't flip idle→active. Use the status from the last non-hovered
+        // enrichment as the frozen value.
+        for (key, status) in statusByKey {
+            if key == hoveredKey {
+                if moveEverythingHoverFrozenActivityStatus[key] == nil {
+                    moveEverythingHoverFrozenActivityStatus[key] =
+                        moveEverythingLastActivityStatus[key] ?? status
+                }
+            } else {
+                moveEverythingHoverFrozenActivityStatus.removeValue(forKey: key)
+                moveEverythingLastActivityStatus[key] = status
+            }
+        }
+        // Prune stale entries from the activity caches
+        for key in moveEverythingLastActivityStatus.keys where !liveKeys.contains(key) {
+            moveEverythingLastActivityStatus.removeValue(forKey: key)
+        }
+        for key in moveEverythingHoverFrozenActivityStatus.keys where !liveKeys.contains(key) {
+            moveEverythingHoverFrozenActivityStatus.removeValue(forKey: key)
+        }
+
         guard var dict = payload as? [String: Any] else { return payload }
         func enrichWindows(_ windows: Any?) -> Any? {
             guard let arr = windows as? [[String: Any]] else { return windows }
             return arr.map { window -> [String: Any] in
                 var w = window
                 let key = (w["key"] as? String) ?? ""
-                if let status = statusByKey[key] {
+                let frozenStatus = moveEverythingHoverFrozenActivityStatus[key]
+                if let frozenStatus {
+                    // Override both activity status AND title so the JS raw-title
+                    // marker check can't see post-raise [ACTIVE] markers.
+                    w["iTermActivityStatus"] = frozenStatus
+                } else if let status = statusByKey[key] {
                     w["iTermActivityStatus"] = status
+                }
+                if let badge = badgeTextCache[key] {
+                    w["iTermBadgeText"] = badge
                 }
                 return w
             }

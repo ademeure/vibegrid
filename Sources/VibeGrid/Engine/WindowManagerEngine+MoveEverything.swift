@@ -3096,6 +3096,7 @@ extension WindowManagerEngine {
             let rawFrame = rawAXWindowRect(for: managedWindow.window)
             return MoveEverythingWindowSnapshot(
                 key: managedWindow.key,
+                pid: managedWindow.pid,
                 windowNumber: managedWindow.windowNumber,
                 iTermWindowID: managedWindow.iTermWindowID,
                 frame: rawFrame.map(moveEverythingSnapshotFrame(from:)),
@@ -3104,7 +3105,8 @@ extension WindowManagerEngine {
                 isControlCenter: isMoveEverythingControlCenterWindow(managedWindow),
                 iconDataURL: moveEverythingWindowIconDataURL(for: managedWindow.pid),
                 isCoreGraphicsFallback: isCoreGraphicsFallback,
-                iTermActivityStatus: nil
+                iTermActivityStatus: nil,
+                iTermBadgeText: nil
             )
         }
         func moveEverythingSnapshot(
@@ -3112,6 +3114,7 @@ extension WindowManagerEngine {
         ) -> MoveEverythingWindowSnapshot {
             return MoveEverythingWindowSnapshot(
                 key: fallbackWindow.key,
+                pid: fallbackWindow.pid,
                 windowNumber: fallbackWindow.windowNumber,
                 iTermWindowID: nil,
                 frame: nil,
@@ -3120,7 +3123,8 @@ extension WindowManagerEngine {
                 isControlCenter: false,
                 iconDataURL: moveEverythingWindowIconDataURL(for: fallbackWindow.pid),
                 isCoreGraphicsFallback: true,
-                iTermActivityStatus: nil
+                iTermActivityStatus: nil,
+                iTermBadgeText: nil
             )
         }
         func moveEverythingSnapshotFrame(from rect: CGRect) -> MoveEverythingWindowFrameSnapshot {

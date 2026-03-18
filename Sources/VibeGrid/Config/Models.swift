@@ -231,6 +231,7 @@ struct Settings: Codable {
     var moveEverythingITermBadgeMaxWidth: Int
     var moveEverythingITermBadgeMaxHeight: Int
     var moveEverythingITermBadgeFromTitle: Bool
+    var moveEverythingITermTitleFromBadge: Bool
     var moveEverythingCloseWindowHotkey: Hotkey?
     var moveEverythingHideWindowHotkey: Hotkey?
     var moveEverythingNameWindowHotkey: Hotkey?
@@ -259,7 +260,7 @@ struct Settings: Codable {
             moveEverythingExcludeControlCenter: false,
             moveEverythingMiniRetileWidthPercent: 25,
             moveEverythingBackgroundRefreshInterval: 5,
-            moveEverythingITermRecentActivityTimeout: 10,
+            moveEverythingITermRecentActivityTimeout: 5,
             moveEverythingITermRecentActivityActiveText: "[ACTIVE]",
             moveEverythingITermRecentActivityIdleText: "",
             moveEverythingITermRecentActivityBadgeEnabled: false,
@@ -274,6 +275,7 @@ struct Settings: Codable {
             moveEverythingITermBadgeMaxWidth: 120,
             moveEverythingITermBadgeMaxHeight: 28,
             moveEverythingITermBadgeFromTitle: true,
+            moveEverythingITermTitleFromBadge: true,
             moveEverythingCloseWindowHotkey: nil,
             moveEverythingHideWindowHotkey: nil,
             moveEverythingNameWindowHotkey: nil,
@@ -303,7 +305,7 @@ struct Settings: Codable {
         moveEverythingExcludeControlCenter: Bool = false,
         moveEverythingMiniRetileWidthPercent: Double = 25,
         moveEverythingBackgroundRefreshInterval: Double = 5,
-        moveEverythingITermRecentActivityTimeout: Double = 10,
+        moveEverythingITermRecentActivityTimeout: Double = 5,
         moveEverythingITermRecentActivityActiveText: String = "[ACTIVE]",
         moveEverythingITermRecentActivityIdleText: String = "",
         moveEverythingITermRecentActivityBadgeEnabled: Bool = false,
@@ -318,6 +320,7 @@ struct Settings: Codable {
         moveEverythingITermBadgeMaxWidth: Int = 120,
         moveEverythingITermBadgeMaxHeight: Int = 28,
         moveEverythingITermBadgeFromTitle: Bool = false,
+        moveEverythingITermTitleFromBadge: Bool = true,
         moveEverythingCloseWindowHotkey: Hotkey? = nil,
         moveEverythingHideWindowHotkey: Hotkey? = nil,
         moveEverythingNameWindowHotkey: Hotkey? = nil,
@@ -359,6 +362,7 @@ struct Settings: Codable {
         self.moveEverythingITermBadgeMaxWidth = moveEverythingITermBadgeMaxWidth
         self.moveEverythingITermBadgeMaxHeight = moveEverythingITermBadgeMaxHeight
         self.moveEverythingITermBadgeFromTitle = moveEverythingITermBadgeFromTitle
+        self.moveEverythingITermTitleFromBadge = moveEverythingITermTitleFromBadge
         self.moveEverythingCloseWindowHotkey = moveEverythingCloseWindowHotkey
         self.moveEverythingHideWindowHotkey = moveEverythingHideWindowHotkey
         self.moveEverythingNameWindowHotkey = moveEverythingNameWindowHotkey
@@ -403,6 +407,7 @@ struct Settings: Codable {
         case moveEverythingITermBadgeMaxWidth
         case moveEverythingITermBadgeMaxHeight
         case moveEverythingITermBadgeFromTitle
+        case moveEverythingITermTitleFromBadge
         case moveEverythingCloseWindowHotkey
         case moveEverythingHideWindowHotkey
         case moveEverythingNameWindowHotkey
@@ -440,7 +445,7 @@ struct Settings: Codable {
         moveEverythingITermRecentActivityTimeout = try container.decodeIfPresent(
             Double.self,
             forKey: .moveEverythingITermRecentActivityTimeout
-        ) ?? 10
+        ) ?? 5
         moveEverythingITermRecentActivityActiveText = try container.decodeIfPresent(
             String.self,
             forKey: .moveEverythingITermRecentActivityActiveText
@@ -497,6 +502,10 @@ struct Settings: Codable {
             Bool.self,
             forKey: .moveEverythingITermBadgeFromTitle
         ) ?? false
+        moveEverythingITermTitleFromBadge = try container.decodeIfPresent(
+            Bool.self,
+            forKey: .moveEverythingITermTitleFromBadge
+        ) ?? true
         moveEverythingCloseWindowHotkey = try container.decodeIfPresent(Hotkey.self, forKey: .moveEverythingCloseWindowHotkey)
         moveEverythingHideWindowHotkey = try container.decodeIfPresent(Hotkey.self, forKey: .moveEverythingHideWindowHotkey)
         moveEverythingNameWindowHotkey = try container.decodeIfPresent(Hotkey.self, forKey: .moveEverythingNameWindowHotkey)
@@ -556,6 +565,7 @@ struct Settings: Codable {
         try container.encode(moveEverythingITermBadgeMaxWidth, forKey: .moveEverythingITermBadgeMaxWidth)
         try container.encode(moveEverythingITermBadgeMaxHeight, forKey: .moveEverythingITermBadgeMaxHeight)
         try container.encode(moveEverythingITermBadgeFromTitle, forKey: .moveEverythingITermBadgeFromTitle)
+        try container.encode(moveEverythingITermTitleFromBadge, forKey: .moveEverythingITermTitleFromBadge)
         try container.encodeIfPresent(moveEverythingCloseWindowHotkey, forKey: .moveEverythingCloseWindowHotkey)
         try container.encodeIfPresent(moveEverythingHideWindowHotkey, forKey: .moveEverythingHideWindowHotkey)
         try container.encodeIfPresent(moveEverythingNameWindowHotkey, forKey: .moveEverythingNameWindowHotkey)
@@ -805,7 +815,7 @@ extension AppConfig {
             30
         )
         if !copy.settings.moveEverythingITermRecentActivityTimeout.isFinite {
-            copy.settings.moveEverythingITermRecentActivityTimeout = 10
+            copy.settings.moveEverythingITermRecentActivityTimeout = 5
         }
         copy.settings.moveEverythingITermRecentActivityTimeout = min(
             max(copy.settings.moveEverythingITermRecentActivityTimeout, 0),

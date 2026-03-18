@@ -15,6 +15,7 @@ struct MoveEverythingWindowFrameSnapshot: Codable {
 
 struct MoveEverythingWindowSnapshot: Codable {
     let key: String
+    let pid: Int32
     let windowNumber: Int?
     let iTermWindowID: String?
     let frame: MoveEverythingWindowFrameSnapshot?
@@ -24,6 +25,7 @@ struct MoveEverythingWindowSnapshot: Codable {
     let iconDataURL: String?
     let isCoreGraphicsFallback: Bool
     let iTermActivityStatus: String?
+    let iTermBadgeText: String?
 }
 
 struct MoveEverythingWindowInventory: Codable {
