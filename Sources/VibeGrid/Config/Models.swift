@@ -210,6 +210,7 @@ struct Settings: Codable {
     var moveEverythingOverlayDuration: Double
     var moveEverythingStartAlwaysOnTop: Bool
     var moveEverythingStartMoveToBottom: Bool
+    var moveEverythingStartDontMoveVibeGrid: Bool
     var moveEverythingAdvancedControlCenterHover: Bool
     var moveEverythingStickyHoverStealFocus: Bool
     var moveEverythingCloseHideHotkeysOutsideMode: Bool
@@ -231,6 +232,11 @@ struct Settings: Codable {
     var moveEverythingITermBadgeMaxWidth: Int
     var moveEverythingITermBadgeMaxHeight: Int
     var moveEverythingITermBadgeFromTitle: Bool
+    var moveEverythingITermTitleFromBadge: Bool
+    var controlCenterFrameX: Double?
+    var controlCenterFrameY: Double?
+    var controlCenterFrameWidth: Double?
+    var controlCenterFrameHeight: Double?
     var moveEverythingCloseWindowHotkey: Hotkey?
     var moveEverythingHideWindowHotkey: Hotkey?
     var moveEverythingNameWindowHotkey: Hotkey?
@@ -253,13 +259,14 @@ struct Settings: Codable {
             moveEverythingOverlayDuration: 2,
             moveEverythingStartAlwaysOnTop: false,
             moveEverythingStartMoveToBottom: false,
+            moveEverythingStartDontMoveVibeGrid: false,
             moveEverythingAdvancedControlCenterHover: true,
             moveEverythingStickyHoverStealFocus: false,
             moveEverythingCloseHideHotkeysOutsideMode: false,
             moveEverythingExcludeControlCenter: false,
             moveEverythingMiniRetileWidthPercent: 25,
             moveEverythingBackgroundRefreshInterval: 5,
-            moveEverythingITermRecentActivityTimeout: 10,
+            moveEverythingITermRecentActivityTimeout: 5,
             moveEverythingITermRecentActivityActiveText: "[ACTIVE]",
             moveEverythingITermRecentActivityIdleText: "",
             moveEverythingITermRecentActivityBadgeEnabled: false,
@@ -274,6 +281,11 @@ struct Settings: Codable {
             moveEverythingITermBadgeMaxWidth: 120,
             moveEverythingITermBadgeMaxHeight: 28,
             moveEverythingITermBadgeFromTitle: true,
+            moveEverythingITermTitleFromBadge: true,
+            controlCenterFrameX: nil,
+            controlCenterFrameY: nil,
+            controlCenterFrameWidth: nil,
+            controlCenterFrameHeight: nil,
             moveEverythingCloseWindowHotkey: nil,
             moveEverythingHideWindowHotkey: nil,
             moveEverythingNameWindowHotkey: nil,
@@ -297,13 +309,14 @@ struct Settings: Codable {
         moveEverythingOverlayDuration: Double = 2,
         moveEverythingStartAlwaysOnTop: Bool = false,
         moveEverythingStartMoveToBottom: Bool = false,
+        moveEverythingStartDontMoveVibeGrid: Bool = false,
         moveEverythingAdvancedControlCenterHover: Bool = true,
         moveEverythingStickyHoverStealFocus: Bool = false,
         moveEverythingCloseHideHotkeysOutsideMode: Bool = false,
         moveEverythingExcludeControlCenter: Bool = false,
         moveEverythingMiniRetileWidthPercent: Double = 25,
         moveEverythingBackgroundRefreshInterval: Double = 5,
-        moveEverythingITermRecentActivityTimeout: Double = 10,
+        moveEverythingITermRecentActivityTimeout: Double = 5,
         moveEverythingITermRecentActivityActiveText: String = "[ACTIVE]",
         moveEverythingITermRecentActivityIdleText: String = "",
         moveEverythingITermRecentActivityBadgeEnabled: Bool = false,
@@ -318,6 +331,11 @@ struct Settings: Codable {
         moveEverythingITermBadgeMaxWidth: Int = 120,
         moveEverythingITermBadgeMaxHeight: Int = 28,
         moveEverythingITermBadgeFromTitle: Bool = false,
+        moveEverythingITermTitleFromBadge: Bool = true,
+        controlCenterFrameX: Double? = nil,
+        controlCenterFrameY: Double? = nil,
+        controlCenterFrameWidth: Double? = nil,
+        controlCenterFrameHeight: Double? = nil,
         moveEverythingCloseWindowHotkey: Hotkey? = nil,
         moveEverythingHideWindowHotkey: Hotkey? = nil,
         moveEverythingNameWindowHotkey: Hotkey? = nil,
@@ -338,6 +356,7 @@ struct Settings: Codable {
         self.moveEverythingOverlayDuration = moveEverythingOverlayDuration
         self.moveEverythingStartAlwaysOnTop = moveEverythingStartAlwaysOnTop
         self.moveEverythingStartMoveToBottom = moveEverythingStartMoveToBottom
+        self.moveEverythingStartDontMoveVibeGrid = moveEverythingStartDontMoveVibeGrid
         self.moveEverythingAdvancedControlCenterHover = moveEverythingAdvancedControlCenterHover
         self.moveEverythingStickyHoverStealFocus = moveEverythingStickyHoverStealFocus
         self.moveEverythingCloseHideHotkeysOutsideMode = moveEverythingCloseHideHotkeysOutsideMode
@@ -359,6 +378,11 @@ struct Settings: Codable {
         self.moveEverythingITermBadgeMaxWidth = moveEverythingITermBadgeMaxWidth
         self.moveEverythingITermBadgeMaxHeight = moveEverythingITermBadgeMaxHeight
         self.moveEverythingITermBadgeFromTitle = moveEverythingITermBadgeFromTitle
+        self.moveEverythingITermTitleFromBadge = moveEverythingITermTitleFromBadge
+        self.controlCenterFrameX = controlCenterFrameX
+        self.controlCenterFrameY = controlCenterFrameY
+        self.controlCenterFrameWidth = controlCenterFrameWidth
+        self.controlCenterFrameHeight = controlCenterFrameHeight
         self.moveEverythingCloseWindowHotkey = moveEverythingCloseWindowHotkey
         self.moveEverythingHideWindowHotkey = moveEverythingHideWindowHotkey
         self.moveEverythingNameWindowHotkey = moveEverythingNameWindowHotkey
@@ -382,6 +406,7 @@ struct Settings: Codable {
         case moveEverythingOverlayDuration
         case moveEverythingStartAlwaysOnTop
         case moveEverythingStartMoveToBottom
+        case moveEverythingStartDontMoveVibeGrid
         case moveEverythingAdvancedControlCenterHover
         case moveEverythingStickyHoverStealFocus
         case moveEverythingCloseHideHotkeysOutsideMode
@@ -403,6 +428,11 @@ struct Settings: Codable {
         case moveEverythingITermBadgeMaxWidth
         case moveEverythingITermBadgeMaxHeight
         case moveEverythingITermBadgeFromTitle
+        case moveEverythingITermTitleFromBadge
+        case controlCenterFrameX
+        case controlCenterFrameY
+        case controlCenterFrameWidth
+        case controlCenterFrameHeight
         case moveEverythingCloseWindowHotkey
         case moveEverythingHideWindowHotkey
         case moveEverythingNameWindowHotkey
@@ -428,6 +458,7 @@ struct Settings: Codable {
         moveEverythingOverlayDuration = try container.decodeIfPresent(Double.self, forKey: .moveEverythingOverlayDuration) ?? 2
         moveEverythingStartAlwaysOnTop = try container.decodeIfPresent(Bool.self, forKey: .moveEverythingStartAlwaysOnTop) ?? false
         moveEverythingStartMoveToBottom = try container.decodeIfPresent(Bool.self, forKey: .moveEverythingStartMoveToBottom) ?? false
+        moveEverythingStartDontMoveVibeGrid = try container.decodeIfPresent(Bool.self, forKey: .moveEverythingStartDontMoveVibeGrid) ?? false
         moveEverythingAdvancedControlCenterHover = try container.decodeIfPresent(Bool.self, forKey: .moveEverythingAdvancedControlCenterHover) ?? true
         moveEverythingStickyHoverStealFocus = try container.decodeIfPresent(Bool.self, forKey: .moveEverythingStickyHoverStealFocus) ?? false
         moveEverythingCloseHideHotkeysOutsideMode = try container.decodeIfPresent(
@@ -440,7 +471,7 @@ struct Settings: Codable {
         moveEverythingITermRecentActivityTimeout = try container.decodeIfPresent(
             Double.self,
             forKey: .moveEverythingITermRecentActivityTimeout
-        ) ?? 10
+        ) ?? 5
         moveEverythingITermRecentActivityActiveText = try container.decodeIfPresent(
             String.self,
             forKey: .moveEverythingITermRecentActivityActiveText
@@ -497,6 +528,14 @@ struct Settings: Codable {
             Bool.self,
             forKey: .moveEverythingITermBadgeFromTitle
         ) ?? false
+        moveEverythingITermTitleFromBadge = try container.decodeIfPresent(
+            Bool.self,
+            forKey: .moveEverythingITermTitleFromBadge
+        ) ?? true
+        controlCenterFrameX = try container.decodeIfPresent(Double.self, forKey: .controlCenterFrameX)
+        controlCenterFrameY = try container.decodeIfPresent(Double.self, forKey: .controlCenterFrameY)
+        controlCenterFrameWidth = try container.decodeIfPresent(Double.self, forKey: .controlCenterFrameWidth)
+        controlCenterFrameHeight = try container.decodeIfPresent(Double.self, forKey: .controlCenterFrameHeight)
         moveEverythingCloseWindowHotkey = try container.decodeIfPresent(Hotkey.self, forKey: .moveEverythingCloseWindowHotkey)
         moveEverythingHideWindowHotkey = try container.decodeIfPresent(Hotkey.self, forKey: .moveEverythingHideWindowHotkey)
         moveEverythingNameWindowHotkey = try container.decodeIfPresent(Hotkey.self, forKey: .moveEverythingNameWindowHotkey)
@@ -526,6 +565,7 @@ struct Settings: Codable {
         try container.encode(moveEverythingOverlayDuration, forKey: .moveEverythingOverlayDuration)
         try container.encode(moveEverythingStartAlwaysOnTop, forKey: .moveEverythingStartAlwaysOnTop)
         try container.encode(moveEverythingStartMoveToBottom, forKey: .moveEverythingStartMoveToBottom)
+        try container.encode(moveEverythingStartDontMoveVibeGrid, forKey: .moveEverythingStartDontMoveVibeGrid)
         try container.encode(moveEverythingAdvancedControlCenterHover, forKey: .moveEverythingAdvancedControlCenterHover)
         try container.encode(moveEverythingStickyHoverStealFocus, forKey: .moveEverythingStickyHoverStealFocus)
         try container.encode(
@@ -556,6 +596,11 @@ struct Settings: Codable {
         try container.encode(moveEverythingITermBadgeMaxWidth, forKey: .moveEverythingITermBadgeMaxWidth)
         try container.encode(moveEverythingITermBadgeMaxHeight, forKey: .moveEverythingITermBadgeMaxHeight)
         try container.encode(moveEverythingITermBadgeFromTitle, forKey: .moveEverythingITermBadgeFromTitle)
+        try container.encode(moveEverythingITermTitleFromBadge, forKey: .moveEverythingITermTitleFromBadge)
+        try container.encodeIfPresent(controlCenterFrameX, forKey: .controlCenterFrameX)
+        try container.encodeIfPresent(controlCenterFrameY, forKey: .controlCenterFrameY)
+        try container.encodeIfPresent(controlCenterFrameWidth, forKey: .controlCenterFrameWidth)
+        try container.encodeIfPresent(controlCenterFrameHeight, forKey: .controlCenterFrameHeight)
         try container.encodeIfPresent(moveEverythingCloseWindowHotkey, forKey: .moveEverythingCloseWindowHotkey)
         try container.encodeIfPresent(moveEverythingHideWindowHotkey, forKey: .moveEverythingHideWindowHotkey)
         try container.encodeIfPresent(moveEverythingNameWindowHotkey, forKey: .moveEverythingNameWindowHotkey)
@@ -805,7 +850,7 @@ extension AppConfig {
             30
         )
         if !copy.settings.moveEverythingITermRecentActivityTimeout.isFinite {
-            copy.settings.moveEverythingITermRecentActivityTimeout = 10
+            copy.settings.moveEverythingITermRecentActivityTimeout = 5
         }
         copy.settings.moveEverythingITermRecentActivityTimeout = min(
             max(copy.settings.moveEverythingITermRecentActivityTimeout, 0),

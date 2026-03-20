@@ -7,6 +7,9 @@ let package = Package(
     products: [
         .executable(name: "VibeGrid", targets: ["VibeGrid"])
     ],
+    dependencies: [
+        .package(url: "https://github.com/swiftlang/swift-testing.git", branch: "release/6.2")
+    ],
     targets: [
         .executableTarget(
             name: "VibeGrid",
@@ -16,7 +19,10 @@ let package = Package(
         ),
         .testTarget(
             name: "VibeGridTests",
-            dependencies: ["VibeGrid"],
+            dependencies: [
+                "VibeGrid",
+                .product(name: "Testing", package: "swift-testing")
+            ],
             resources: [
                 .copy("Fixtures")
             ]

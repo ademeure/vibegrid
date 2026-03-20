@@ -8,6 +8,7 @@ protocol WindowManagerEngineProtocol: AnyObject {
     var onMoveEverythingNameWindowRequested: ((String) -> Void)? { get set }
     var onMoveEverythingQuickViewRequested: (() -> Void)? { get set }
     var isMoveEverythingActive: Bool { get }
+    var moveEverythingHoveredWindowKey: String? { get }
 
     func applyConfig(_ config: AppConfig)
     func requestAccessibility(prompt: Bool) -> Bool

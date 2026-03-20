@@ -307,6 +307,48 @@ final class UIBridge: NSObject, WKScriptMessageHandler {
             }
             pushStateToWeb(forceMoveEverythingWindowRefresh: true)
 
+        case "saveControlCenterDefaults":
+            guard let window = webView?.window else {
+                sendNotice(level: "error", message: "No window available")
+                return
+            }
+            let frame = window.frame
+            var config = appState.config
+            config.settings.controlCenterFrameX = Double(frame.origin.x)
+            config.settings.controlCenterFrameY = Double(frame.origin.y)
+            config.settings.controlCenterFrameWidth = Double(frame.size.width)
+            config.settings.controlCenterFrameHeight = Double(frame.size.height)
+            config.settings.moveEverythingStartAlwaysOnTop = appState.moveEverythingAlwaysOnTopEnabled()
+            config.settings.moveEverythingStartMoveToBottom = appState.moveEverythingMoveToBottomEnabled()
+            config.settings.moveEverythingStartDontMoveVibeGrid = appState.moveEverythingDontMoveVibeGridEnabled()
+            if appState.save(config: config, refreshControlCenter: false) {
+                sendNotice(level: "success", message: "Defaults saved (position & toggles)")
+            } else {
+                sendNotice(level: "error", message: "Failed to save defaults")
+            }
+            pushStateToWeb()
+
+        case "resetControlCenterDefaults":
+            var settings = appState.config.settings
+            settings.controlCenterFrameX = nil
+            settings.controlCenterFrameY = nil
+            settings.controlCenterFrameWidth = nil
+            settings.controlCenterFrameHeight = nil
+            settings.moveEverythingStartAlwaysOnTop = false
+            settings.moveEverythingStartMoveToBottom = false
+            settings.moveEverythingStartDontMoveVibeGrid = false
+            var config = appState.config
+            config.settings = settings
+            if appState.save(config: config, refreshControlCenter: false) {
+                sendNotice(level: "success", message: "Defaults reset")
+            } else {
+                sendNotice(level: "error", message: "Failed to reset defaults")
+            }
+            appState.setMoveEverythingAlwaysOnTop(enabled: false)
+            appState.setMoveEverythingMoveToBottom(enabled: false)
+            appState.setMoveEverythingDontMoveVibeGrid(enabled: false)
+            pushStateToWeb()
+
         case "setMoveEverythingAlwaysOnTop":
             let enabled = (body["payload"] as? [String: Any])?["enabled"] as? Bool ?? false
             appState.setMoveEverythingAlwaysOnTop(enabled: enabled)
@@ -568,42 +610,17 @@ final class UIBridge: NSObject, WKScriptMessageHandler {
         // Kick off an async TTY activity poll (results arrive and trigger refresh)
         appState.refreshITermActivity()
 
-        // Update title-change tracker and compute combined activity status
-        let timeout = appState.config.settings.moveEverythingITermRecentActivityTimeout
-        let now = Date()
+        // Compute activity status from TTY mtime only (Python poll).
         let ttyCache = appState.iTermActivityCache
+        let badgeTextCache = appState.iTermBadgeTextCache
         var statusByKey: [String: String] = [:]
 
         for snapshot in inventory.visible + inventory.hidden {
             let appName = snapshot.appName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
             guard appName.contains("iterm") else { continue }
 
-            // Signal 1: TTY mtime from Python poll
             let ttyActive = ttyCache[snapshot.key] == "active"
-
-            // Signal 2: title changed recently
-            let titleActive: Bool = {
-                let key = snapshot.key
-                let title = snapshot.title
-                if let existing = appState.iTermTitleTracker[key] {
-                    if existing.title != title {
-                        appState.iTermTitleTracker[key] = (title: title, changedAt: now)
-                        return true
-                    }
-                    return now.timeIntervalSince(existing.changedAt) < timeout
-                } else {
-                    appState.iTermTitleTracker[key] = (title: title, changedAt: now)
-                    return true
-                }
-            }()
-
-            statusByKey[snapshot.key] = (ttyActive || titleActive) ? "active" : "idle"
-        }
-
-        // Prune stale title tracker entries
-        let liveKeys = Set((inventory.visible + inventory.hidden).map(\.key))
-        for key in appState.iTermTitleTracker.keys where !liveKeys.contains(key) {
-            appState.iTermTitleTracker.removeValue(forKey: key)
+            statusByKey[snapshot.key] = ttyActive ? "active" : "idle"
         }
 
         guard var dict = payload as? [String: Any] else { return payload }
@@ -614,6 +631,9 @@ final class UIBridge: NSObject, WKScriptMessageHandler {
                 let key = (w["key"] as? String) ?? ""
                 if let status = statusByKey[key] {
                     w["iTermActivityStatus"] = status
+                }
+                if let badge = badgeTextCache[key] {
+                    w["iTermBadgeText"] = badge
                 }
                 return w
             }

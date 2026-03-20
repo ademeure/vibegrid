@@ -79,6 +79,7 @@ struct WindowListActivityConfigSync {
         let moveEverythingITermBadgeMaxWidth: Int
         let moveEverythingITermBadgeMaxHeight: Int
         let moveEverythingITermBadgeFromTitle: Bool
+        let moveEverythingITermTitleFromBadge: Bool
         let windowOverridesByID: [String: ITermWindowOverride]
         let windowOverridesByNumber: [String: ITermWindowOverride]
 
@@ -96,6 +97,7 @@ struct WindowListActivityConfigSync {
             moveEverythingITermBadgeMaxWidth = settings.moveEverythingITermBadgeMaxWidth
             moveEverythingITermBadgeMaxHeight = settings.moveEverythingITermBadgeMaxHeight
             moveEverythingITermBadgeFromTitle = settings.moveEverythingITermBadgeFromTitle
+            moveEverythingITermTitleFromBadge = settings.moveEverythingITermTitleFromBadge
             var encodedIDOverrides: [String: ITermWindowOverride] = [:]
             for key in iTermWindowOverridesByID.keys.sorted() {
                 guard let override = iTermWindowOverridesByID[key] else {

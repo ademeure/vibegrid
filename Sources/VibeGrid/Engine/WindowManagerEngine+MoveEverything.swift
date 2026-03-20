@@ -3,6 +3,21 @@ import AppKit
 import ApplicationServices
 import Foundation
 
+// CGS private API for manipulating window levels of other apps' windows.
+@_silgen_name("CGSMainConnectionID")
+private func CGSMainConnectionID() -> Int32
+
+@_silgen_name("CGSGetWindowLevel")
+private func CGSGetWindowLevel(_ connection: Int32, _ windowID: UInt32, _ level: UnsafeMutablePointer<Int32>) -> Int32
+
+@_silgen_name("CGSSetWindowLevel")
+private func CGSSetWindowLevel(_ connection: Int32, _ windowID: UInt32, _ level: Int32) -> Int32
+
+// kCGModalPanelWindowLevel (8) is above floating (3) and torn-off menus (3),
+// but below status bar (25) where the control center can live.
+private let kCGSHoverRaiseWindowLevel: Int32 = 8
+
+
 // MARK: - Move Everything core workflow
 
 extension WindowManagerEngine {
@@ -881,6 +896,11 @@ extension WindowManagerEngine {
             }
 
             let previousHoveredKey = moveEverythingHoveredWindowKey
+            // Save the focused key before hover starts so we can restore it
+            // when hover ends (hover-raise changes OS focus as a side-effect).
+            if previousHoveredKey == nil {
+                moveEverythingFocusedKeyBeforeHover = moveEverythingFocusedWindowKey
+            }
             moveEverythingHoveredWindowKey = hoveredWindow.key
             let didPerformSmoothTransition = transitionMoveEverythingAdvancedHoverLayout(
                 from: previousHoveredKey,
@@ -907,7 +927,14 @@ extension WindowManagerEngine {
                 return
             }
             restoreAllMoveEverythingAdvancedHoverLayoutsSilentlyIfNeeded(in: runState)
+            restoreAllHoverElevatedWindowLevels()
             moveEverythingHoveredWindowKey = nil
+            // Restore the focused key from before hover so the focused window
+            // highlight doesn't stick to whatever was last hovered.
+            if let saved = moveEverythingFocusedKeyBeforeHover {
+                moveEverythingFocusedWindowKey = saved
+                moveEverythingFocusedKeyBeforeHover = nil
+            }
             clearMoveEverythingHoveredWindowLock()
             refreshMoveEverythingOverlayPresentation()
         }
@@ -1023,8 +1050,10 @@ extension WindowManagerEngine {
             stopMoveEverythingBackgroundInventoryTimer()
             moveEverythingRunState = nil
             moveEverythingIconDataURLByPID.removeAll()
+            moveEverythingResolvedWindowNumberByKey.removeAll()
             moveEverythingHoverAdvancedOriginalFrameByWindowKey.removeAll()
             clearMoveEverythingExternalFocusOverlayState()
+            restoreAllHoverElevatedWindowLevels()
             moveEverythingHoveredWindowKey = nil
             clearMoveEverythingHoveredWindowLock()
             moveEverythingFocusedWindowKey = nil
@@ -1503,6 +1532,11 @@ extension WindowManagerEngine {
                 return
             }
 
+            // Restore ALL previously-elevated windows before elevating the new one.
+            // This ensures that rapidly switching between hovers doesn't leave
+            // stale elevated windows blocking the newly-hovered one.
+            restoreAllHoverElevatedWindowLevels()
+
             // Pin the control center above everything so it stays interactive
             // even after we activate another app to bring its window to front.
             temporarilyPinControlCenterWindowOnTopForMoveEverything()
@@ -1515,14 +1549,90 @@ extension WindowManagerEngine {
             let hoveredWindow = managedWindow.window
             applyAXMessagingTimeout(to: hoveredWindow, timeout: axFocusMessagingTimeout)
             let raiseResult = AXUIElementPerformAction(hoveredWindow, kAXRaiseAction as CFString)
-            WindowListDebugLogger.log(
-                "hover-raise",
-                "pulse key=\(managedWindow.key) app=\(managedWindow.appName) raise=\(raiseResult == .success ? "ok" : "err:\(raiseResult.rawValue)")"
-            )
 
             // Re-activate VibeGrid so the control center remains key for input.
             NSApp.activate(ignoringOtherApps: true)
+            elevateWindowForHover(managedWindow)
+
+            WindowListDebugLogger.log(
+                "hover-raise",
+                "pulse key=\(managedWindow.key) app=\(managedWindow.appName) raise=\(raiseResult == .success ? "ok" : "err:\(raiseResult.rawValue)") elevated=\(moveEverythingHoverElevatedWindows.count)"
+            )
         }
+
+        func restoreAllHoverElevatedWindowLevels() {
+            guard !moveEverythingHoverElevatedWindows.isEmpty else { return }
+            let conn = CGSMainConnectionID()
+            for entry in moveEverythingHoverElevatedWindows {
+                let result = CGSSetWindowLevel(conn, UInt32(entry.windowNumber), entry.originalLevel)
+                WindowListDebugLogger.log(
+                    "hover-raise",
+                    "restore wid=\(entry.windowNumber) toLevel=\(entry.originalLevel) result=\(result)"
+                )
+            }
+            moveEverythingHoverElevatedWindows.removeAll()
+        }
+
+        /// Resolve the CGWindowNumber for a managed window. Tries cached value,
+        /// then AXWindowNumber, then falls back to matching via PID + frame in CGWindowList.
+        func resolveCGWindowNumber(for managedWindow: MoveEverythingManagedWindow) -> Int? {
+            if let wn = managedWindow.windowNumber { return wn }
+            if let cached = moveEverythingResolvedWindowNumberByKey[managedWindow.key] { return cached }
+            if let wn = copyIntAttribute(from: managedWindow.window, attribute: "AXWindowNumber") {
+                moveEverythingResolvedWindowNumberByKey[managedWindow.key] = wn
+                return wn
+            }
+
+            // Fallback: match by PID + frame in the CoreGraphics window list.
+            guard let axFrame = rawAXWindowRect(for: managedWindow.window) else { return nil }
+            guard let infoList = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] else { return nil }
+            for info in infoList {
+                guard let pid = info[kCGWindowOwnerPID as String] as? pid_t,
+                      pid == managedWindow.pid,
+                      let bounds = info[kCGWindowBounds as String] as? [String: Any],
+                      let x = bounds["X"] as? CGFloat, let y = bounds["Y"] as? CGFloat,
+                      let w = bounds["Width"] as? CGFloat, let h = bounds["Height"] as? CGFloat,
+                      let wn = info[kCGWindowNumber as String] as? Int else { continue }
+                if abs(x - axFrame.origin.x) <= 2 && abs(y - axFrame.origin.y) <= 2 &&
+                   abs(w - axFrame.size.width) <= 2 && abs(h - axFrame.size.height) <= 2 {
+                    moveEverythingResolvedWindowNumberByKey[managedWindow.key] = wn
+                    return wn
+                }
+            }
+            return nil
+        }
+
+        /// Elevate a window to floating level so it stays above other windows
+        /// during hover. Called after NSApp.activate to avoid reordering.
+        func elevateWindowForHover(_ managedWindow: MoveEverythingManagedWindow) {
+            guard let windowNumber = resolveCGWindowNumber(for: managedWindow) else {
+                WindowListDebugLogger.log(
+                    "hover-raise",
+                    "elevate: NO windowNumber for key=\(managedWindow.key)"
+                )
+                return
+            }
+            let conn = CGSMainConnectionID()
+            let wid = UInt32(windowNumber)
+            var currentLevel: Int32 = 0
+            let getResult = CGSGetWindowLevel(conn, wid, &currentLevel)
+            guard getResult == 0 else {
+                WindowListDebugLogger.log(
+                    "hover-raise",
+                    "elevate: CGSGetWindowLevel failed conn=\(conn) wid=\(wid) err=\(getResult)"
+                )
+                return
+            }
+            moveEverythingHoverElevatedWindows.append(
+                (windowNumber: windowNumber, originalLevel: currentLevel)
+            )
+            let setResult = CGSSetWindowLevel(conn, wid, kCGSHoverRaiseWindowLevel)
+            WindowListDebugLogger.log(
+                "hover-raise",
+                "elevate: wid=\(wid) from=\(currentLevel) to=\(kCGSHoverRaiseWindowLevel) result=\(setResult)"
+            )
+        }
+
         func shouldApplyMoveEverythingAdvancedHoverLayout(
             to managedWindow: MoveEverythingManagedWindow
         ) -> Bool {
@@ -1625,6 +1735,7 @@ extension WindowManagerEngine {
                 return
             }
 
+            restoreAllHoverElevatedWindowLevels()
             suppressMoveEverythingSelectionSyncForProgrammaticFocus()
             temporarilyPinControlCenterWindowOnTopForMoveEverything()
 
@@ -1640,6 +1751,7 @@ extension WindowManagerEngine {
             )
 
             NSApp.activate(ignoringOtherApps: true)
+            elevateWindowForHover(managedWindow)
         }
         func restoreMoveEverythingAdvancedHoverLayoutIfNeeded(
             forKey key: String,
@@ -1886,6 +1998,14 @@ extension WindowManagerEngine {
             }
 
             moveEverythingFocusedWindowLastCheckAt = now
+            // While a window is hovered (and for 7s after), the hover-raise
+            // changes OS focus to the raised window. Don't update the tracked
+            // focused key so the focused highlight doesn't jump to whatever
+            // was last hovered.
+            // While hovering, don't update the focused key — the hover-raise
+            // changes OS focus as a side-effect. The pre-hover key is restored
+            // when hover ends, and normal polling resumes immediately.
+            if moveEverythingHoveredWindowKey != nil { return }
             moveEverythingFocusedWindowKey = moveEverythingFocusedWindowKey(in: runState.windows)
         }
         func moveEverythingFocusedWindowKey(in windows: [MoveEverythingManagedWindow]) -> String? {
@@ -3096,6 +3216,7 @@ extension WindowManagerEngine {
             let rawFrame = rawAXWindowRect(for: managedWindow.window)
             return MoveEverythingWindowSnapshot(
                 key: managedWindow.key,
+                pid: managedWindow.pid,
                 windowNumber: managedWindow.windowNumber,
                 iTermWindowID: managedWindow.iTermWindowID,
                 frame: rawFrame.map(moveEverythingSnapshotFrame(from:)),
@@ -3104,7 +3225,8 @@ extension WindowManagerEngine {
                 isControlCenter: isMoveEverythingControlCenterWindow(managedWindow),
                 iconDataURL: moveEverythingWindowIconDataURL(for: managedWindow.pid),
                 isCoreGraphicsFallback: isCoreGraphicsFallback,
-                iTermActivityStatus: nil
+                iTermActivityStatus: nil,
+                iTermBadgeText: nil
             )
         }
         func moveEverythingSnapshot(
@@ -3112,6 +3234,7 @@ extension WindowManagerEngine {
         ) -> MoveEverythingWindowSnapshot {
             return MoveEverythingWindowSnapshot(
                 key: fallbackWindow.key,
+                pid: fallbackWindow.pid,
                 windowNumber: fallbackWindow.windowNumber,
                 iTermWindowID: nil,
                 frame: nil,
@@ -3120,7 +3243,8 @@ extension WindowManagerEngine {
                 isControlCenter: false,
                 iconDataURL: moveEverythingWindowIconDataURL(for: fallbackWindow.pid),
                 isCoreGraphicsFallback: true,
-                iTermActivityStatus: nil
+                iTermActivityStatus: nil,
+                iTermBadgeText: nil
             )
         }
         func moveEverythingSnapshotFrame(from rect: CGRect) -> MoveEverythingWindowFrameSnapshot {

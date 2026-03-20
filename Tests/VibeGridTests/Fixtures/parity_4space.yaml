@@ -23,6 +23,7 @@ settings:
     moveEverythingITermRecentActivityIdleText: "[idle]"
     moveEverythingITermRecentActivityBadgeEnabled: true
     moveEverythingITermRecentActivityColorize: true
+    moveEverythingITermTitleFromBadge: false
     moveEverythingITermRecentActivityActiveColor: "#228844"
     moveEverythingITermRecentActivityIdleColor: "#AA3333"
     moveEverythingCloseWindowHotkey: cmd+shift+w

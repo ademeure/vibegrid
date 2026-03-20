@@ -1259,6 +1259,7 @@ body.narrow-mode .move-window-actions .btn.tiny[data-me-window-action="hide"]::a
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+  flex-wrap: wrap;
 }
 
 .settings-card {
