@@ -58,7 +58,6 @@ final class AppState {
     private(set) var iTermActivityCache: [String: String] = [:]  // snapshot key → "active"/"idle"
     private(set) var iTermBadgeTextCache: [String: String] = [:]  // snapshot key → badge text
     private var iTermActivityPollInFlight = false
-    var iTermTitleTracker: [String: (title: String, changedAt: Date)] = [:]
 
     private(set) var config: AppConfig
     private var controlCenter: ControlCenterWindowController?
@@ -85,6 +84,7 @@ final class AppState {
                     if isActive {
                         self.setMoveEverythingAlwaysOnTop(enabled: self.config.settings.moveEverythingStartAlwaysOnTop)
                         self.setMoveEverythingMoveToBottom(enabled: self.config.settings.moveEverythingStartMoveToBottom)
+                        self.setMoveEverythingDontMoveVibeGrid(enabled: self.config.settings.moveEverythingStartDontMoveVibeGrid)
                     } else {
                         if self.moveEverythingAlwaysOnTop {
                             self.moveEverythingAlwaysOnTop = false
@@ -467,10 +467,6 @@ final class AppState {
 
     func moveEverythingFocusedWindowKey() -> String? {
         windowManager.moveEverythingFocusedWindowKeySnapshot()
-    }
-
-    func moveEverythingHoveredWindowKey() -> String? {
-        windowManager.moveEverythingHoveredWindowKey
     }
 
     func controlCenterFocused() -> Bool {

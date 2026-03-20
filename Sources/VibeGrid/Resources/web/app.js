@@ -105,9 +105,8 @@ const state = {
   moveEverythingCustomITermWindowBadgeColorByKey: {},
   moveEverythingCustomITermWindowBadgeOpacityByKey: {},
   moveEverythingCustomTitleStaleSince: {},
-  moveEverythingActivityFrozenStatus: {},
-  moveEverythingActivityFrozenUntil: {},
   moveEverythingActivityLastStatus: {},
+  moveEverythingActivityFrozenUntil: {},
 };
 
 const ids = {
@@ -232,6 +231,8 @@ const ids = {
   moveEverythingWindowEditorBadgeColorInput: document.getElementById("moveEverythingWindowEditorBadgeColorInput"),
   moveEverythingWindowEditorBadgeOpacityInput: document.getElementById("moveEverythingWindowEditorBadgeOpacityInput"),
   moveEverythingWindowEditorBadgeOpacityLabel: document.getElementById("moveEverythingWindowEditorBadgeOpacityLabel"),
+  moveEverythingSaveDefaultsBtn: document.getElementById("moveEverythingSaveDefaultsBtn"),
+  moveEverythingResetDefaultsBtn: document.getElementById("moveEverythingResetDefaultsBtn"),
   moveEverythingWindowEditorResetBtn: document.getElementById("moveEverythingWindowEditorResetBtn"),
   moveEverythingWindowEditorCancelBtn: document.getElementById("moveEverythingWindowEditorCancelBtn"),
   moveEverythingWindowEditorSaveBtn: document.getElementById("moveEverythingWindowEditorSaveBtn"),
@@ -1205,6 +1206,14 @@ function updateMoveEverythingDontMoveVibeGrid(enabled) {
   if (ids.moveEverythingDontMoveVibeGrid) {
     ids.moveEverythingDontMoveVibeGrid.checked = Boolean(enabled);
   }
+}
+
+function saveCurrentMoveEverythingAsDefaults() {
+  sendToNative("saveControlCenterDefaults");
+}
+
+function resetMoveEverythingDefaults() {
+  sendToNative("resetControlCenterDefaults");
 }
 
 function retileVisibleMoveEverythingWindows() {
@@ -2193,9 +2202,11 @@ function resolveMoveEverythingWindowActivityStatus(windowItem) {
   return "unknown";
 }
 
-// Freeze activity status during hover and for a grace period after, so the
-// hover-raise (which activates the app and changes the window title) cannot
-// flip idle→active.
+// Hover-raise activates iTerm which touches the TTY, causing a spurious
+// ttyActive=true. Freeze the activity status during hover and for a grace
+// period after so the color doesn't flash.
+// Slightly longer than moveEverythingITermRecentActivityTimeout (5s) so the
+// TTY spike from hover-raise has fully expired by the time the freeze lifts.
 const ACTIVITY_FREEZE_GRACE_MS = 6_000;
 
 function resolveStableActivityStatus(windowItem, hovered) {
@@ -2204,27 +2215,18 @@ function resolveStableActivityStatus(windowItem, hovered) {
   const now = Date.now();
 
   if (hovered) {
-    // While hovered: freeze to the last non-hovered status
-    if (!state.moveEverythingActivityFrozenStatus[key]) {
-      state.moveEverythingActivityFrozenStatus[key] =
-        state.moveEverythingActivityLastStatus[key] || liveStatus;
-    }
-    // Keep extending the grace period while hovering
+    // Freeze: keep the pre-hover status, extend grace period
     state.moveEverythingActivityFrozenUntil[key] = now + ACTIVITY_FREEZE_GRACE_MS;
-    return state.moveEverythingActivityFrozenStatus[key];
+    return state.moveEverythingActivityLastStatus[key] || liveStatus;
   }
 
-  // After un-hover: keep the frozen status during the grace period
+  // Grace period: keep using the pre-hover status
   const frozenUntil = state.moveEverythingActivityFrozenUntil[key];
   if (frozenUntil && now < frozenUntil) {
-    const frozen = state.moveEverythingActivityFrozenStatus[key];
-    if (frozen) {
-      return frozen;
-    }
+    return state.moveEverythingActivityLastStatus[key] || liveStatus;
   }
 
-  // Grace period expired or no freeze — use live status
-  delete state.moveEverythingActivityFrozenStatus[key];
+  // Normal: use live status and cache it for future freezes
   delete state.moveEverythingActivityFrozenUntil[key];
   state.moveEverythingActivityLastStatus[key] = liveStatus;
   return liveStatus;
@@ -2302,19 +2304,6 @@ function pruneMoveEverythingCustomWindowTitles(visibleWindows, hiddenWindows) {
       if (map) delete map[staleKey];
     }
     delete state.moveEverythingCustomTitleStaleSince[staleKey];
-  }
-
-  // Prune activity freeze caches for windows no longer in the inventory.
-  for (const map of [
-    state.moveEverythingActivityFrozenStatus,
-    state.moveEverythingActivityFrozenUntil,
-    state.moveEverythingActivityLastStatus,
-  ]) {
-    for (const key of Object.keys(map || {})) {
-      if (!liveKeys.has(key)) {
-        delete map[key];
-      }
-    }
   }
 }
 
@@ -2707,7 +2696,7 @@ function buildMoveEverythingWindowRow(windowItem, options = {}) {
   title.dataset.fullTitle = displayedTitle;
   title.textContent = displayedTitle;
   const activeWindowHighlightColorizeEnabled = Boolean(settings.moveEverythingActiveWindowHighlightColorize);
-  if (focused && activeWindowHighlightColorizeEnabled) {
+  if (!hovered && focused && activeWindowHighlightColorizeEnabled) {
     const activeWindowColorPair = resolveMoveEverythingWindowActivityColorPair(
       settings.moveEverythingActiveWindowHighlightColor
     );
@@ -5133,6 +5122,13 @@ function normalizeSettings(settings) {
       minMoveEverythingOverlayDuration,
       maxMoveEverythingOverlayDuration
     ),
+    controlCenterFrameX: source.controlCenterFrameX ?? null,
+    controlCenterFrameY: source.controlCenterFrameY ?? null,
+    controlCenterFrameWidth: source.controlCenterFrameWidth ?? null,
+    controlCenterFrameHeight: source.controlCenterFrameHeight ?? null,
+    moveEverythingStartDontMoveVibeGrid: Boolean(
+      source.moveEverythingStartDontMoveVibeGrid ?? defaults.moveEverythingStartDontMoveVibeGrid
+    ),
     moveEverythingCloseWindowHotkey: normalizeHotkeyObject(source.moveEverythingCloseWindowHotkey),
     moveEverythingHideWindowHotkey: normalizeHotkeyObject(source.moveEverythingHideWindowHotkey),
     moveEverythingNameWindowHotkey: normalizeHotkeyObject(source.moveEverythingNameWindowHotkey),
@@ -5585,6 +5581,8 @@ function wireEvents() {
   );
   on(ids.moveEverythingRetileBtn, "click", retileVisibleMoveEverythingWindows);
   on(ids.moveEverythingMiniRetileBtn, "click", miniRetileVisibleMoveEverythingWindows);
+  on(ids.moveEverythingSaveDefaultsBtn, "click", saveCurrentMoveEverythingAsDefaults);
+  on(ids.moveEverythingResetDefaultsBtn, "click", resetMoveEverythingDefaults);
   ids.settingsBtn.addEventListener("click", openSettingsModal);
   ids.hideBtn.addEventListener("click", () => sendToNative("hideControlCenter"));
   on(document.getElementById("openYamlBtn"), "click", () => sendToNative("openConfigFile"));

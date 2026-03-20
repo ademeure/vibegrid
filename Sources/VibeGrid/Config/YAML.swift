@@ -228,6 +228,20 @@ struct YAMLConfigCodec {
                             field: "moveEverythingStartMoveToBottom"
                         )
                         didSetMoveEverythingStartMoveToBottom = true
+                    case "moveEverythingStartDontMoveVibeGrid":
+                        config.settings.moveEverythingStartDontMoveVibeGrid = try parseBoolean(
+                            effectiveValue,
+                            lineNumber: line.number,
+                            field: "moveEverythingStartDontMoveVibeGrid"
+                        )
+                    case "controlCenterFrameX":
+                        config.settings.controlCenterFrameX = Double(effectiveValue)
+                    case "controlCenterFrameY":
+                        config.settings.controlCenterFrameY = Double(effectiveValue)
+                    case "controlCenterFrameWidth":
+                        config.settings.controlCenterFrameWidth = Double(effectiveValue)
+                    case "controlCenterFrameHeight":
+                        config.settings.controlCenterFrameHeight = Double(effectiveValue)
                     case "moveEverythingAdvancedControlCenterHover":
                         config.settings.moveEverythingAdvancedControlCenterHover = try parseBoolean(
                             effectiveValue,
@@ -561,6 +575,16 @@ struct YAMLConfigCodec {
         lines.append("  moveEverythingOverlayDuration: \(formatDouble(normalized.settings.moveEverythingOverlayDuration))")
         lines.append("  moveEverythingStartAlwaysOnTop: \(normalized.settings.moveEverythingStartAlwaysOnTop ? "true" : "false")")
         lines.append("  moveEverythingStartMoveToBottom: \(normalized.settings.moveEverythingStartMoveToBottom ? "true" : "false")")
+        lines.append("  moveEverythingStartDontMoveVibeGrid: \(normalized.settings.moveEverythingStartDontMoveVibeGrid ? "true" : "false")")
+        if let x = normalized.settings.controlCenterFrameX,
+           let y = normalized.settings.controlCenterFrameY,
+           let w = normalized.settings.controlCenterFrameWidth,
+           let h = normalized.settings.controlCenterFrameHeight {
+            lines.append("  controlCenterFrameX: \(formatDouble(x))")
+            lines.append("  controlCenterFrameY: \(formatDouble(y))")
+            lines.append("  controlCenterFrameWidth: \(formatDouble(w))")
+            lines.append("  controlCenterFrameHeight: \(formatDouble(h))")
+        }
         lines.append("  moveEverythingAdvancedControlCenterHover: \(normalized.settings.moveEverythingAdvancedControlCenterHover ? "true" : "false")")
         lines.append("  moveEverythingStickyHoverStealFocus: \(normalized.settings.moveEverythingStickyHoverStealFocus ? "true" : "false")")
         lines.append(

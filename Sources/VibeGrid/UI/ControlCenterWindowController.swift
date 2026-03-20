@@ -36,7 +36,9 @@ final class ControlCenterWindowController: NSWindowController, NSWindowDelegate,
         )
         window.title = "VibeGrid Control Center"
         window.titleVisibility = .visible
-        Self.positionWindowAtTop(window)
+        if !Self.restoreSavedFrame(window, settings: appState.config.settings) {
+            Self.positionWindowAtTop(window)
+        }
         window.isReleasedWhenClosed = false
 
         super.init(window: window)
@@ -152,6 +154,24 @@ final class ControlCenterWindowController: NSWindowController, NSWindowDelegate,
         }
 
         return bundles
+    }
+
+    private static func restoreSavedFrame(_ window: NSWindow, settings: Settings) -> Bool {
+        guard let x = settings.controlCenterFrameX,
+              let y = settings.controlCenterFrameY,
+              let w = settings.controlCenterFrameWidth,
+              let h = settings.controlCenterFrameHeight,
+              w > 0, h > 0 else {
+            return false
+        }
+        let frame = NSRect(x: x, y: y, width: w, height: h)
+        // Only restore if the frame intersects a connected screen
+        let intersectsScreen = NSScreen.screens.contains { $0.frame.intersects(frame) }
+        guard intersectsScreen else {
+            return false
+        }
+        window.setFrame(frame, display: false)
+        return true
     }
 
     private static func positionWindowAtTop(_ window: NSWindow) {

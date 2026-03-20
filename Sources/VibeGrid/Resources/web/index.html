@@ -123,12 +123,12 @@
                     <span id="moveEverythingAlwaysOnTopLabel">Always On Top</span>
                   </label>
                   <label class="toggle-line move-everything-top-toggle">
-                    <input id="moveEverythingMoveToBottom" type="checkbox" />
-                    <span id="moveEverythingMoveToBottomLabel">Move To Bottom</span>
-                  </label>
-                  <label class="toggle-line move-everything-top-toggle">
                     <input id="moveEverythingDontMoveVibeGrid" type="checkbox" />
                     Sticky
+                  </label>
+                  <label class="toggle-line move-everything-top-toggle">
+                    <input id="moveEverythingMoveToBottom" type="checkbox" />
+                    <span id="moveEverythingMoveToBottomLabel">Move To Bottom</span>
                   </label>
                 </div>
               </div>
@@ -298,6 +298,10 @@
               Launch VibeGrid automatically at login
             </label>
             <button id="openLoginItemsSettingsBtn" class="btn ghost tiny settings-utility-btn">Open Login Items Settings</button>
+          </div>
+          <div class="modal-actions">
+            <button id="moveEverythingSaveDefaultsBtn" class="btn ghost" type="button" title="Save window position, size, and Window List toggles (On Top / Sticky / Move To Side) as defaults for next launch">Save Position &amp; Defaults</button>
+            <button id="moveEverythingResetDefaultsBtn" class="btn ghost" type="button" title="Reset saved window position and Window List toggles to factory defaults">Reset Position &amp; Defaults</button>
           </div>
           <div class="modal-actions">
             <button id="openMoveEverythingSettingsBtn" class="btn move-everything">Window List Settings</button>

@@ -96,6 +96,9 @@ final class WindowManagerEngine: WindowManagerEngineProtocol {
     var moveEverythingBottomOverlayLastFrame: CGRect?
     var moveEverythingOriginalPositionOverlayLastFrame: CGRect?
     var moveEverythingHoveredWindowKey: String?
+    var moveEverythingHoverElevatedWindows: [(windowNumber: Int, originalLevel: Int32)] = []
+    var moveEverythingResolvedWindowNumberByKey: [String: Int] = [:]
+    var moveEverythingFocusedKeyBeforeHover: String?
     var moveEverythingShowOverlays = true
     var moveEverythingMoveToBottom = false
     var moveEverythingDontMoveVibeGrid = false
