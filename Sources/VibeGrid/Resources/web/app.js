@@ -5132,6 +5132,7 @@ function normalizeSettings(settings) {
     moveEverythingCloseWindowHotkey: normalizeHotkeyObject(source.moveEverythingCloseWindowHotkey),
     moveEverythingHideWindowHotkey: normalizeHotkeyObject(source.moveEverythingHideWindowHotkey),
     moveEverythingNameWindowHotkey: normalizeHotkeyObject(source.moveEverythingNameWindowHotkey),
+    moveEverythingQuickViewHotkey: normalizeHotkeyObject(source.moveEverythingQuickViewHotkey),
   };
 }
 
