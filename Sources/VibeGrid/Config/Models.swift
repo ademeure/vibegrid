@@ -265,8 +265,8 @@ struct Settings: Codable {
             moveEverythingCloseHideHotkeysOutsideMode: false,
             moveEverythingExcludeControlCenter: false,
             moveEverythingMiniRetileWidthPercent: 25,
-            moveEverythingBackgroundRefreshInterval: 5,
-            moveEverythingITermRecentActivityTimeout: 5,
+            moveEverythingBackgroundRefreshInterval: 2,
+            moveEverythingITermRecentActivityTimeout: 3,
             moveEverythingITermRecentActivityActiveText: "[ACTIVE]",
             moveEverythingITermRecentActivityIdleText: "",
             moveEverythingITermRecentActivityBadgeEnabled: false,
@@ -467,11 +467,11 @@ struct Settings: Codable {
         ) ?? false
         moveEverythingExcludeControlCenter = try container.decodeIfPresent(Bool.self, forKey: .moveEverythingExcludeControlCenter) ?? false
         moveEverythingMiniRetileWidthPercent = try container.decodeIfPresent(Double.self, forKey: .moveEverythingMiniRetileWidthPercent) ?? 25
-        moveEverythingBackgroundRefreshInterval = try container.decodeIfPresent(Double.self, forKey: .moveEverythingBackgroundRefreshInterval) ?? 5
+        moveEverythingBackgroundRefreshInterval = try container.decodeIfPresent(Double.self, forKey: .moveEverythingBackgroundRefreshInterval) ?? 2
         moveEverythingITermRecentActivityTimeout = try container.decodeIfPresent(
             Double.self,
             forKey: .moveEverythingITermRecentActivityTimeout
-        ) ?? 5
+        ) ?? 3
         moveEverythingITermRecentActivityActiveText = try container.decodeIfPresent(
             String.self,
             forKey: .moveEverythingITermRecentActivityActiveText
@@ -850,7 +850,7 @@ extension AppConfig {
             30
         )
         if !copy.settings.moveEverythingITermRecentActivityTimeout.isFinite {
-            copy.settings.moveEverythingITermRecentActivityTimeout = 5
+            copy.settings.moveEverythingITermRecentActivityTimeout = 3
         }
         copy.settings.moveEverythingITermRecentActivityTimeout = min(
             max(copy.settings.moveEverythingITermRecentActivityTimeout, 0),

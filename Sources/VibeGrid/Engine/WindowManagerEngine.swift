@@ -145,6 +145,8 @@ final class WindowManagerEngine: WindowManagerEngineProtocol {
     var onMoveEverythingNameWindowRequested: ((String) -> Void)?
     var onMoveEverythingQuickViewRequested: (() -> Void)?
     var isMoveEverythingAlwaysOnTopEnabledProvider: (() -> Bool)?
+    var cachedDesktopFrame: CGRect?
+    var cachedDesktopFrameScreenCount: Int = 0
 
     // MARK: - Init
 

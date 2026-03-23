@@ -7,6 +7,7 @@ final class UIBridge: NSObject, WKScriptMessageHandler {
     private let appState: AppState
     private var moveEverythingWindowInventoryCache: Any = UIBridge.emptyMoveEverythingWindowInventoryPayload
     private var moveEverythingRawInventoryCache: MoveEverythingWindowInventory?
+    private var moveEverythingRawInventoryJSONCache: Any?
     private var moveEverythingWindowInventoryLastRefreshAt: Date?
 
     init(webView: WKWebView, appState: AppState) {
@@ -447,7 +448,7 @@ final class UIBridge: NSObject, WKScriptMessageHandler {
         forceMoveEverythingWindowRefresh: Bool = false,
         allowMoveEverythingWindowRefresh: Bool = true
     ) {
-        guard let configObject = codableToJSONObject(appState.config) else {
+        guard let configObject = appState.configJSONObject() else {
             sendNotice(level: "error", message: "Failed to serialize config")
             return
         }
@@ -544,6 +545,7 @@ final class UIBridge: NSObject, WKScriptMessageHandler {
         let now = Date()
         guard active else {
             moveEverythingRawInventoryCache = nil
+            moveEverythingRawInventoryJSONCache = nil
             moveEverythingWindowInventoryCache = UIBridge.emptyMoveEverythingWindowInventoryPayload
             moveEverythingWindowInventoryLastRefreshAt = now
             return moveEverythingWindowInventoryCache
@@ -552,10 +554,8 @@ final class UIBridge: NSObject, WKScriptMessageHandler {
         guard allowRefresh else {
             // Even when not refreshing the inventory, re-enrich so activity status updates
             if let rawInventory = moveEverythingRawInventoryCache {
-                return enrichInventoryWithActivity(
-                    codableToJSONObject(rawInventory) ?? moveEverythingWindowInventoryCache,
-                    inventory: rawInventory
-                )
+                let baseJSON = moveEverythingRawInventoryJSONCache ?? moveEverythingWindowInventoryCache
+                return enrichInventoryWithActivity(baseJSON, inventory: rawInventory)
             }
             return moveEverythingWindowInventoryCache
         }
@@ -571,10 +571,9 @@ final class UIBridge: NSObject, WKScriptMessageHandler {
             let startedAt = DispatchTime.now().uptimeNanoseconds
             let rawInventory = appState.moveEverythingWindowInventory()
             moveEverythingRawInventoryCache = rawInventory
-            let refreshedPayload = enrichInventoryWithActivity(
-                codableToJSONObject(rawInventory) ?? UIBridge.emptyMoveEverythingWindowInventoryPayload,
-                inventory: rawInventory
-            )
+            let encodedJSON = codableToJSONObject(rawInventory) ?? UIBridge.emptyMoveEverythingWindowInventoryPayload
+            moveEverythingRawInventoryJSONCache = encodedJSON
+            let refreshedPayload = enrichInventoryWithActivity(encodedJSON, inventory: rawInventory)
             let elapsedMs = Double(DispatchTime.now().uptimeNanoseconds - startedAt) / 1_000_000
             if elapsedMs >= 70 {
                 NSLog(
@@ -588,12 +587,11 @@ final class UIBridge: NSObject, WKScriptMessageHandler {
             return refreshedPayload
         }
 
-        // Inventory hasn't changed but still re-enrich for fresh activity status
+        // Inventory hasn't changed but still re-enrich for fresh activity status.
+        // Reuse the cached JSON encoding to avoid redundant Codable → JSON round-trips.
         if let rawInventory = moveEverythingRawInventoryCache {
-            return enrichInventoryWithActivity(
-                codableToJSONObject(rawInventory) ?? moveEverythingWindowInventoryCache,
-                inventory: rawInventory
-            )
+            let baseJSON = moveEverythingRawInventoryJSONCache ?? moveEverythingWindowInventoryCache
+            return enrichInventoryWithActivity(baseJSON, inventory: rawInventory)
         }
         return moveEverythingWindowInventoryCache
     }
@@ -607,8 +605,9 @@ final class UIBridge: NSObject, WKScriptMessageHandler {
     }
 
     private func enrichInventoryWithActivity(_ payload: Any, inventory: MoveEverythingWindowInventory) -> Any {
-        // Kick off an async TTY activity poll (results arrive and trigger refresh)
-        appState.refreshITermActivity()
+        // Kick off an async TTY activity poll (results arrive and trigger refresh).
+        // Pass the inventory we already have to avoid a redundant AX enumeration.
+        appState.refreshITermActivity(cachedInventory: inventory)
 
         // Compute activity status from TTY mtime only (Python poll).
         let ttyCache = appState.iTermActivityCache

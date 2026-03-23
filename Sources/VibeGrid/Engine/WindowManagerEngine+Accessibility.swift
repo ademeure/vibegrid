@@ -92,28 +92,50 @@ extension WindowManagerEngine {
     }
 
     func currentWindowRect(for window: AXUIElement) -> CGRect? {
-        guard let axPosition = copyCGPointAttribute(window: window, attribute: kAXPositionAttribute),
-              let axSize = copyCGSizeAttribute(window: window, attribute: kAXSizeAttribute) else {
+        // Apply timeout once for both attribute reads instead of per-attribute.
+        applyAXMessagingTimeout(to: window)
+        guard let axPosition = copyCGPointAttributeRaw(window: window, attribute: kAXPositionAttribute),
+              let axSize = copyCGSizeAttributeRaw(window: window, attribute: kAXSizeAttribute) else {
             return nil
         }
         return cocoaRect(fromAXPosition: axPosition, size: axSize)
     }
 
     func rawAXWindowRect(for window: AXUIElement) -> CGRect? {
-        guard let axPosition = copyCGPointAttribute(window: window, attribute: kAXPositionAttribute),
-              let axSize = copyCGSizeAttribute(window: window, attribute: kAXSizeAttribute) else {
+        // Apply timeout once for both attribute reads instead of per-attribute.
+        applyAXMessagingTimeout(to: window)
+        guard let axPosition = copyCGPointAttributeRaw(window: window, attribute: kAXPositionAttribute),
+              let axSize = copyCGSizeAttributeRaw(window: window, attribute: kAXSizeAttribute) else {
             return nil
         }
         return CGRect(origin: axPosition, size: axSize)
     }
 
+    /// Read position and size once and return both the raw AX rect and the Cocoa rect.
+    /// Avoids the double AX reads that happen when calling both currentWindowRect and rawAXWindowRect.
+    func bothWindowRects(for window: AXUIElement) -> (cocoa: CGRect, raw: CGRect)? {
+        applyAXMessagingTimeout(to: window)
+        guard let axPosition = copyCGPointAttributeRaw(window: window, attribute: kAXPositionAttribute),
+              let axSize = copyCGSizeAttributeRaw(window: window, attribute: kAXSizeAttribute) else {
+            return nil
+        }
+        let raw = CGRect(origin: axPosition, size: axSize)
+        let cocoa = cocoaRect(fromAXPosition: axPosition, size: axSize)
+        return (cocoa: cocoa, raw: raw)
+    }
+
     // MARK: - Copy attribute helpers
 
     func copyCGPointAttribute(window: AXUIElement, attribute: String) -> CGPoint? {
-        guard let axValue = copyAXValueAttribute(from: window, attribute: attribute) else {
+        applyAXMessagingTimeout(to: window)
+        return copyCGPointAttributeRaw(window: window, attribute: attribute)
+    }
+
+    /// Read a CGPoint attribute without applying messaging timeout (caller must ensure it).
+    private func copyCGPointAttributeRaw(window: AXUIElement, attribute: String) -> CGPoint? {
+        guard let axValue = copyAXValueAttributeRaw(from: window, attribute: attribute) else {
             return nil
         }
-
         var point = CGPoint.zero
         guard AXValueGetValue(axValue, .cgPoint, &point) else {
             return nil
@@ -122,10 +144,15 @@ extension WindowManagerEngine {
     }
 
     func copyCGSizeAttribute(window: AXUIElement, attribute: String) -> CGSize? {
-        guard let axValue = copyAXValueAttribute(from: window, attribute: attribute) else {
+        applyAXMessagingTimeout(to: window)
+        return copyCGSizeAttributeRaw(window: window, attribute: attribute)
+    }
+
+    /// Read a CGSize attribute without applying messaging timeout (caller must ensure it).
+    private func copyCGSizeAttributeRaw(window: AXUIElement, attribute: String) -> CGSize? {
+        guard let axValue = copyAXValueAttributeRaw(from: window, attribute: attribute) else {
             return nil
         }
-
         var size = CGSize.zero
         guard AXValueGetValue(axValue, .cgSize, &size) else {
             return nil
@@ -135,6 +162,11 @@ extension WindowManagerEngine {
 
     func copyAXValueAttribute(from element: AXUIElement, attribute: String) -> AXValue? {
         applyAXMessagingTimeout(to: element)
+        return copyAXValueAttributeRaw(from: element, attribute: attribute)
+    }
+
+    /// Read an AXValue attribute without applying messaging timeout (caller must ensure it).
+    private func copyAXValueAttributeRaw(from element: AXUIElement, attribute: String) -> AXValue? {
         var value: CFTypeRef?
         let status = AXUIElementCopyAttributeValue(element, attribute as CFString, &value)
         guard status == .success,
@@ -413,9 +445,16 @@ extension WindowManagerEngine {
     // MARK: - Coordinate conversion
 
     var desktopFrame: CGRect {
-        NSScreen.screens.reduce(CGRect.null) { partial, screen in
+        if let cached = cachedDesktopFrame,
+           cachedDesktopFrameScreenCount == NSScreen.screens.count {
+            return cached
+        }
+        let frame = NSScreen.screens.reduce(CGRect.null) { partial, screen in
             partial.union(screen.frame)
         }
+        cachedDesktopFrame = frame
+        cachedDesktopFrameScreenCount = NSScreen.screens.count
+        return frame
     }
 
     func cocoaRect(fromAXPosition position: CGPoint, size: CGSize) -> CGRect {

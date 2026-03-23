@@ -87,7 +87,7 @@ import Testing
     #expect(decoded.moveEverythingAdvancedControlCenterHover == true)
     #expect(decoded.moveEverythingStickyHoverStealFocus == false)
     #expect(decoded.moveEverythingCloseHideHotkeysOutsideMode == false)
-    #expect(decoded.moveEverythingITermRecentActivityTimeout == 5)
+    #expect(decoded.moveEverythingITermRecentActivityTimeout == 3)
     #expect(decoded.moveEverythingITermRecentActivityActiveText == "[ACTIVE]")
     #expect(decoded.moveEverythingITermRecentActivityIdleText == "")
     #expect(decoded.moveEverythingITermRecentActivityBadgeEnabled == false)

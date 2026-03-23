@@ -419,9 +419,16 @@ function receiveState(payload) {
   // to push back the correct config on the next cycle.
   if (autosaveTimer !== null) {
     flushAutosave();
+    // Config wasn't updated from payload; record current signature for fast-path diffing.
+    if (state._currentConfigSig === undefined) {
+      state._currentConfigSig = configSignature(state.config);
+    }
   } else if (performance.now() < configSaveGuardUntil) {
     // Skip config overwrite — a save was just flushed and the server
     // may not have processed it yet. The next push will have the correct config.
+    if (state._currentConfigSig === undefined) {
+      state._currentConfigSig = configSignature(state.config);
+    }
   } else {
     const previousSignature = state.config ? configSignature(state.config) : null;
     state.config = payload?.config || createDefaultConfig();
@@ -440,6 +447,7 @@ function receiveState(payload) {
     }));
 
     const nextSignature = configSignature(state.config);
+    state._currentConfigSig = nextSignature;
     if (!state.history.length || previousSignature === null || previousSignature !== nextSignature) {
       resetHistoryFromCurrentConfig();
     }
@@ -475,8 +483,20 @@ function receiveState(payload) {
   // the list mid-drag causes item duplication. The render will happen when
   // the drag ends and the next state poll arrives.
   if (!state.listReorderDrag && !state.gridDrag && !state.freeDrag) {
-    renderAll();
+    // Fast path: if only the move-everything window inventory or focus/hover
+    // state changed, publish just that topic to avoid re-rendering the
+    // shortcut list, placement editor, grid, etc.
+    if (state._lastReceivedConfigSig !== undefined &&
+        state._lastReceivedConfigSig === state._currentConfigSig &&
+        state._lastMoveEverythingActive === state.moveEverythingActive) {
+      syncNarrowModeLayout();
+      pubsub.publish('moveEverything');
+    } else {
+      renderAll();
+    }
   }
+  state._lastReceivedConfigSig = state._currentConfigSig;
+  state._lastMoveEverythingActive = state.moveEverythingActive;
 
   updateAccessibilityState(state.permissions.accessibility);
   if (ids.yamlPreview) {
@@ -1247,17 +1267,9 @@ function moveEverythingRowByWindowKey(key) {
     return null;
   }
 
-  const rows = ids.moveEverythingWindowList.querySelectorAll(".move-window-row[data-me-window-key]");
-  for (const row of rows) {
-    if (!(row instanceof HTMLElement)) {
-      continue;
-    }
-    const rowKey = String(row.dataset.meWindowKey || "").trim();
-    if (rowKey === key) {
-      return row;
-    }
-  }
-  return null;
+  // Use CSS attribute selector for direct lookup instead of iterating all rows.
+  const escaped = CSS.escape(key);
+  return ids.moveEverythingWindowList.querySelector(`.move-window-row[data-me-window-key="${escaped}"]`);
 }
 
 function patchMoveEverythingHoveredRows(previousKey, nextKey) {
@@ -1334,32 +1346,12 @@ function resolveMoveEverythingHoverKeyFromTarget(target, pointerClientY = null) 
     const key = String(row.dataset.meWindowKey || "").trim();
     return key.length ? key : null;
   }
-
-  if (!Number.isFinite(pointerClientY)) {
-    return null;
+  // Pointer is inside the list but not on a row (rounded-corner gap, section
+  // header, etc.). Return undefined to tell the caller to keep the current
+  // hover — pointerleave handles clearing when the pointer actually leaves.
+  if (list.contains(target)) {
+    return undefined;
   }
-
-  const rows = [...list.querySelectorAll(".move-window-row[data-me-window-key]")]
-    .filter((candidateRow) =>
-      candidateRow.dataset.meControlCenter !== "1"
-    );
-  if (!rows.length) {
-    return null;
-  }
-
-  const rects = rows.map((candidateRow) => candidateRow.getBoundingClientRect());
-  for (let i = 0; i < rows.length; i += 1) {
-    const rect = rects[i];
-    const previousRect = i > 0 ? rects[i - 1] : null;
-    const nextRect = i + 1 < rows.length ? rects[i + 1] : null;
-    const topBoundary = previousRect ? (previousRect.bottom + rect.top) / 2 : rect.top;
-    const bottomBoundary = nextRect ? (rect.bottom + nextRect.top) / 2 : rect.bottom;
-    if (pointerClientY >= topBoundary && pointerClientY < bottomBoundary) {
-      const key = String(rows[i].dataset.meWindowKey || "").trim();
-      return key.length ? key : null;
-    }
-  }
-
   return null;
 }
 
@@ -1971,12 +1963,16 @@ function applyMoveEverythingTitleSizing() {
   }
 
   const startedAt = performance.now();
+  _titleFontCacheByClass = {}; // Reset so the first element of each class re-samples getComputedStyle
   const titleElements = ids.moveEverythingWindowList.querySelectorAll(".move-window-copy strong");
-  titleElements.forEach((element) => {
-    if (!(element instanceof HTMLElement)) {
-      return;
-    }
 
+  // Phase 1: Batch-read all layout measurements to avoid read/write thrashing.
+  // Reset text content and read widths before any truncation writes.
+  const entries = [];
+  for (const element of titleElements) {
+    if (!(element instanceof HTMLElement)) {
+      continue;
+    }
     const fullTitle = String(
       element.dataset.fullTitle ||
       element.textContent ||
@@ -1985,21 +1981,24 @@ function applyMoveEverythingTitleSizing() {
     element.textContent = fullTitle;
     element.classList.remove("title-short", "title-long", "title-truncated");
     if (!fullTitle) {
-      return;
+      continue;
     }
-
     const textLength = fullTitle.trim().length;
     if (textLength <= 22) {
       element.classList.add("title-short");
     } else if (textLength >= 52) {
       element.classList.add("title-long");
     }
-
     const copyElement = element.closest(".move-window-copy");
     const referenceWidth = Math.max(
       (copyElement instanceof HTMLElement ? copyElement.clientWidth : element.clientWidth),
       1
     );
+    entries.push({ element, fullTitle, referenceWidth });
+  }
+
+  // Phase 2: Batch-write truncation results (no more layout reads).
+  for (const { element, fullTitle, referenceWidth } of entries) {
     const availableWidth = Math.max(
       0,
       referenceWidth - moveEverythingTitleTruncatePaddingPx
@@ -2008,7 +2007,7 @@ function applyMoveEverythingTitleSizing() {
       element.textContent = moveEverythingTitleEllipsis;
       element.classList.add("title-truncated");
       element.title = fullTitle;
-      return;
+      continue;
     }
 
     const truncated = truncateMoveEverythingTitleByPixels(fullTitle, availableWidth, element);
@@ -2019,7 +2018,7 @@ function applyMoveEverythingTitleSizing() {
     } else {
       element.title = "";
     }
-  });
+  }
 
   const elapsed = performance.now() - startedAt;
   if (elapsed >= moveEverythingPerfLogThresholdMs) {
@@ -2034,14 +2033,26 @@ function titleMeasureContext() {
   return moveEverythingTitleMeasureCanvas.getContext("2d");
 }
 
+// Cache for computed font styles to avoid repeated getComputedStyle calls
+// during a single title sizing pass. Keyed by font-size class since
+// title-short (14px) and title-long (11px) have different sizes.
+let _titleFontCacheByClass = {};
+
 function measureTitleTextWidth(text, element) {
   const context = titleMeasureContext();
   if (!context) {
     return Number.MAX_SAFE_INTEGER;
   }
-  const style = window.getComputedStyle(element);
-  context.font = style.font;
-  context.letterSpacing = style.letterSpacing;
+  const sizeClass = element.classList.contains("title-long") ? "long"
+    : element.classList.contains("title-short") ? "short" : "default";
+  let cached = _titleFontCacheByClass[sizeClass];
+  if (!cached) {
+    const style = window.getComputedStyle(element);
+    cached = { font: style.font, letterSpacing: style.letterSpacing };
+    _titleFontCacheByClass[sizeClass] = cached;
+  }
+  context.font = cached.font;
+  context.letterSpacing = cached.letterSpacing;
   return context.measureText(text).width;
 }
 
@@ -2207,26 +2218,37 @@ function resolveMoveEverythingWindowActivityStatus(windowItem) {
 // period after so the color doesn't flash.
 // Slightly longer than moveEverythingITermRecentActivityTimeout (5s) so the
 // TTY spike from hover-raise has fully expired by the time the freeze lifts.
-const ACTIVITY_FREEZE_GRACE_MS = 6_000;
-
 function resolveStableActivityStatus(windowItem, hovered) {
   const key = String(windowItem?.key || "");
   const liveStatus = resolveMoveEverythingWindowActivityStatus(windowItem);
   const now = Date.now();
+  const activityTimeoutMs = (state.config?.settings?.moveEverythingITermRecentActivityTimeout ?? 3) * 1000;
 
   if (hovered) {
-    // Freeze: keep the pre-hover status, extend grace period
-    state.moveEverythingActivityFrozenUntil[key] = now + ACTIVITY_FREEZE_GRACE_MS;
+    // Freeze: snapshot the pre-hover status so we can detect the false spike.
+    // Always update frozenUntil so re-hovering resets the grace period.
+    state.moveEverythingActivityFrozenUntil[key] = now + 1000;
     return state.moveEverythingActivityLastStatus[key] || liveStatus;
   }
 
-  // Grace period: keep using the pre-hover status
   const frozenUntil = state.moveEverythingActivityFrozenUntil[key];
+  const frozenStatus = state.moveEverythingActivityLastStatus[key];
+
+  // Short grace (1s) right after unhover for async poll lag.
   if (frozenUntil && now < frozenUntil) {
-    return state.moveEverythingActivityLastStatus[key] || liveStatus;
+    return frozenStatus || liveStatus;
   }
 
-  // Normal: use live status and cache it for future freezes
+  // After the 1s grace: detect the false spike pattern.
+  // If the window was idle before hover and is now active, that's the
+  // focus-steal TTY write. Suppress for at most activityTimeout — the
+  // spike can't last longer than that. If still active after, it's real.
+  if (frozenUntil && frozenStatus === "idle" && liveStatus === "active" &&
+      now < frozenUntil + activityTimeoutMs) {
+    return "idle";
+  }
+
+  // Spike has subsided, timed out, or no spike occurred. Resume normal.
   delete state.moveEverythingActivityFrozenUntil[key];
   state.moveEverythingActivityLastStatus[key] = liveStatus;
   return liveStatus;
@@ -5563,10 +5585,30 @@ function wireEvents() {
       movePointerToTopMiddle: true,
     });
   });
+  let _hoverHysteresisY = null;
   on(ids.moveEverythingWindowList, "pointermove", (event) => {
-    setMoveEverythingHoveredWindow(
-      resolveMoveEverythingHoverKeyFromTarget(event.target, event.clientY)
-    );
+    const key = resolveMoveEverythingHoverKeyFromTarget(event.target, event.clientY);
+    // undefined = pointer is in the list but between rows (rounded-corner gap,
+    // section header); keep the current hover and let pointerleave clear it.
+    if (key === undefined) {
+      return;
+    }
+    // Hysteresis: when switching between rows, require the cursor to move at
+    // least a few pixels past the boundary before committing. This prevents
+    // flickering when the cursor wobbles at the exact boundary pixel, which
+    // is amplified by DOM rebuilds shifting row positions by subpixels.
+    if (key !== null && key !== state.moveEverythingHoveredWindowKey &&
+        state.moveEverythingHoveredWindowKey !== null) {
+      if (_hoverHysteresisY !== null && Math.abs(event.clientY - _hoverHysteresisY) < 4) {
+        return;
+      }
+      _hoverHysteresisY = event.clientY;
+    } else if (key === state.moveEverythingHoveredWindowKey) {
+      // Cursor is still on the same row — update the anchor point so
+      // hysteresis is measured from the latest stable position.
+      _hoverHysteresisY = event.clientY;
+    }
+    setMoveEverythingHoveredWindow(key);
   });
   on(ids.moveEverythingWindowList, "pointerleave", () => {
     setMoveEverythingHoveredWindow(null, { immediate: true });

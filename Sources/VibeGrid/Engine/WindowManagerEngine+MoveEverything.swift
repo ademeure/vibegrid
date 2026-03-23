@@ -2467,8 +2467,9 @@ extension WindowManagerEngine {
 
                 for window in windows {
                     let title = copyStringAttribute(from: window, attribute: kAXTitleAttribute)
-                    let frame = currentWindowRect(for: window)
-                    let rawFrame = rawAXWindowRect(for: window)
+                    let rects = bothWindowRects(for: window)
+                    let frame = rects?.cocoa
+                    let rawFrame = rects?.raw
                     let resolvedITermWindow: ITermWindowInventoryResolver.WindowDescriptor? = {
                         guard isITermApplication else {
                             return nil

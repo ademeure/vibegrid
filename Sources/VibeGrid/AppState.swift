@@ -60,6 +60,8 @@ final class AppState {
     private var iTermActivityPollInFlight = false
 
     private(set) var config: AppConfig
+    private var cachedConfigYAML: String?
+    private var cachedConfigJSONObject: Any?
     private var controlCenter: ControlCenterWindowController?
 
     init() {
@@ -228,6 +230,8 @@ final class AppState {
     func refresh() {
         let next = configStore.loadOrCreate()
         config = next
+        cachedConfigYAML = nil
+        cachedConfigJSONObject = nil
         windowListActivityConfigSync.sync(
             settings: next.settings,
             iTermWindowOverridesByID: moveEverythingITermWindowOverridesByID,
@@ -246,6 +250,8 @@ final class AppState {
         guard didSave else { return false }
 
         config = normalized
+        cachedConfigYAML = nil
+        cachedConfigJSONObject = nil
         windowListActivityConfigSync.sync(
             settings: normalized.settings,
             iTermWindowOverridesByID: moveEverythingITermWindowOverridesByID,
@@ -446,11 +452,25 @@ final class AppState {
     }
 
     func configYAML() -> String {
-        let raw = configStore.loadRawText()
-        if raw.isEmpty {
-            return YAMLConfigCodec.encode(config)
+        if let cached = cachedConfigYAML {
+            return cached
         }
-        return raw
+        let raw = configStore.loadRawText()
+        let result = raw.isEmpty ? YAMLConfigCodec.encode(config) : raw
+        cachedConfigYAML = result
+        return result
+    }
+
+    func configJSONObject() -> Any? {
+        if let cached = cachedConfigJSONObject {
+            return cached
+        }
+        guard let data = try? JSONEncoder().encode(config),
+              let obj = try? JSONSerialization.jsonObject(with: data) else {
+            return nil
+        }
+        cachedConfigJSONObject = obj
+        return obj
     }
 
     func hotKeyRegistrationIssues() -> [HotKeyRegistrationIssue] {
@@ -976,7 +996,7 @@ final class AppState {
     /// Kick off a background Python API poll to check TTY mtimes for each iTerm
     /// window. Results are stored in `iTermActivityCache` keyed by snapshot key,
     /// matched via (x, width, height) which is identical across coordinate systems.
-    func refreshITermActivity() {
+    func refreshITermActivity(cachedInventory: MoveEverythingWindowInventory? = nil) {
         guard !iTermActivityPollInFlight else { return }
         let pythonURL = ITermWindowInventoryResolver.pythonURL()
         guard FileManager.default.isExecutableFile(atPath: pythonURL.path) else {
@@ -986,7 +1006,7 @@ final class AppState {
 
         iTermActivityPollInFlight = true
         let timeout = config.settings.moveEverythingITermRecentActivityTimeout
-        let currentInventory = moveEverythingWindowInventory()
+        let currentInventory = cachedInventory ?? moveEverythingWindowInventory()
 
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             let activityEntries = Self.pollITermTTYActivity(

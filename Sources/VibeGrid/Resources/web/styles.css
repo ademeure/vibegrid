@@ -580,7 +580,8 @@ input[type="number"] {
 }
 
 .move-window-row + .move-window-row {
-  margin-top: -1px;
+  margin-top: 0;
+  border-top-color: transparent;
 }
 
 .move-window-row.activity-status-box::before {
@@ -1652,7 +1653,12 @@ html[data-theme="dark"] {
 [data-theme="dark"] .move-everything-window-list,
  [data-theme="dark"] .move-window-row {
   border-color: #42565a99;
+  border-bottom-color: transparent;
   background: #0d1317;
+}
+
+[data-theme="dark"] .move-window-row + .move-window-row {
+  border-top-color: transparent;
 }
 
 [data-theme="dark"] .shortcut-item.active,
