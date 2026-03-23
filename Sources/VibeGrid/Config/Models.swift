@@ -218,6 +218,7 @@ struct Settings: Codable {
     var moveEverythingMiniRetileWidthPercent: Double
     var moveEverythingBackgroundRefreshInterval: Double
     var moveEverythingITermRecentActivityTimeout: Double
+    var moveEverythingITermRecentActivityBuffer: Double
     var moveEverythingITermRecentActivityActiveText: String
     var moveEverythingITermRecentActivityIdleText: String
     var moveEverythingITermRecentActivityBadgeEnabled: Bool
@@ -266,7 +267,8 @@ struct Settings: Codable {
             moveEverythingExcludeControlCenter: false,
             moveEverythingMiniRetileWidthPercent: 25,
             moveEverythingBackgroundRefreshInterval: 2,
-            moveEverythingITermRecentActivityTimeout: 3,
+            moveEverythingITermRecentActivityTimeout: 1,
+            moveEverythingITermRecentActivityBuffer: 4,
             moveEverythingITermRecentActivityActiveText: "[ACTIVE]",
             moveEverythingITermRecentActivityIdleText: "",
             moveEverythingITermRecentActivityBadgeEnabled: false,
@@ -316,7 +318,8 @@ struct Settings: Codable {
         moveEverythingExcludeControlCenter: Bool = false,
         moveEverythingMiniRetileWidthPercent: Double = 25,
         moveEverythingBackgroundRefreshInterval: Double = 2,
-        moveEverythingITermRecentActivityTimeout: Double = 3,
+        moveEverythingITermRecentActivityTimeout: Double = 1,
+        moveEverythingITermRecentActivityBuffer: Double = 4,
         moveEverythingITermRecentActivityActiveText: String = "[ACTIVE]",
         moveEverythingITermRecentActivityIdleText: String = "",
         moveEverythingITermRecentActivityBadgeEnabled: Bool = false,
@@ -364,6 +367,7 @@ struct Settings: Codable {
         self.moveEverythingMiniRetileWidthPercent = moveEverythingMiniRetileWidthPercent
         self.moveEverythingBackgroundRefreshInterval = moveEverythingBackgroundRefreshInterval
         self.moveEverythingITermRecentActivityTimeout = moveEverythingITermRecentActivityTimeout
+        self.moveEverythingITermRecentActivityBuffer = moveEverythingITermRecentActivityBuffer
         self.moveEverythingITermRecentActivityActiveText = moveEverythingITermRecentActivityActiveText
         self.moveEverythingITermRecentActivityIdleText = moveEverythingITermRecentActivityIdleText
         self.moveEverythingITermRecentActivityBadgeEnabled = moveEverythingITermRecentActivityBadgeEnabled
@@ -414,6 +418,7 @@ struct Settings: Codable {
         case moveEverythingMiniRetileWidthPercent
         case moveEverythingBackgroundRefreshInterval
         case moveEverythingITermRecentActivityTimeout
+        case moveEverythingITermRecentActivityBuffer
         case moveEverythingITermRecentActivityActiveText
         case moveEverythingITermRecentActivityIdleText
         case moveEverythingITermRecentActivityBadgeEnabled
@@ -471,7 +476,11 @@ struct Settings: Codable {
         moveEverythingITermRecentActivityTimeout = try container.decodeIfPresent(
             Double.self,
             forKey: .moveEverythingITermRecentActivityTimeout
-        ) ?? 3
+        ) ?? 1
+        moveEverythingITermRecentActivityBuffer = try container.decodeIfPresent(
+            Double.self,
+            forKey: .moveEverythingITermRecentActivityBuffer
+        ) ?? 4
         moveEverythingITermRecentActivityActiveText = try container.decodeIfPresent(
             String.self,
             forKey: .moveEverythingITermRecentActivityActiveText
@@ -576,6 +585,7 @@ struct Settings: Codable {
         try container.encode(moveEverythingMiniRetileWidthPercent, forKey: .moveEverythingMiniRetileWidthPercent)
         try container.encode(moveEverythingBackgroundRefreshInterval, forKey: .moveEverythingBackgroundRefreshInterval)
         try container.encode(moveEverythingITermRecentActivityTimeout, forKey: .moveEverythingITermRecentActivityTimeout)
+        try container.encode(moveEverythingITermRecentActivityBuffer, forKey: .moveEverythingITermRecentActivityBuffer)
         try container.encode(moveEverythingITermRecentActivityActiveText, forKey: .moveEverythingITermRecentActivityActiveText)
         try container.encode(moveEverythingITermRecentActivityIdleText, forKey: .moveEverythingITermRecentActivityIdleText)
         try container.encode(
@@ -850,10 +860,17 @@ extension AppConfig {
             30
         )
         if !copy.settings.moveEverythingITermRecentActivityTimeout.isFinite {
-            copy.settings.moveEverythingITermRecentActivityTimeout = 3
+            copy.settings.moveEverythingITermRecentActivityTimeout = 1
         }
         copy.settings.moveEverythingITermRecentActivityTimeout = min(
             max(copy.settings.moveEverythingITermRecentActivityTimeout, 0),
+            300
+        )
+        if !copy.settings.moveEverythingITermRecentActivityBuffer.isFinite {
+            copy.settings.moveEverythingITermRecentActivityBuffer = 4
+        }
+        copy.settings.moveEverythingITermRecentActivityBuffer = min(
+            max(copy.settings.moveEverythingITermRecentActivityBuffer, 0),
             300
         )
         copy.settings.moveEverythingITermRecentActivityActiveText = copy.settings.moveEverythingITermRecentActivityActiveText

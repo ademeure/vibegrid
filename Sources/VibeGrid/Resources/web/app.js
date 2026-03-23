@@ -108,6 +108,7 @@ const state = {
   moveEverythingActivityLastStatus: {},
   moveEverythingActivityFrozenUntil: {},
   moveEverythingActivitySawIdleSinceUnhover: {},
+  moveEverythingActivityActiveUntil: {},
 };
 
 const ids = {
@@ -198,6 +199,7 @@ const ids = {
   moveEverythingMiniRetileWidthPercentSetting: document.getElementById("moveEverythingMiniRetileWidthPercentSetting"),
   moveEverythingBackgroundRefreshIntervalSetting: document.getElementById("moveEverythingBackgroundRefreshIntervalSetting"),
   moveEverythingITermRecentActivityTimeoutSetting: document.getElementById("moveEverythingITermRecentActivityTimeoutSetting"),
+  moveEverythingITermRecentActivityBufferSetting: document.getElementById("moveEverythingITermRecentActivityBufferSetting"),
   moveEverythingITermRecentActivityActiveTextSetting: document.getElementById("moveEverythingITermRecentActivityActiveTextSetting"),
   moveEverythingITermRecentActivityIdleTextSetting: document.getElementById("moveEverythingITermRecentActivityIdleTextSetting"),
   moveEverythingITermRecentActivityBadgeEnabledSetting: document.getElementById("moveEverythingITermRecentActivityBadgeEnabledSetting"),
@@ -476,13 +478,21 @@ function receiveState(payload) {
   state.moveEverythingWindows = normalizeMoveEverythingWindowInventory(payload?.moveEverythingWindows);
   const previousFocusedWindowKey = state.moveEverythingFocusedWindowKey;
   state.moveEverythingFocusedWindowKey = String(payload?.moveEverythingFocusedWindowKey || "").trim() || null;
-  // When a different window gains focus, freeze its activity status to absorb
-  // the TTY write that apps like Claude Code emit on focus (status line update).
-  if (state.moveEverythingFocusedWindowKey &&
-      state.moveEverythingFocusedWindowKey !== previousFocusedWindowKey &&
-      !state.moveEverythingActivityFrozenUntil[state.moveEverythingFocusedWindowKey]) {
-    state.moveEverythingActivityFrozenUntil[state.moveEverythingFocusedWindowKey] = Date.now() + 500;
-    delete state.moveEverythingActivitySawIdleSinceUnhover[state.moveEverythingFocusedWindowKey];
+  // When focus changes, freeze BOTH the newly-focused and previously-focused
+  // windows. Apps like Claude Code write to TTY on both focus and defocus
+  // (status line updates, state saves).
+  if (state.moveEverythingFocusedWindowKey !== previousFocusedWindowKey) {
+    const now = Date.now();
+    // Always reset the freeze on focus change — an expired freeze from a
+    // previous focus change must not block setting a new one.
+    if (state.moveEverythingFocusedWindowKey) {
+      state.moveEverythingActivityFrozenUntil[state.moveEverythingFocusedWindowKey] = now + 1500;
+      delete state.moveEverythingActivitySawIdleSinceUnhover[state.moveEverythingFocusedWindowKey];
+    }
+    if (previousFocusedWindowKey) {
+      state.moveEverythingActivityFrozenUntil[previousFocusedWindowKey] = now + 1500;
+      delete state.moveEverythingActivitySawIdleSinceUnhover[previousFocusedWindowKey];
+    }
   }
   applyTheme();
   applyLargerFonts();
@@ -891,6 +901,9 @@ function renderMoveEverythingModal() {
     if (ids.moveEverythingITermRecentActivityTimeoutSetting && ids.moveEverythingITermRecentActivityTimeoutSetting.parentElement) {
       ids.moveEverythingITermRecentActivityTimeoutSetting.parentElement.style.display = "none";
     }
+    if (ids.moveEverythingITermRecentActivityBufferSetting && ids.moveEverythingITermRecentActivityBufferSetting.parentElement) {
+      ids.moveEverythingITermRecentActivityBufferSetting.parentElement.style.display = "none";
+    }
     if (ids.moveEverythingITermRecentActivityActiveTextSetting && ids.moveEverythingITermRecentActivityActiveTextSetting.parentElement) {
       ids.moveEverythingITermRecentActivityActiveTextSetting.parentElement.style.display = "none";
     }
@@ -941,6 +954,9 @@ function renderMoveEverythingModal() {
     }
     if (ids.moveEverythingITermRecentActivityTimeoutSetting && ids.moveEverythingITermRecentActivityTimeoutSetting.parentElement) {
       ids.moveEverythingITermRecentActivityTimeoutSetting.parentElement.style.display = "";
+    }
+    if (ids.moveEverythingITermRecentActivityBufferSetting && ids.moveEverythingITermRecentActivityBufferSetting.parentElement) {
+      ids.moveEverythingITermRecentActivityBufferSetting.parentElement.style.display = "";
     }
     if (ids.moveEverythingITermRecentActivityActiveTextSetting && ids.moveEverythingITermRecentActivityActiveTextSetting.parentElement) {
       ids.moveEverythingITermRecentActivityActiveTextSetting.parentElement.style.display = "";
@@ -998,7 +1014,14 @@ function renderMoveEverythingModal() {
   }
   if (ids.moveEverythingITermRecentActivityTimeoutSetting) {
     ids.moveEverythingITermRecentActivityTimeoutSetting.value = clampNumber(
-      Number(settings.moveEverythingITermRecentActivityTimeout ?? 5),
+      Number(settings.moveEverythingITermRecentActivityTimeout ?? 1),
+      0,
+      300
+    );
+  }
+  if (ids.moveEverythingITermRecentActivityBufferSetting) {
+    ids.moveEverythingITermRecentActivityBufferSetting.value = clampNumber(
+      Number(settings.moveEverythingITermRecentActivityBuffer ?? 4),
       0,
       300
     );
@@ -1514,6 +1537,13 @@ function updateMoveEverythingSettings() {
   if (ids.moveEverythingITermRecentActivityTimeoutSetting) {
     settings.moveEverythingITermRecentActivityTimeout = clampNumber(
       Number(ids.moveEverythingITermRecentActivityTimeoutSetting.value),
+      0,
+      300
+    );
+  }
+  if (ids.moveEverythingITermRecentActivityBufferSetting) {
+    settings.moveEverythingITermRecentActivityBuffer = clampNumber(
+      Number(ids.moveEverythingITermRecentActivityBufferSetting.value),
       0,
       300
     );
@@ -2232,12 +2262,12 @@ function resolveStableActivityStatus(windowItem, hovered) {
   const key = String(windowItem?.key || "");
   const liveStatus = resolveMoveEverythingWindowActivityStatus(windowItem);
   const now = Date.now();
-  const activityTimeoutMs = (state.config?.settings?.moveEverythingITermRecentActivityTimeout ?? 3) * 1000;
+  const activityTimeoutMs = (state.config?.settings?.moveEverythingITermRecentActivityTimeout ?? 1) * 1000;
 
   if (hovered) {
     // Freeze: snapshot the pre-hover status so we can detect the false spike.
     // Always update frozenUntil so re-hovering resets the grace period.
-    state.moveEverythingActivityFrozenUntil[key] = now + 500;
+    state.moveEverythingActivityFrozenUntil[key] = now + 1500;
     delete state.moveEverythingActivitySawIdleSinceUnhover[key];
     return state.moveEverythingActivityLastStatus[key] || liveStatus;
   }
@@ -2268,10 +2298,29 @@ function resolveStableActivityStatus(windowItem, hovered) {
     }
   }
 
-  // No freeze active. Normal tracking.
+  // No freeze active. Normal tracking with 2s active→idle buffer:
+  // when a window transitions from active to idle, keep showing active
+  // for 2s so brief gaps between bursts of activity don't flicker.
   delete state.moveEverythingActivityFrozenUntil[key];
   delete state.moveEverythingActivitySawIdleSinceUnhover[key];
+
+  // Update lastStatus with the REAL live status (not buffered) so the
+  // spike detector sees the true pre-focus state on the next focus change.
   state.moveEverythingActivityLastStatus[key] = liveStatus;
+
+  if (liveStatus === "active") {
+    const bufferMs = (state.config?.settings?.moveEverythingITermRecentActivityBuffer ?? 4) * 1000;
+    state.moveEverythingActivityActiveUntil[key] = now + bufferMs;
+    return "active";
+  }
+
+  // liveStatus is idle — check if still in the active→idle buffer
+  const activeUntil = state.moveEverythingActivityActiveUntil[key];
+  if (activeUntil && now < activeUntil) {
+    return "active";
+  }
+
+  delete state.moveEverythingActivityActiveUntil[key];
   return liveStatus;
 }
 
@@ -5094,6 +5143,14 @@ function normalizeSettings(settings) {
       0,
       300
     ),
+    moveEverythingITermRecentActivityBuffer: clampNumber(
+      Number(
+        source.moveEverythingITermRecentActivityBuffer ??
+          defaults.moveEverythingITermRecentActivityBuffer
+      ),
+      0,
+      300
+    ),
     moveEverythingITermRecentActivityActiveText: String(
       source.moveEverythingITermRecentActivityActiveText ??
         defaults.moveEverythingITermRecentActivityActiveText
@@ -5376,7 +5433,8 @@ function createDefaultConfig() {
       moveEverythingExcludeControlCenter: false,
       moveEverythingMiniRetileWidthPercent: 25,
       moveEverythingBackgroundRefreshInterval: 5,
-      moveEverythingITermRecentActivityTimeout: 5,
+      moveEverythingITermRecentActivityTimeout: 1,
+      moveEverythingITermRecentActivityBuffer: 4,
       moveEverythingITermRecentActivityActiveText: "[ACTIVE]",
       moveEverythingITermRecentActivityIdleText: "",
       moveEverythingITermRecentActivityBadgeEnabled: false,
@@ -6049,6 +6107,8 @@ function wireEvents() {
   on(ids.moveEverythingBackgroundRefreshIntervalSetting, "input", updateMoveEverythingSettings);
   on(ids.moveEverythingITermRecentActivityTimeoutSetting, "change", updateMoveEverythingSettings);
   on(ids.moveEverythingITermRecentActivityTimeoutSetting, "input", updateMoveEverythingSettings);
+  on(ids.moveEverythingITermRecentActivityBufferSetting, "change", updateMoveEverythingSettings);
+  on(ids.moveEverythingITermRecentActivityBufferSetting, "input", updateMoveEverythingSettings);
   on(ids.moveEverythingITermRecentActivityActiveTextSetting, "change", updateMoveEverythingSettings);
   on(ids.moveEverythingITermRecentActivityActiveTextSetting, "input", updateMoveEverythingSettings);
   on(ids.moveEverythingITermRecentActivityIdleTextSetting, "change", updateMoveEverythingSettings);

@@ -284,6 +284,12 @@ struct YAMLConfigCodec {
                             lineNumber: line.number,
                             field: "moveEverythingITermRecentActivityTimeout"
                         )
+                    case "moveEverythingITermRecentActivityBuffer":
+                        config.settings.moveEverythingITermRecentActivityBuffer = try parseDouble(
+                            effectiveValue,
+                            lineNumber: line.number,
+                            field: "moveEverythingITermRecentActivityBuffer"
+                        )
                     case "moveEverythingITermRecentActivityActiveText":
                         config.settings.moveEverythingITermRecentActivityActiveText = parseScalar(effectiveValue)
                     case "moveEverythingITermRecentActivityIdleText":
@@ -594,6 +600,7 @@ struct YAMLConfigCodec {
         lines.append("  moveEverythingMiniRetileWidthPercent: \(formatDouble(normalized.settings.moveEverythingMiniRetileWidthPercent))")
         lines.append("  moveEverythingBackgroundRefreshInterval: \(formatDouble(normalized.settings.moveEverythingBackgroundRefreshInterval))")
         lines.append("  moveEverythingITermRecentActivityTimeout: \(formatDouble(normalized.settings.moveEverythingITermRecentActivityTimeout))")
+        lines.append("  moveEverythingITermRecentActivityBuffer: \(formatDouble(normalized.settings.moveEverythingITermRecentActivityBuffer))")
         lines.append("  moveEverythingITermRecentActivityActiveText: \(encodeScalar(normalized.settings.moveEverythingITermRecentActivityActiveText))")
         lines.append("  moveEverythingITermRecentActivityIdleText: \(encodeScalar(normalized.settings.moveEverythingITermRecentActivityIdleText))")
         lines.append("  moveEverythingITermRecentActivityBadgeEnabled: \(normalized.settings.moveEverythingITermRecentActivityBadgeEnabled ? "true" : "false")")
