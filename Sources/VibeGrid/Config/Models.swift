@@ -315,8 +315,8 @@ struct Settings: Codable {
         moveEverythingCloseHideHotkeysOutsideMode: Bool = false,
         moveEverythingExcludeControlCenter: Bool = false,
         moveEverythingMiniRetileWidthPercent: Double = 25,
-        moveEverythingBackgroundRefreshInterval: Double = 5,
-        moveEverythingITermRecentActivityTimeout: Double = 5,
+        moveEverythingBackgroundRefreshInterval: Double = 2,
+        moveEverythingITermRecentActivityTimeout: Double = 3,
         moveEverythingITermRecentActivityActiveText: String = "[ACTIVE]",
         moveEverythingITermRecentActivityIdleText: String = "",
         moveEverythingITermRecentActivityBadgeEnabled: Bool = false,
@@ -843,7 +843,7 @@ extension AppConfig {
         }
         copy.settings.moveEverythingOverlayDuration = min(max(copy.settings.moveEverythingOverlayDuration, 0.2), 8)
         if !copy.settings.moveEverythingBackgroundRefreshInterval.isFinite {
-            copy.settings.moveEverythingBackgroundRefreshInterval = 5
+            copy.settings.moveEverythingBackgroundRefreshInterval = 2
         }
         copy.settings.moveEverythingBackgroundRefreshInterval = min(
             max(copy.settings.moveEverythingBackgroundRefreshInterval, 0.5),

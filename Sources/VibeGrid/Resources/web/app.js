@@ -107,6 +107,7 @@ const state = {
   moveEverythingCustomTitleStaleSince: {},
   moveEverythingActivityLastStatus: {},
   moveEverythingActivityFrozenUntil: {},
+  moveEverythingActivitySawIdleSinceUnhover: {},
 };
 
 const ids = {
@@ -473,7 +474,16 @@ function receiveState(payload) {
     Boolean(payload?.moveEverythingDontMoveVibeGrid)
   );
   state.moveEverythingWindows = normalizeMoveEverythingWindowInventory(payload?.moveEverythingWindows);
+  const previousFocusedWindowKey = state.moveEverythingFocusedWindowKey;
   state.moveEverythingFocusedWindowKey = String(payload?.moveEverythingFocusedWindowKey || "").trim() || null;
+  // When a different window gains focus, freeze its activity status to absorb
+  // the TTY write that apps like Claude Code emit on focus (status line update).
+  if (state.moveEverythingFocusedWindowKey &&
+      state.moveEverythingFocusedWindowKey !== previousFocusedWindowKey &&
+      !state.moveEverythingActivityFrozenUntil[state.moveEverythingFocusedWindowKey]) {
+    state.moveEverythingActivityFrozenUntil[state.moveEverythingFocusedWindowKey] = Date.now() + 500;
+    delete state.moveEverythingActivitySawIdleSinceUnhover[state.moveEverythingFocusedWindowKey];
+  }
   applyTheme();
   applyLargerFonts();
 
@@ -2227,7 +2237,8 @@ function resolveStableActivityStatus(windowItem, hovered) {
   if (hovered) {
     // Freeze: snapshot the pre-hover status so we can detect the false spike.
     // Always update frozenUntil so re-hovering resets the grace period.
-    state.moveEverythingActivityFrozenUntil[key] = now + 1000;
+    state.moveEverythingActivityFrozenUntil[key] = now + 500;
+    delete state.moveEverythingActivitySawIdleSinceUnhover[key];
     return state.moveEverythingActivityLastStatus[key] || liveStatus;
   }
 
@@ -2240,16 +2251,26 @@ function resolveStableActivityStatus(windowItem, hovered) {
   }
 
   // After the 1s grace: detect the false spike pattern.
-  // If the window was idle before hover and is now active, that's the
-  // focus-steal TTY write. Suppress for at most activityTimeout — the
-  // spike can't last longer than that. If still active after, it's real.
-  if (frozenUntil && frozenStatus === "idle" && liveStatus === "active" &&
-      now < frozenUntil + activityTimeoutMs) {
-    return "idle";
+  // If the window was idle before hover and is now active, suppress until
+  // the spike subsides (live goes back to idle) OR a max duration expires.
+  // Some apps (Claude Code) write to the TTY continuously while focused
+  // from hover-raise, so sawIdle alone would deadlock — the max duration
+  // (2x activity timeout) is the safety valve.
+  if (frozenUntil && frozenStatus === "idle") {
+    const maxSuppression = frozenUntil + activityTimeoutMs;
+    if (liveStatus === "idle") {
+      state.moveEverythingActivitySawIdleSinceUnhover[key] = true;
+    }
+    if (liveStatus === "active" &&
+        !state.moveEverythingActivitySawIdleSinceUnhover[key] &&
+        now < maxSuppression) {
+      return "idle";
+    }
   }
 
-  // Spike has subsided, timed out, or no spike occurred. Resume normal.
+  // No freeze active. Normal tracking.
   delete state.moveEverythingActivityFrozenUntil[key];
+  delete state.moveEverythingActivitySawIdleSinceUnhover[key];
   state.moveEverythingActivityLastStatus[key] = liveStatus;
   return liveStatus;
 }
@@ -5587,6 +5608,11 @@ function wireEvents() {
   });
   let _hoverHysteresisY = null;
   on(ids.moveEverythingWindowList, "pointermove", (event) => {
+    // Don't change hover while a mouse button is pressed — a DOM rebuild
+    // during a click would destroy the button element and eat the click.
+    if (event.buttons !== 0) {
+      return;
+    }
     const key = resolveMoveEverythingHoverKeyFromTarget(event.target, event.clientY);
     // undefined = pointer is in the list but between rows (rounded-corner gap,
     // section header); keep the current hover and let pointerleave clear it.
