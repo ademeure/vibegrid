@@ -57,6 +57,7 @@ final class AppState {
     private var quickViewWasVisible = false
     private(set) var iTermActivityCache: [String: String] = [:]  // snapshot key → "active"/"idle"
     private(set) var iTermBadgeTextCache: [String: String] = [:]  // snapshot key → badge text
+    private(set) var iTermSessionNameCache: [String: String] = [:]  // snapshot key → session/tmux name
     private var iTermActivityPollInFlight = false
 
     private(set) var config: AppConfig
@@ -1019,6 +1020,7 @@ final class AppState {
 
                 var newCache: [String: String] = [:]
                 var newBadgeCache: [String: String] = [:]
+                var newSessionNameCache: [String: String] = [:]
                 let desktopHeight = NSScreen.screens.reduce(CGRect.null) { $0.union($1.frame) }.height
 
                 for snapshot in currentInventory.visible + currentInventory.hidden {
@@ -1036,15 +1038,26 @@ final class AppState {
                         if !matched.badgeText.isEmpty {
                             newBadgeCache[snapshot.key] = matched.badgeText
                         }
+                        if !matched.sessionName.isEmpty {
+                            newSessionNameCache[snapshot.key] = matched.sessionName
+                        }
                     } else {
                         newCache[snapshot.key] = self.iTermActivityCache[snapshot.key] ?? "idle"
                         if let existingBadge = self.iTermBadgeTextCache[snapshot.key] {
                             newBadgeCache[snapshot.key] = existingBadge
                         }
+                        if let existingName = self.iTermSessionNameCache[snapshot.key] {
+                            newSessionNameCache[snapshot.key] = existingName
+                        }
                     }
                 }
                 self.iTermActivityCache = newCache
                 self.iTermBadgeTextCache = newBadgeCache
+                self.iTermSessionNameCache = newSessionNameCache
+                WindowListDebugLogger.log(
+                    "iterm-activity",
+                    "poll done: sessions=\(newSessionNameCache) activity=\(newCache.filter { $0.value == "active" }.keys.sorted())"
+                )
                 // Trigger a UI refresh so the updated cache is rendered
                 self.controlCenter?.refresh()
             }
@@ -1058,6 +1071,7 @@ final class AppState {
         let width: Double
         let height: Double
         let badgeText: String
+        let sessionName: String
     }
 
     private static func pollITermTTYActivity(
@@ -1098,6 +1112,21 @@ final class AppState {
                     except Exception:
                         pass
                     f = window.frame
+                    # Extract a descriptive name from the current session
+                    session_name = ""
+                    try:
+                        cur = window.current_tab.current_session
+                        cmd = await cur.async_get_variable("commandLine") or ""
+                        pname = await cur.async_get_variable("presentationName") or ""
+                        # For tmux-over-ssh: parse session name from command line
+                        import re
+                        m = re.search(r'tmux\\s+(?:attach|a|new|new-session)\\s+.*?-t\\s+\\W*(\\w[\\w-]*)', cmd)
+                        if m:
+                            session_name = m.group(1)
+                        elif pname.strip() and pname.strip() not in ("-zsh", "zsh", "bash", "-bash", "fish", "login"):
+                            session_name = pname.strip()
+                    except Exception:
+                        pass
                     result.append({
                         "a": min_age < timeout,
                         "x": f.origin.x,
@@ -1105,6 +1134,7 @@ final class AppState {
                         "w": f.size.width,
                         "h": f.size.height,
                         "b": badge,
+                        "n": session_name,
                     })
                 print(json.dumps(result))
 
@@ -1141,7 +1171,8 @@ final class AppState {
             let w = (entry["w"] as? NSNumber)?.doubleValue ?? 0
             let h = (entry["h"] as? NSNumber)?.doubleValue ?? 0
             let badge = (entry["b"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            return ITermActivityEntry(active: active, x: x, y: y, width: w, height: h, badgeText: badge)
+            let sessionName = (entry["n"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            return ITermActivityEntry(active: active, x: x, y: y, width: w, height: h, badgeText: badge, sessionName: sessionName)
         }
     }
 

@@ -2339,6 +2339,16 @@ function resolveMoveEverythingDisplayedWindowTitle(windowItem) {
       return badge;
     }
   }
+  // Use the iTerm session/tmux name if available (e.g. "neb-2-x2" for tmux,
+  // "claude" for presentationName). Falls back to the iTerm API window name.
+  const sessionName = String(windowItem?.iTermSessionName || "").trim();
+  if (sessionName.length) {
+    return sessionName;
+  }
+  const iTermName = String(windowItem?.iTermWindowName || "").trim();
+  if (iTermName.length) {
+    return iTermName;
+  }
   const rawTitle = String(windowItem?.title || "");
   return stripMoveEverythingStatusMarkersForDisplay(rawTitle, windowItem);
 }
@@ -5288,6 +5298,8 @@ function normalizeMoveEverythingWindow(value) {
 
   const iTermActivityStatus = typeof value.iTermActivityStatus === "string" ? value.iTermActivityStatus : null;
   const iTermBadgeText = typeof value.iTermBadgeText === "string" ? value.iTermBadgeText : null;
+  const iTermWindowName = typeof value.iTermWindowName === "string" ? value.iTermWindowName.trim() || null : null;
+  const iTermSessionName = typeof value.iTermSessionName === "string" ? value.iTermSessionName.trim() || null : null;
 
   return {
     key,
@@ -5302,6 +5314,8 @@ function normalizeMoveEverythingWindow(value) {
     isCoreGraphicsFallback: Boolean(value.isCoreGraphicsFallback),
     iTermActivityStatus,
     iTermBadgeText,
+    iTermWindowName,
+    iTermSessionName,
   };
 }
 

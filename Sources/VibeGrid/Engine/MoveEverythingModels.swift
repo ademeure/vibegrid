@@ -24,6 +24,7 @@ struct MoveEverythingWindowSnapshot: Codable {
     let isControlCenter: Bool
     let iconDataURL: String?
     let isCoreGraphicsFallback: Bool
+    let iTermWindowName: String?
     let iTermActivityStatus: String?
     let iTermBadgeText: String?
 }

@@ -2496,11 +2496,22 @@ extension WindowManagerEngine {
                         key = "\(app.processIdentifier)-ax-\(CFHash(window))"
                     }
 
+                    let iTermWindowName: String? = {
+                        guard let name = resolvedITermWindow?.name.trimmingCharacters(in: .whitespacesAndNewlines),
+                              !name.isEmpty else {
+                            return nil
+                        }
+                        // Only use the iTerm name if it differs from the AX title
+                        // (otherwise it's redundant).
+                        let normalizedAXTitle = (title ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+                        return name != normalizedAXTitle ? name : nil
+                    }()
                     let managed = MoveEverythingManagedWindow(
                         key: key,
                         pid: app.processIdentifier,
                         windowNumber: windowNumber,
                         iTermWindowID: iTermWindowID,
+                        iTermWindowName: iTermWindowName,
                         title: title,
                         appName: appName,
                         bundleIdentifier: bundleIdentifier,
@@ -3226,6 +3237,7 @@ extension WindowManagerEngine {
                 isControlCenter: isMoveEverythingControlCenterWindow(managedWindow),
                 iconDataURL: moveEverythingWindowIconDataURL(for: managedWindow.pid),
                 isCoreGraphicsFallback: isCoreGraphicsFallback,
+                iTermWindowName: managedWindow.iTermWindowName,
                 iTermActivityStatus: nil,
                 iTermBadgeText: nil
             )
@@ -3244,6 +3256,7 @@ extension WindowManagerEngine {
                 isControlCenter: false,
                 iconDataURL: moveEverythingWindowIconDataURL(for: fallbackWindow.pid),
                 isCoreGraphicsFallback: true,
+                iTermWindowName: nil,
                 iTermActivityStatus: nil,
                 iTermBadgeText: nil
             )

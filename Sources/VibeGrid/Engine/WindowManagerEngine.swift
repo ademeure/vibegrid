@@ -23,6 +23,7 @@ final class WindowManagerEngine: WindowManagerEngineProtocol {
         let pid: pid_t
         let windowNumber: Int?
         let iTermWindowID: String?
+        let iTermWindowName: String?
         let title: String?
         let appName: String
         let bundleIdentifier: String?
