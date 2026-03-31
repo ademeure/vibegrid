@@ -1554,15 +1554,7 @@ extension WindowManagerEngine {
             // even after we activate another app to bring its window to front.
             temporarilyPinControlCenterWindowOnTopForMoveEverything()
 
-            // Activate the target app so its windows come above all other
-            // normal-level windows, then raise the specific window within it.
-            // Use fast timeout to avoid main-thread stalls on slow apps.
-            if let app = NSRunningApplication(processIdentifier: managedWindow.pid) {
-                app.activate(options: [])
-            }
-            let hoveredWindow = managedWindow.window
-            applyAXMessagingTimeout(to: hoveredWindow, timeout: axFocusMessagingTimeout)
-            let raiseResult = AXUIElementPerformAction(hoveredWindow, kAXRaiseAction as CFString)
+            let hoverRaise = raiseMoveEverythingWindowForHover(managedWindow)
 
             // Re-activate VibeGrid so the control center remains key for input.
             NSApp.activate(ignoringOtherApps: true)
@@ -1570,7 +1562,7 @@ extension WindowManagerEngine {
 
             WindowListDebugLogger.log(
                 "hover-raise",
-                "pulse key=\(managedWindow.key) app=\(managedWindow.appName) raise=\(raiseResult == .success ? "ok" : "err:\(raiseResult.rawValue)") elevated=\(moveEverythingHoverElevatedWindows.count)"
+                "pulse key=\(managedWindow.key) app=\(managedWindow.appName) raise=\(hoverRaise.result == .success ? "ok" : "err:\(hoverRaise.result.rawValue)") fallbackActivate=\(hoverRaise.didActivateApp) elevated=\(moveEverythingHoverElevatedWindows.count)"
             )
         }
 
@@ -1663,6 +1655,28 @@ extension WindowManagerEngine {
                 "hover-raise",
                 "elevate: wid=\(wid) origLevel=\(originalLevel) to=\(kCGSHoverRaiseWindowLevel) set=\(setResult) order=\(orderResult)"
             )
+        }
+
+        func raiseMoveEverythingWindowForHover(
+            _ managedWindow: MoveEverythingManagedWindow
+        ) -> (result: AXError, didActivateApp: Bool) {
+            let hoveredWindow = managedWindow.window
+            applyAXMessagingTimeout(to: hoveredWindow, timeout: axFocusMessagingTimeout)
+
+            // Try a background AX raise first. Activating iTerm on hover is what
+            // causes the false-positive recent-activity spikes that turn rows green.
+            var raiseResult = AXUIElementPerformAction(hoveredWindow, kAXRaiseAction as CFString)
+            guard raiseResult != .success else {
+                return (raiseResult, false)
+            }
+
+            guard let app = NSRunningApplication(processIdentifier: managedWindow.pid) else {
+                return (raiseResult, false)
+            }
+
+            let didActivateApp = app.activate(options: [])
+            raiseResult = AXUIElementPerformAction(hoveredWindow, kAXRaiseAction as CFString)
+            return (raiseResult, didActivateApp)
         }
 
         func shouldApplyMoveEverythingAdvancedHoverLayout(
@@ -1773,15 +1787,10 @@ extension WindowManagerEngine {
             suppressMoveEverythingSelectionSyncForProgrammaticFocus()
             temporarilyPinControlCenterWindowOnTopForMoveEverything()
 
-            if let app = NSRunningApplication(processIdentifier: managedWindow.pid) {
-                app.activate(options: [])
-            }
-            let hoveredWindow = managedWindow.window
-            applyAXMessagingTimeout(to: hoveredWindow, timeout: axFocusMessagingTimeout)
-            let raiseResult = AXUIElementPerformAction(hoveredWindow, kAXRaiseAction as CFString)
+            let hoverRaise = raiseMoveEverythingWindowForHover(managedWindow)
             WindowListDebugLogger.log(
                 "hover-raise",
-                "noFocus key=\(managedWindow.key) app=\(managedWindow.appName) raise=\(raiseResult == .success ? "ok" : "err:\(raiseResult.rawValue)")"
+                "noFocus key=\(managedWindow.key) app=\(managedWindow.appName) raise=\(hoverRaise.result == .success ? "ok" : "err:\(hoverRaise.result.rawValue)") fallbackActivate=\(hoverRaise.didActivateApp)"
             )
 
             NSApp.activate(ignoringOtherApps: true)
