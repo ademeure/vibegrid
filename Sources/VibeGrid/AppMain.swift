@@ -8,7 +8,9 @@ private let sharedDelegate = VibeGridAppDelegate()
 struct VibeGridEntry {
     static func main() {
         let app = NSApplication.shared
-        app.setActivationPolicy(.accessory)
+        let showDock = ProcessInfo.processInfo.environment["VIBEGRID_SHOW_DOCK"] == "1"
+            || Bundle.main.object(forInfoDictionaryKey: "LSUIElement") as? Bool != true
+        app.setActivationPolicy(showDock ? .regular : .accessory)
         app.delegate = sharedDelegate
         app.run()
     }

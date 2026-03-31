@@ -94,7 +94,7 @@ extension WindowManagerEngine {
             return
         }
 
-        let focusedWindowRect = ownFocusedWindow?.frame ?? focusedWindowElement.flatMap(currentWindowRect(for:))
+        let focusedWindowRect = ownFocusedWindow?.frame ?? focusedWindowElement.flatMap { currentWindowRect(for: $0) }
         let displayOffset = displayOffsetByShortcut[shortcutID] ?? 0
         guard let screen = selectScreen(
             for: targetPlacement.display,

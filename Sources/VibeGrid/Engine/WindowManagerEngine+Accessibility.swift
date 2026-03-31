@@ -91,9 +91,9 @@ extension WindowManagerEngine {
         return nil
     }
 
-    func currentWindowRect(for window: AXUIElement) -> CGRect? {
+    func currentWindowRect(for window: AXUIElement, timeout: Float? = nil) -> CGRect? {
         // Apply timeout once for both attribute reads instead of per-attribute.
-        applyAXMessagingTimeout(to: window)
+        applyAXMessagingTimeout(to: window, timeout: timeout)
         guard let axPosition = copyCGPointAttributeRaw(window: window, attribute: kAXPositionAttribute),
               let axSize = copyCGSizeAttributeRaw(window: window, attribute: kAXSizeAttribute) else {
             return nil

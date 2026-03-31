@@ -71,13 +71,13 @@ openssl req -new -x509 -newkey rsa:2048 -days "${DAYS_VALID}" -nodes \
 
 printf '%s' "${PKCS12_PASSWORD}" > "${TMP_DIR}/p12pass"
 
-openssl pkcs12 -export \
-  -legacy \
-  -inkey "${TMP_DIR}/identity.key" \
-  -in "${TMP_DIR}/identity.crt" \
-  -name "${IDENTITY_NAME}" \
-  -out "${TMP_DIR}/identity.p12" \
-  -passout "file:${TMP_DIR}/p12pass" >/dev/null 2>&1
+PKCS12_ARGS=(-export -inkey "${TMP_DIR}/identity.key" -in "${TMP_DIR}/identity.crt"
+  -name "${IDENTITY_NAME}" -out "${TMP_DIR}/identity.p12" -passout "file:${TMP_DIR}/p12pass")
+# OpenSSL 3.x needs -legacy for older PKCS12 format; LibreSSL does not support it.
+if openssl version 2>/dev/null | grep -q "^OpenSSL 3"; then
+  PKCS12_ARGS+=(-legacy)
+fi
+openssl pkcs12 "${PKCS12_ARGS[@]}" >/dev/null 2>&1
 
 security import "${TMP_DIR}/identity.p12" \
   -k "${KEYCHAIN_PATH}" \

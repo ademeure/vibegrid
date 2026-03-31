@@ -109,6 +109,7 @@ const state = {
   moveEverythingActivityFrozenUntil: {},
   moveEverythingActivitySawIdleSinceUnhover: {},
   moveEverythingActivityActiveUntil: {},
+  moveEverythingActivityConsecutiveActive: {},
 };
 
 const ids = {
@@ -2298,9 +2299,10 @@ function resolveStableActivityStatus(windowItem, hovered) {
     }
   }
 
-  // No freeze active. Normal tracking with 2s active→idle buffer:
-  // when a window transitions from active to idle, keep showing active
-  // for 2s so brief gaps between bursts of activity don't flicker.
+  // No freeze active. Normal tracking with active→idle buffer, but only
+  // arm the buffer after sustained activity (3+ consecutive active polls)
+  // so that brief TTY spikes (e.g. tmux status-bar redraws) show green
+  // for at most 1-2 render cycles instead of getting a full 4s tail.
   delete state.moveEverythingActivityFrozenUntil[key];
   delete state.moveEverythingActivitySawIdleSinceUnhover[key];
 
@@ -2310,11 +2312,31 @@ function resolveStableActivityStatus(windowItem, hovered) {
 
   if (liveStatus === "active") {
     const bufferMs = (state.config?.settings?.moveEverythingITermRecentActivityBuffer ?? 4) * 1000;
-    state.moveEverythingActivityActiveUntil[key] = now + bufferMs;
+    state.moveEverythingActivityConsecutiveActive[key] =
+      (state.moveEverythingActivityConsecutiveActive[key] || 0) + 1;
+    const consecutiveActive = state.moveEverythingActivityConsecutiveActive[key];
+
+    // If already in confirmed-active buffer (from prior sustained activity),
+    // extend it immediately — handles brief gaps in ongoing activity.
+    const activeUntil = state.moveEverythingActivityActiveUntil[key];
+    if (activeUntil && now < activeUntil) {
+      state.moveEverythingActivityActiveUntil[key] = now + bufferMs;
+      return "active";
+    }
+
+    // Only arm the hold-active buffer once we've seen 3+ consecutive
+    // active polls, proving sustained TTY writes rather than a single
+    // periodic spike (tmux status-bar refresh, cursor blink, etc.).
+    if (consecutiveActive >= 3) {
+      state.moveEverythingActivityActiveUntil[key] = now + bufferMs;
+    }
+    // Always show green immediately — no detection delay.
     return "active";
   }
 
-  // liveStatus is idle — check if still in the active→idle buffer
+  // liveStatus is idle — reset consecutive counter and check buffer.
+  delete state.moveEverythingActivityConsecutiveActive[key];
+
   const activeUntil = state.moveEverythingActivityActiveUntil[key];
   if (activeUntil && now < activeUntil) {
     return "active";
