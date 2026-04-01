@@ -800,6 +800,12 @@ input[type="number"] {
   border-color: #1e3a5c;
 }
 
+.move-window-actions .btn.tiny[data-me-window-action="show"] {
+  background: linear-gradient(130deg, #9155e7, #6a33c7);
+  color: #f7f1ff;
+  border-color: #5525a6;
+}
+
 .move-window-actions .btn.tiny.badge {
   background: linear-gradient(130deg, #4d8cc8, #2b679f);
   color: #eef7ff;
@@ -1851,6 +1857,12 @@ html[data-theme="dark"] {
   background: linear-gradient(130deg, #3a6a9e, #2a4f78);
   color: #d8e8f4;
   border-color: #1e3a5c;
+}
+
+[data-theme="dark"] .move-window-actions .btn.tiny[data-me-window-action="show"] {
+  background: linear-gradient(130deg, #8653d8, #5e30b1);
+  color: #f3eaff;
+  border-color: #4b258a;
 }
 
 [data-theme="dark"] .move-window-actions .btn.tiny.badge {
