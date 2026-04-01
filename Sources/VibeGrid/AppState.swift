@@ -820,6 +820,15 @@ final class AppState {
         windowManager.miniRetileVisibleMoveEverythingWindows()
     }
 
+    @discardableResult
+    func undoLastMoveEverythingRetile() -> Bool {
+        windowManager.undoLastMoveEverythingRetile()
+    }
+
+    func moveEverythingUndoRetileAvailable() -> Bool {
+        windowManager.moveEverythingUndoRetileAvailable()
+    }
+
     func moveEverythingLastDirectActionError() -> String? {
         windowManager.moveEverythingLastDirectActionError()
     }

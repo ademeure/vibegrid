@@ -28,6 +28,8 @@ protocol WindowManagerEngineProtocol: AnyObject {
     func maximizeMoveEverythingWindow(withKey key: String) -> Bool
     func retileVisibleMoveEverythingWindows() -> Bool
     func miniRetileVisibleMoveEverythingWindows() -> Bool
+    func undoLastMoveEverythingRetile() -> Bool
+    func moveEverythingUndoRetileAvailable() -> Bool
     func moveEverythingLastDirectActionError() -> String?
     func setMoveEverythingShowOverlays(_ enabled: Bool)
     func setMoveEverythingMoveToBottom(_ enabled: Bool)

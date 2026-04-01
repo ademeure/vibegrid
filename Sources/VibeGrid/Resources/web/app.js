@@ -90,6 +90,7 @@ const state = {
   moveEverythingWindows: {
     visible: [],
     hidden: [],
+    undoRetileAvailable: false,
   },
   moveEverythingHoveredWindowKey: null,
   moveEverythingFocusedWindowKey: null,
@@ -177,6 +178,7 @@ const ids = {
   moveEverythingWindowList: document.getElementById("moveEverythingWindowList"),
   moveEverythingRetileBtn: document.getElementById("moveEverythingRetileBtn"),
   moveEverythingMiniRetileBtn: document.getElementById("moveEverythingMiniRetileBtn"),
+  moveEverythingUndoRetileBtn: document.getElementById("moveEverythingUndoRetileBtn"),
   moveEverythingAlwaysOnTop: document.getElementById("moveEverythingAlwaysOnTop"),
   moveEverythingAlwaysOnTopLabel: document.getElementById("moveEverythingAlwaysOnTopLabel"),
   moveEverythingMoveToBottom: document.getElementById("moveEverythingMoveToBottom"),
@@ -1189,7 +1191,11 @@ function applyOptimisticMoveEverythingWindowAction(action, key) {
     return false;
   }
 
-  state.moveEverythingWindows = { visible, hidden };
+  state.moveEverythingWindows = {
+    visible,
+    hidden,
+    undoRetileAvailable: Boolean(inventory.undoRetileAvailable),
+  };
   if (state.moveEverythingHoveredWindowKey === key) {
     setMoveEverythingHoveredWindow(null, { render: false, immediate: true });
   }
@@ -1211,7 +1217,11 @@ function applyOptimisticShowAllMoveEverythingWindows() {
       visibleKeys.add(windowItem.key);
     }
   });
-  state.moveEverythingWindows = { visible, hidden: [] };
+  state.moveEverythingWindows = {
+    visible,
+    hidden: [],
+    undoRetileAvailable: Boolean(inventory.undoRetileAvailable),
+  };
   return true;
 }
 
@@ -1437,6 +1447,10 @@ function retileVisibleMoveEverythingWindows() {
 
 function miniRetileVisibleMoveEverythingWindows() {
   sendToNative("moveEverythingMiniRetileVisibleWindows");
+}
+
+function undoLastMoveEverythingRetile() {
+  sendToNative("moveEverythingUndoRetile");
 }
 
 function setMoveEverythingHoveredWindow(key, options = {}) {
@@ -2045,6 +2059,9 @@ function renderMoveEverythingWorkspace() {
   }
 
   const inventory = state.moveEverythingWindows || { visible: [], hidden: [] };
+  if (ids.moveEverythingUndoRetileBtn) {
+    ids.moveEverythingUndoRetileBtn.disabled = !Boolean(inventory.undoRetileAvailable);
+  }
   state.moveEverythingActionButtonsCompact = moveEverythingActionCompactModeActive();
   const allVisible = Array.isArray(inventory.visible)
     ? [...inventory.visible].sort(compareMoveEverythingVisibleWindowsByAppThenTitle)
@@ -5601,6 +5618,7 @@ function normalizeMoveEverythingWindowInventory(value) {
   return {
     visible,
     hidden,
+    undoRetileAvailable: Boolean(value?.undoRetileAvailable),
   };
 }
 
@@ -5958,6 +5976,7 @@ function wireEvents() {
   );
   on(ids.moveEverythingRetileBtn, "click", retileVisibleMoveEverythingWindows);
   on(ids.moveEverythingMiniRetileBtn, "click", miniRetileVisibleMoveEverythingWindows);
+  on(ids.moveEverythingUndoRetileBtn, "click", undoLastMoveEverythingRetile);
   on(ids.moveEverythingSaveDefaultsBtn, "click", saveCurrentMoveEverythingAsDefaults);
   on(ids.moveEverythingResetDefaultsBtn, "click", resetMoveEverythingDefaults);
   ids.settingsBtn.addEventListener("click", openSettingsModal);

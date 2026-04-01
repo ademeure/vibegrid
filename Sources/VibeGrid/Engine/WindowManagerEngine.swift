@@ -68,6 +68,16 @@ final class WindowManagerEngine: WindowManagerEngineProtocol {
         var state: MoveEverythingWindowState
     }
 
+    struct MoveEverythingRetileUndoWindowState {
+        let originalFrame: CGRect
+        let retiledFrame: CGRect
+    }
+
+    struct MoveEverythingRetileUndoRecord {
+        var windowStatesByKey: [String: MoveEverythingRetileUndoWindowState]
+        var orderedWindowKeys: [String]
+    }
+
     // MARK: - Stored properties
 
     let hotKeyManager: HotKeyManager
@@ -109,6 +119,7 @@ final class WindowManagerEngine: WindowManagerEngineProtocol {
     var moveEverythingLastDirectActionErrorMessage: String?
     var moveEverythingHiddenWindowVisibilitySuppressionByKey: [String: Date] = [:]
     var moveEverythingPendingHideVisibleSuppressionByKey: [String: Date] = [:]
+    var moveEverythingLastRetileUndoRecord: MoveEverythingRetileUndoRecord?
     var moveEverythingHoverAdvancedOriginalFrameByWindowKey: [String: CGRect] = [:]
     var moveEverythingIconDataURLByPID: [pid_t: String] = [:]
     var moveEverythingResolvedInventoryCache: MoveEverythingManagedWindowInventory?
@@ -128,6 +139,7 @@ final class WindowManagerEngine: WindowManagerEngineProtocol {
     let moveEverythingSelectionSyncSuppressionInterval: TimeInterval = 0.2
     let moveEverythingHoverRetentionInterval: TimeInterval = 0.35
     let moveEverythingResolvedInventoryRefreshInterval: TimeInterval = 0.35
+    let moveEverythingRetileUndoFrameTolerance: CGFloat = 6
     let axMessagingTimeout: Float = 1.0
     let axFocusMessagingTimeout: Float = 0.2
     let moveEverythingAdvancedControlCenterWidth: CGFloat = 1450

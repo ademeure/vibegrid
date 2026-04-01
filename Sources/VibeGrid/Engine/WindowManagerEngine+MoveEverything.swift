@@ -17,6 +17,7 @@ private func CGSSetWindowLevel(_ connection: Int32, _ windowID: UInt32, _ level:
 private func CGSOrderWindow(_ connection: Int32, _ windowID: UInt32, _ ordering: Int32, _ relativeToWindow: UInt32) -> Int32
 
 private let kCGSOrderAbove: Int32 = 1
+private let kCGSOrderBelow: Int32 = -1
 
 // kCGModalPanelWindowLevel (8) is above floating (3) and torn-off menus (3),
 // but below status bar (25) where the control center can live.
@@ -77,7 +78,8 @@ extension WindowManagerEngine {
                         fallbackStyleHiddenSnapshots +
                         syntheticPendingHiddenSnapshots +
                         hiddenCoreGraphicsFallbackSnapshots
-                    )
+                    ),
+                    undoRetileAvailable: moveEverythingUndoRetileAvailable()
                 )
             }
 
@@ -100,7 +102,8 @@ extension WindowManagerEngine {
                         fallbackStyleHiddenSnapshots +
                         syntheticPendingHiddenSnapshots +
                         hiddenCoreGraphicsFallbackSnapshots
-                    )
+                    ),
+                    undoRetileAvailable: moveEverythingUndoRetileAvailable()
                 )
             }
             let visibleWindowKeys = Set(
@@ -135,8 +138,15 @@ extension WindowManagerEngine {
                     fallbackStyleHiddenSnapshots +
                     syntheticPendingHiddenSnapshots +
                     hiddenCoreGraphicsFallbackSnapshots
-                )
+                ),
+                undoRetileAvailable: moveEverythingUndoRetileAvailable()
             )
+        }
+        func moveEverythingUndoRetileAvailable() -> Bool {
+            guard let undoRecord = moveEverythingLastRetileUndoRecord else {
+                return false
+            }
+            return !undoRecord.orderedWindowKeys.isEmpty
         }
         func focusMoveEverythingWindowForExplicitSelection(
             _ managedWindow: MoveEverythingManagedWindow,
@@ -819,6 +829,8 @@ extension WindowManagerEngine {
 
             var movedCount = 0
             var skippedWindowTitles: [String] = []
+            var undoWindowStatesByKey: [String: MoveEverythingRetileUndoWindowState] = [:]
+            var undoOrderedWindowKeys: [String] = []
             for (managedWindow, targetFrame) in zip(managedWindows, targetFrames) {
                 let referenceFrame = currentWindowRect(for: managedWindow.window) ?? targetFrame
                 guard setMoveEverythingWindowFrame(managedWindow, cocoaRect: targetFrame) else {
@@ -838,6 +850,11 @@ extension WindowManagerEngine {
                 windowState.hasVisited = true
                 windowState.isCentered = false
                 runState.statesByWindowKey[managedWindow.key] = windowState
+                undoWindowStatesByKey[managedWindow.key] = MoveEverythingRetileUndoWindowState(
+                    originalFrame: referenceFrame,
+                    retiledFrame: targetFrame
+                )
+                undoOrderedWindowKeys.append(managedWindow.key)
                 movedCount += 1
             }
 
@@ -860,6 +877,100 @@ extension WindowManagerEngine {
                 moveEverythingLastDirectActionErrorMessage = nil
             }
 
+            moveEverythingLastRetileUndoRecord = MoveEverythingRetileUndoRecord(
+                windowStatesByKey: undoWindowStatesByKey,
+                orderedWindowKeys: undoOrderedWindowKeys
+            )
+            moveEverythingRunState = runState
+            invalidateMoveEverythingResolvedInventoryCache()
+            requestMoveEverythingInventoryRefreshIfNeeded(force: true)
+            notifyMoveEverythingModeChanged()
+            return true
+        }
+        func undoLastMoveEverythingRetile() -> Bool {
+            guard ensureMoveEverythingActiveForDirectAction() else {
+                return false
+            }
+            guard let undoRecord = moveEverythingLastRetileUndoRecord,
+                  !undoRecord.orderedWindowKeys.isEmpty else {
+                moveEverythingLastDirectActionErrorMessage = "Nothing to undo from the last retile."
+                return false
+            }
+
+            pruneMoveEverythingWindows()
+            guard var runState = moveEverythingRunState else {
+                moveEverythingLastDirectActionErrorMessage = "No visible windows were found."
+                return false
+            }
+
+            clearMoveEverythingHoveredWindowState(in: runState)
+
+            var restoredCount = 0
+            var movedSinceRetileTitles: [String] = []
+            var skippedWindowTitles: [String] = []
+            var restoredWindows: [MoveEverythingManagedWindow] = []
+
+            for key in undoRecord.orderedWindowKeys {
+                guard let undoWindowState = undoRecord.windowStatesByKey[key],
+                      let windowIndex = runState.windows.firstIndex(where: { $0.key == key }) else {
+                    continue
+                }
+
+                let managedWindow = runState.windows[windowIndex]
+                let windowTitle = moveEverythingWindowTitle(for: managedWindow)
+                guard let currentFrame = currentWindowRect(for: managedWindow.window) else {
+                    skippedWindowTitles.append(windowTitle)
+                    continue
+                }
+                guard moveEverythingFramesApproximatelyEqual(
+                    currentFrame,
+                    undoWindowState.retiledFrame,
+                    tolerance: moveEverythingRetileUndoFrameTolerance
+                ) else {
+                    movedSinceRetileTitles.append(windowTitle)
+                    continue
+                }
+                guard setMoveEverythingWindowFrame(managedWindow, cocoaRect: undoWindowState.originalFrame) else {
+                    skippedWindowTitles.append(windowTitle)
+                    continue
+                }
+
+                var windowState = runState.statesByWindowKey[managedWindow.key] ??
+                    MoveEverythingWindowState(
+                        originalFrame: undoWindowState.originalFrame,
+                        hasVisited: true,
+                        isCentered: false
+                    )
+                windowState.originalFrame = undoWindowState.originalFrame
+                windowState.isCentered = false
+                runState.statesByWindowKey[managedWindow.key] = windowState
+                restoredWindows.append(managedWindow)
+                restoredCount += 1
+            }
+
+            guard restoredCount > 0 else {
+                if !movedSinceRetileTitles.isEmpty && skippedWindowTitles.isEmpty {
+                    moveEverythingLastDirectActionErrorMessage =
+                        "Nothing to undo because those windows moved after the retile."
+                } else {
+                    moveEverythingLastDirectActionErrorMessage = "Unable to restore any retiled windows."
+                }
+                return false
+            }
+
+            for managedWindow in restoredWindows.reversed() {
+                orderMoveEverythingWindowBelowOthers(managedWindow)
+            }
+
+            var summary = "Restored \(restoredCount) window\(restoredCount == 1 ? "" : "s")."
+            if !movedSinceRetileTitles.isEmpty {
+                summary += " Kept \(movedSinceRetileTitles.count) where they are because they moved after retile."
+            }
+            if !skippedWindowTitles.isEmpty {
+                summary += " Skipped \(skippedWindowTitles.count) that could not be restored."
+            }
+            moveEverythingLastDirectActionErrorMessage = summary
+            moveEverythingLastRetileUndoRecord = nil
             moveEverythingRunState = runState
             invalidateMoveEverythingResolvedInventoryCache()
             requestMoveEverythingInventoryRefreshIfNeeded(force: true)
@@ -1103,6 +1214,7 @@ extension WindowManagerEngine {
             moveEverythingFocusedWindowLastCheckAt = nil
             moveEverythingSelectionSyncSuppressedUntil = nil
             moveEverythingHoverFocusTransitionDepth = 0
+            moveEverythingLastRetileUndoRecord = nil
             moveEverythingPendingHideVisibleSuppressionByKey.removeAll()
             isMoveEverythingActive = true
             moveEverythingControlCenterFocusedLastKnown = isMoveEverythingControlCenterFocused()
@@ -1150,6 +1262,7 @@ extension WindowManagerEngine {
             moveEverythingFocusedWindowLastCheckAt = nil
             moveEverythingSelectionSyncSuppressedUntil = nil
             moveEverythingHoverFocusTransitionDepth = 0
+            moveEverythingLastRetileUndoRecord = nil
             moveEverythingControlCenterFocusedLastKnown = false
             moveEverythingMoveToBottom = false
             hideMoveEverythingOverlay()
@@ -1760,6 +1873,24 @@ extension WindowManagerEngine {
             WindowListDebugLogger.log(
                 "hover-raise",
                 "elevate: wid=\(wid) origLevel=\(originalLevel) to=\(kCGSHoverRaiseWindowLevel) set=\(setResult) order=\(orderResult)"
+            )
+        }
+
+        func orderMoveEverythingWindowBelowOthers(_ managedWindow: MoveEverythingManagedWindow) {
+            guard let windowNumber = resolveCGWindowNumber(for: managedWindow) else {
+                WindowListDebugLogger.log(
+                    "retile-undo",
+                    "order-below: NO windowNumber for key=\(managedWindow.key)"
+                )
+                return
+            }
+
+            let conn = CGSMainConnectionID()
+            let wid = UInt32(windowNumber)
+            let orderResult = CGSOrderWindow(conn, wid, kCGSOrderBelow, 0)
+            WindowListDebugLogger.log(
+                "retile-undo",
+                "order-below: wid=\(wid) result=\(orderResult)"
             )
         }
 
@@ -2904,6 +3035,16 @@ extension WindowManagerEngine {
                 deduped.append(snapshot)
             }
             return deduped
+        }
+        func moveEverythingFramesApproximatelyEqual(
+            _ lhs: CGRect,
+            _ rhs: CGRect,
+            tolerance: CGFloat
+        ) -> Bool {
+            abs(lhs.minX - rhs.minX) <= tolerance &&
+                abs(lhs.minY - rhs.minY) <= tolerance &&
+                abs(lhs.width - rhs.width) <= tolerance &&
+                abs(lhs.height - rhs.height) <= tolerance
         }
         func hiddenCoreGraphicsFallbackCandidates(
             from infoList: [[String: Any]],

@@ -32,4 +32,5 @@ struct MoveEverythingWindowSnapshot: Codable {
 struct MoveEverythingWindowInventory: Codable {
     let visible: [MoveEverythingWindowSnapshot]
     let hidden: [MoveEverythingWindowSnapshot]
+    let undoRetileAvailable: Bool
 }
