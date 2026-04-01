@@ -99,6 +99,7 @@ const state = {
   moveEverythingHoverLastSentAt: 0,
   moveEverythingHoverPendingKey: null,
   moveEverythingHoverSendTimer: null,
+  moveEverythingActionRefreshTimers: [],
   moveEverythingCustomWindowTitlesByKey: {},
   moveEverythingCustomITermWindowTitlesByKey: {},
   moveEverythingCustomITermWindowBadgeTextByKey: {},
@@ -1195,6 +1196,25 @@ function applyOptimisticMoveEverythingWindowAction(action, key) {
   return true;
 }
 
+function applyOptimisticShowAllMoveEverythingWindows() {
+  const inventory = state.moveEverythingWindows || { visible: [], hidden: [] };
+  const visible = Array.isArray(inventory.visible) ? [...inventory.visible] : [];
+  const hidden = Array.isArray(inventory.hidden) ? [...inventory.hidden] : [];
+  if (!hidden.length) {
+    return false;
+  }
+
+  const visibleKeys = new Set(visible.map((item) => item.key));
+  hidden.forEach((windowItem) => {
+    if (!visibleKeys.has(windowItem.key)) {
+      visible.push(windowItem);
+      visibleKeys.add(windowItem.key);
+    }
+  });
+  state.moveEverythingWindows = { visible, hidden: [] };
+  return true;
+}
+
 function performMoveEverythingWindowAction(action, key, options = {}) {
   const { render = true } = options;
   if (!action || !key) {
@@ -1208,16 +1228,19 @@ function performMoveEverythingWindowAction(action, key, options = {}) {
 
   if (action === "close") {
     sendToNative("moveEverythingCloseWindow", { key });
+    scheduleMoveEverythingWindowActionRefresh(action);
     return;
   }
 
   if (action === "hide") {
     sendToNative("moveEverythingHideWindow", { key });
+    scheduleMoveEverythingWindowActionRefresh(action);
     return;
   }
 
   if (action === "show") {
     sendToNative("moveEverythingShowWindow", { key });
+    scheduleMoveEverythingWindowActionRefresh(action);
     return;
   }
 
@@ -1229,6 +1252,39 @@ function performMoveEverythingWindowAction(action, key, options = {}) {
   if (action === "max") {
     sendToNative("moveEverythingMaximizeWindow", { key });
   }
+}
+
+function cancelMoveEverythingWindowActionRefreshTimers() {
+  if (!Array.isArray(state.moveEverythingActionRefreshTimers)) {
+    state.moveEverythingActionRefreshTimers = [];
+    return;
+  }
+  state.moveEverythingActionRefreshTimers.forEach((timerId) => window.clearTimeout(timerId));
+  state.moveEverythingActionRefreshTimers = [];
+}
+
+function scheduleMoveEverythingWindowActionRefresh(action) {
+  if (!["hide", "show", "close"].includes(action)) {
+    return;
+  }
+
+  cancelMoveEverythingWindowActionRefreshTimers();
+  const delays = [60, 180];
+  state.moveEverythingActionRefreshTimers = delays.map((delayMs) =>
+    window.setTimeout(() => {
+      sendToNative("requestState", { forceMoveEverythingWindowRefresh: true });
+    }, delayMs)
+  );
+}
+
+function showAllMoveEverythingWindows(options = {}) {
+  const { render = true } = options;
+  const didOptimisticUpdate = applyOptimisticShowAllMoveEverythingWindows();
+  if (didOptimisticUpdate && render && moveEverythingWorkspaceVisible()) {
+    renderMoveEverythingWorkspace();
+  }
+  sendToNative("moveEverythingShowAllWindows");
+  scheduleMoveEverythingWindowActionRefresh("show");
 }
 
 function rememberMoveEverythingButtonAction(token) {
@@ -1245,6 +1301,28 @@ function handleMoveEverythingWindowListButtonEvent(event, source) {
   const target = event.target instanceof Element ? event.target : null;
   if (!target) {
     return false;
+  }
+
+  const bulkActionButton = target.closest("button[data-me-window-bulk-action]");
+  if (bulkActionButton) {
+    const action = String(bulkActionButton.dataset.meWindowBulkAction || "").trim();
+    const token = `bulk:${action}`;
+    if (!action) {
+      return true;
+    }
+    if (source === "click" && isDuplicateMoveEverythingButtonClick(token)) {
+      event.preventDefault();
+      event.stopPropagation();
+      return true;
+    }
+    rememberMoveEverythingButtonAction(token);
+    event.preventDefault();
+    event.stopPropagation();
+    if (action === "showAll") {
+      sendJsLog("info", "moveEverythingWindowButton.bulk", `source=${source} action=${action}`);
+      showAllMoveEverythingWindows();
+    }
+    return true;
   }
 
   const renameButton = target.closest("button[data-me-rename-window]");
@@ -1289,6 +1367,33 @@ function handleMoveEverythingWindowListButtonEvent(event, source) {
   }
 
   return false;
+}
+
+function handleMoveEverythingWindowListRowClick(event) {
+  const target = event.target instanceof Element ? event.target : null;
+  if (!target || isInteractiveElement(target)) {
+    return false;
+  }
+
+  const row = target.closest(".move-window-row[data-me-window-key]");
+  if (!row ||
+      !ids.moveEverythingWindowList.contains(row) ||
+      row.dataset.meControlCenter === "1") {
+    return false;
+  }
+
+  if (!row.classList.contains("hidden-window")) {
+    return false;
+  }
+
+  const key = String(row.dataset.meWindowKey || "").trim();
+  if (!key) {
+    return false;
+  }
+
+  event.preventDefault();
+  performMoveEverythingWindowAction("show", key);
+  return true;
 }
 
 function updateMoveEverythingAlwaysOnTop(enabled) {
@@ -2006,8 +2111,11 @@ function renderMoveEverythingWorkspace() {
       );
     });
     hiddenItems.forEach((windowItem) => {
+      const rowHovered = !windowItem.isControlCenter &&
+        state.moveEverythingHoveredWindowKey === windowItem.key;
       section.appendChild(
         buildMoveEverythingWindowRow(windowItem, {
+          hovered: rowHovered,
           hidden: true,
         })
       );
@@ -2052,6 +2160,18 @@ function renderMoveEverythingWorkspace() {
     otherHiddenWindows,
     "No hidden windows."
   );
+
+  if (allHidden.length > 0) {
+    const bulkActions = document.createElement("div");
+    bulkActions.className = "move-window-bulk-actions";
+    const showAllBtn = document.createElement("button");
+    showAllBtn.type = "button";
+    showAllBtn.className = "btn primary move-everything-bulk-btn";
+    showAllBtn.textContent = "Show All";
+    showAllBtn.dataset.meWindowBulkAction = "showAll";
+    bulkActions.appendChild(showAllBtn);
+    fragment.appendChild(bulkActions);
+  }
 
   ids.moveEverythingWindowList.appendChild(fragment);
   applyMoveEverythingTitleSizing();
@@ -2968,14 +3088,6 @@ function buildMoveEverythingWindowRow(windowItem, options = {}) {
     }
 
     if (hidden) {
-      const maxBtn = document.createElement("button");
-      maxBtn.type = "button";
-      maxBtn.className = "btn tiny primary";
-      maxBtn.textContent = compactActions ? "M" : "Max";
-      maxBtn.dataset.meWindowAction = "max";
-      maxBtn.dataset.meWindowKey = windowItem.key;
-      actions.appendChild(maxBtn);
-
       const showBtn = document.createElement("button");
       showBtn.type = "button";
       showBtn.className = "btn tiny move-everything";
@@ -2983,6 +3095,14 @@ function buildMoveEverythingWindowRow(windowItem, options = {}) {
       showBtn.dataset.meWindowAction = "show";
       showBtn.dataset.meWindowKey = windowItem.key;
       actions.appendChild(showBtn);
+
+      const maxBtn = document.createElement("button");
+      maxBtn.type = "button";
+      maxBtn.className = "btn tiny primary";
+      maxBtn.textContent = compactActions ? "M" : "Max";
+      maxBtn.dataset.meWindowAction = "max";
+      maxBtn.dataset.meWindowKey = windowItem.key;
+      actions.appendChild(maxBtn);
 
       const closeBtn = document.createElement("button");
       closeBtn.type = "button";
@@ -2992,14 +3112,6 @@ function buildMoveEverythingWindowRow(windowItem, options = {}) {
       closeBtn.dataset.meWindowKey = windowItem.key;
       actions.appendChild(closeBtn);
     } else {
-      const renameBtn = document.createElement("button");
-      renameBtn.type = "button";
-      renameBtn.className = "btn tiny rename";
-      renameBtn.textContent = compactActions ? "N" : "Name";
-      renameBtn.dataset.meRenameWindow = "1";
-      renameBtn.dataset.meWindowKey = windowItem.key;
-      actions.appendChild(renameBtn);
-
       const hideBtn = document.createElement("button");
       hideBtn.type = "button";
       hideBtn.className = "btn tiny warning";
@@ -3007,6 +3119,14 @@ function buildMoveEverythingWindowRow(windowItem, options = {}) {
       hideBtn.dataset.meWindowAction = "hide";
       hideBtn.dataset.meWindowKey = windowItem.key;
       actions.appendChild(hideBtn);
+
+      const renameBtn = document.createElement("button");
+      renameBtn.type = "button";
+      renameBtn.className = "btn tiny rename";
+      renameBtn.textContent = compactActions ? "N" : "Name";
+      renameBtn.dataset.meRenameWindow = "1";
+      renameBtn.dataset.meWindowKey = windowItem.key;
+      actions.appendChild(renameBtn);
 
       const closeBtn = document.createElement("button");
       closeBtn.type = "button";
@@ -5759,6 +5879,9 @@ function wireEvents() {
     if (handleMoveEverythingWindowListButtonEvent(event, "click")) {
       return;
     }
+    if (handleMoveEverythingWindowListRowClick(event)) {
+      return;
+    }
   });
   on(ids.moveEverythingWindowList, "dblclick", (event) => {
     const target = event.target instanceof Element ? event.target : null;
@@ -5793,7 +5916,10 @@ function wireEvents() {
       return;
     }
     if (event.target instanceof Element && isInteractiveElement(event.target)) {
-      return;
+      const interactiveRow = event.target.closest?.(".move-window-row.hidden-window[data-me-window-key]");
+      if (!interactiveRow || !ids.moveEverythingWindowList.contains(interactiveRow)) {
+        return;
+      }
     }
     const key = resolveMoveEverythingHoverKeyFromTarget(event.target, event.clientY);
     // undefined = pointer is in the list but between rows (rounded-corner gap,

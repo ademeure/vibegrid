@@ -108,6 +108,7 @@ final class WindowManagerEngine: WindowManagerEngineProtocol {
     var moveEverythingFallbackStyleHiddenWindowKeys: Set<String> = []
     var moveEverythingLastDirectActionErrorMessage: String?
     var moveEverythingHiddenWindowVisibilitySuppressionByKey: [String: Date] = [:]
+    var moveEverythingPendingHideVisibleSuppressionByKey: [String: Date] = [:]
     var moveEverythingHoverAdvancedOriginalFrameByWindowKey: [String: CGRect] = [:]
     var moveEverythingIconDataURLByPID: [pid_t: String] = [:]
     var moveEverythingResolvedInventoryCache: MoveEverythingManagedWindowInventory?

@@ -22,6 +22,7 @@ protocol WindowManagerEngineProtocol: AnyObject {
     func closeMoveEverythingWindow(withKey key: String) -> Bool
     func hideMoveEverythingWindow(withKey key: String) -> Bool
     func showHiddenMoveEverythingWindow(withKey key: String) -> Bool
+    func showAllHiddenMoveEverythingWindows() -> Bool
     func focusMoveEverythingWindow(withKey key: String, movePointerToTopMiddle: Bool) -> Bool
     func centerMoveEverythingWindow(withKey key: String) -> Bool
     func maximizeMoveEverythingWindow(withKey key: String) -> Bool

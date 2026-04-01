@@ -535,6 +535,11 @@ final class AppState {
     }
 
     @discardableResult
+    func showAllHiddenMoveEverythingWindows() -> Bool {
+        windowManager.showAllHiddenMoveEverythingWindows()
+    }
+
+    @discardableResult
     func focusMoveEverythingWindow(
         withKey key: String,
         movePointerToTopMiddle: Bool

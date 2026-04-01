@@ -143,7 +143,6 @@ final class UIBridge: NSObject, WKScriptMessageHandler {
             if !appState.closeMoveEverythingWindow(withKey: key) {
                 sendNotice(level: "error", message: "Unable to close that window")
             }
-            pushStateToWeb(forceMoveEverythingWindowRefresh: true)
 
         case "moveEverythingHideWindow":
             let key = (body["payload"] as? [String: Any])?["key"] as? String ?? ""
@@ -154,7 +153,6 @@ final class UIBridge: NSObject, WKScriptMessageHandler {
             if !appState.hideMoveEverythingWindow(withKey: key) {
                 sendNotice(level: "error", message: "Unable to hide that window")
             }
-            pushStateToWeb(forceMoveEverythingWindowRefresh: true)
 
         case "moveEverythingShowWindow":
             let key = (body["payload"] as? [String: Any])?["key"] as? String ?? ""
@@ -165,7 +163,11 @@ final class UIBridge: NSObject, WKScriptMessageHandler {
             if !appState.showHiddenMoveEverythingWindow(withKey: key) {
                 sendNotice(level: "error", message: "Unable to show that window")
             }
-            pushStateToWeb(forceMoveEverythingWindowRefresh: true)
+
+        case "moveEverythingShowAllWindows":
+            if !appState.showAllHiddenMoveEverythingWindows() {
+                sendNotice(level: "error", message: "Unable to show hidden windows")
+            }
 
         case "moveEverythingFocusWindow":
             let payload = (body["payload"] as? [String: Any]) ?? [:]

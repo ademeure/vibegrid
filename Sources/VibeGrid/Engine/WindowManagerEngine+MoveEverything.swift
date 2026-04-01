@@ -39,14 +39,25 @@ extension WindowManagerEngine {
         func moveEverythingWindowInventory() -> MoveEverythingWindowInventory {
             let liveInventory = resolveMoveEverythingWindowInventory()
             let suppressedHiddenKeys = activeMoveEverythingSuppressedHiddenWindowKeys()
+            let pendingHideVisibleKeys = activeMoveEverythingPendingHideVisibleWindowKeys()
             let hiddenCoreGraphicsFallbackSnapshots = liveInventory.hiddenCoreGraphicsFallback
                 .filter { !suppressedHiddenKeys.contains($0.key) }
                 .map { fallbackWindow in
                     moveEverythingSnapshot(for: fallbackWindow)
                 }
             let fallbackStyleHiddenKeys = moveEverythingFallbackStyleHiddenWindowKeys
+            let syntheticPendingHiddenSnapshots = liveInventory.visible
+                .filter { pendingHideVisibleKeys.contains($0.key) }
+                .map { managedWindow in
+                    moveEverythingSnapshot(
+                        for: managedWindow,
+                        isCoreGraphicsFallback: fallbackStyleHiddenKeys.contains(managedWindow.key)
+                    )
+                }
             guard isMoveEverythingActive else {
-                let visibleSnapshots = liveInventory.visible.map { managedWindow in
+                let visibleSnapshots = liveInventory.visible
+                    .filter { !pendingHideVisibleKeys.contains($0.key) }
+                    .map { managedWindow in
                     moveEverythingSnapshot(for: managedWindow)
                 }
                 let regularHiddenSnapshots = liveInventory.hidden
@@ -61,7 +72,12 @@ extension WindowManagerEngine {
                     }
                 return MoveEverythingWindowInventory(
                     visible: visibleSnapshots,
-                    hidden: regularHiddenSnapshots + fallbackStyleHiddenSnapshots + hiddenCoreGraphicsFallbackSnapshots
+                    hidden: dedupeMoveEverythingWindowSnapshotsByKey(
+                        regularHiddenSnapshots +
+                        fallbackStyleHiddenSnapshots +
+                        syntheticPendingHiddenSnapshots +
+                        hiddenCoreGraphicsFallbackSnapshots
+                    )
                 )
             }
 
@@ -79,12 +95,23 @@ extension WindowManagerEngine {
                     }
                 return MoveEverythingWindowInventory(
                     visible: [],
-                    hidden: regularHiddenSnapshots + fallbackStyleHiddenSnapshots + hiddenCoreGraphicsFallbackSnapshots
+                    hidden: dedupeMoveEverythingWindowSnapshotsByKey(
+                        regularHiddenSnapshots +
+                        fallbackStyleHiddenSnapshots +
+                        syntheticPendingHiddenSnapshots +
+                        hiddenCoreGraphicsFallbackSnapshots
+                    )
                 )
             }
-            let visibleWindowKeys = Set(runState.windows.map(\.key))
+            let visibleWindowKeys = Set(
+                runState.windows
+                    .map(\.key)
+                    .filter { !pendingHideVisibleKeys.contains($0) }
+            )
 
-            let visibleSnapshots = runState.windows.map { managedWindow in
+            let visibleSnapshots = runState.windows
+                .filter { !pendingHideVisibleKeys.contains($0.key) }
+                .map { managedWindow in
                 moveEverythingSnapshot(for: managedWindow)
             }
 
@@ -103,7 +130,12 @@ extension WindowManagerEngine {
 
             return MoveEverythingWindowInventory(
                 visible: visibleSnapshots,
-                hidden: regularHiddenSnapshots + fallbackStyleHiddenSnapshots + hiddenCoreGraphicsFallbackSnapshots
+                hidden: dedupeMoveEverythingWindowSnapshotsByKey(
+                    regularHiddenSnapshots +
+                    fallbackStyleHiddenSnapshots +
+                    syntheticPendingHiddenSnapshots +
+                    hiddenCoreGraphicsFallbackSnapshots
+                )
             )
         }
         func focusMoveEverythingWindowForExplicitSelection(
@@ -233,21 +265,23 @@ extension WindowManagerEngine {
                 return false
             }
 
-            pruneMoveEverythingWindows(forceRefreshInventory: true)
+            pruneMoveEverythingWindows()
             if let runState = moveEverythingRunState,
                let targetIndex = runState.windows.firstIndex(where: { $0.key == key }) {
                 return closeMoveEverythingWindow(at: targetIndex)
             }
 
-            let inventory = resolveMoveEverythingWindowInventory(forceRefresh: true)
+            let inventory = resolveMoveEverythingWindowInventory(forceRefresh: false)
             if let hiddenWindow = inventory.hidden.first(where: { $0.key == key }) {
                 guard closeMoveEverythingWindow(hiddenWindow) else {
                     return false
                 }
                 moveEverythingFallbackStyleHiddenWindowKeys.remove(key)
+                clearMoveEverythingPendingHideVisibleSuppression(forKey: key)
                 suppressMoveEverythingHiddenWindowVisibility(forKey: key)
                 invalidateMoveEverythingResolvedInventoryCache()
-                pruneMoveEverythingWindows(forceRefreshInventory: true)
+                requestMoveEverythingInventoryRefreshIfNeeded(force: true)
+                pruneMoveEverythingWindows()
                 return true
             }
 
@@ -260,10 +294,13 @@ extension WindowManagerEngine {
                 }
                 moveEverythingFallbackStyleHiddenWindowKeys.remove(key)
                 moveEverythingFallbackStyleHiddenWindowKeys.remove(hiddenCoreGraphicsFallbackWindow.key)
+                clearMoveEverythingPendingHideVisibleSuppression(forKey: key)
+                clearMoveEverythingPendingHideVisibleSuppression(forKey: hiddenCoreGraphicsFallbackWindow.key)
                 suppressMoveEverythingHiddenWindowVisibility(forKey: key)
                 suppressMoveEverythingHiddenWindowVisibility(forKey: hiddenCoreGraphicsFallbackWindow.key)
                 invalidateMoveEverythingResolvedInventoryCache()
-                pruneMoveEverythingWindows(forceRefreshInventory: true)
+                requestMoveEverythingInventoryRefreshIfNeeded(force: true)
+                pruneMoveEverythingWindows()
                 return true
             }
 
@@ -274,7 +311,7 @@ extension WindowManagerEngine {
                 return false
             }
 
-            pruneMoveEverythingWindows(forceRefreshInventory: true)
+            pruneMoveEverythingWindows()
             let runStateLookup = moveEverythingRunState
             let targetIndex = runStateLookup?.windows.firstIndex(where: { $0.key == key })
             guard var runState = runStateLookup,
@@ -288,7 +325,9 @@ extension WindowManagerEngine {
             }
             moveEverythingFallbackStyleHiddenWindowKeys.insert(managedWindow.key)
             moveEverythingHiddenWindowVisibilitySuppressionByKey.removeValue(forKey: managedWindow.key)
+            suppressMoveEverythingPendingHideVisibleWindow(forKey: managedWindow.key)
             invalidateMoveEverythingResolvedInventoryCache()
+            requestMoveEverythingInventoryRefreshIfNeeded(force: true)
 
             let preservedState = runState.statesByWindowKey[managedWindow.key] ??
                 MoveEverythingWindowState(
@@ -316,6 +355,30 @@ extension WindowManagerEngine {
         }
         func showHiddenMoveEverythingWindow(withKey key: String) -> Bool {
             return showHiddenMoveEverythingWindow(withKey: key, centerOnShow: false, maximizeOnShow: false)
+        }
+        func showAllHiddenMoveEverythingWindows() -> Bool {
+            guard ensureMoveEverythingActiveForDirectAction() else {
+                return false
+            }
+
+            let inventory = resolveMoveEverythingWindowInventory(forceRefresh: false)
+            let hiddenKeys = Array(
+                Set(
+                    inventory.hidden.map(\.key) +
+                    inventory.hiddenCoreGraphicsFallback.map(\.key)
+                )
+            ).sorted()
+            guard !hiddenKeys.isEmpty else {
+                return false
+            }
+
+            var didShowAny = false
+            for key in hiddenKeys {
+                if showHiddenMoveEverythingWindow(withKey: key) {
+                    didShowAny = true
+                }
+            }
+            return didShowAny
         }
         @discardableResult
         func showHiddenMoveEverythingWindow(
@@ -350,6 +413,7 @@ extension WindowManagerEngine {
                 moveEverythingRunState = runState
                 moveEverythingFallbackStyleHiddenWindowKeys.remove(key)
                 moveEverythingHiddenWindowVisibilitySuppressionByKey.removeValue(forKey: key)
+                clearMoveEverythingPendingHideVisibleSuppression(forKey: key)
                 notifyMoveEverythingModeChanged()
                 let didFocus = focusMoveEverythingCurrentWindow(
                     showOverlay: true,
@@ -363,7 +427,9 @@ extension WindowManagerEngine {
                 return didFocus
             }
 
-            let inventory = resolveMoveEverythingWindowInventory(forceRefresh: true)
+            let inventory = resolveMoveEverythingWindowInventory(
+                forceRefresh: centerOnShow || maximizeOnShow
+            )
             guard let hiddenWindow = inventory.hidden.first(where: { $0.key == key }) else {
                 let derivedCoreGraphicsFallbackKey = derivedCoreGraphicsFallbackWindowKey(from: key)
                 guard let hiddenCoreGraphicsFallbackWindow = inventory.hiddenCoreGraphicsFallback.first(
@@ -378,8 +444,11 @@ extension WindowManagerEngine {
                 moveEverythingFallbackStyleHiddenWindowKeys.remove(hiddenCoreGraphicsFallbackWindow.key)
                 moveEverythingHiddenWindowVisibilitySuppressionByKey.removeValue(forKey: key)
                 moveEverythingHiddenWindowVisibilitySuppressionByKey.removeValue(forKey: hiddenCoreGraphicsFallbackWindow.key)
+                clearMoveEverythingPendingHideVisibleSuppression(forKey: key)
+                clearMoveEverythingPendingHideVisibleSuppression(forKey: hiddenCoreGraphicsFallbackWindow.key)
                 invalidateMoveEverythingResolvedInventoryCache()
-                pruneMoveEverythingWindows(forceRefreshInventory: true)
+                requestMoveEverythingInventoryRefreshIfNeeded(force: true)
+                pruneMoveEverythingWindows()
                 return true
             }
 
@@ -407,9 +476,13 @@ extension WindowManagerEngine {
             }
             moveEverythingFallbackStyleHiddenWindowKeys.remove(key)
             moveEverythingHiddenWindowVisibilitySuppressionByKey.removeValue(forKey: key)
+            clearMoveEverythingPendingHideVisibleSuppression(forKey: key)
             invalidateMoveEverythingResolvedInventoryCache()
+            requestMoveEverythingInventoryRefreshIfNeeded(force: true)
 
-            let refreshedInventory = resolveMoveEverythingWindowInventory(forceRefresh: true)
+            let refreshedInventory = resolveMoveEverythingWindowInventory(
+                forceRefresh: centerOnShow || maximizeOnShow
+            )
             let resolvedWindow = refreshedInventory.visible.first(where: { $0.key == key }) ?? hiddenWindow
             runState.windows.append(resolvedWindow)
             runState.currentIndex = runState.windows.count - 1
@@ -434,6 +507,13 @@ extension WindowManagerEngine {
 
             moveEverythingRunState = runState
             notifyMoveEverythingModeChanged()
+            if !centerOnShow && !maximizeOnShow {
+                moveEverythingFocusedWindowLastCheckAt = nil
+                showMoveEverythingOverlay(for: resolvedWindow)
+                ensureControlCenterWindowVisibleForMoveEverything()
+                moveEverythingControlCenterFocusedLastKnown = true
+                return true
+            }
             let didFocus = focusMoveEverythingCurrentWindow(
                 showOverlay: true,
                 applyFirstVisitCenter: false,
@@ -1023,6 +1103,7 @@ extension WindowManagerEngine {
             moveEverythingFocusedWindowLastCheckAt = nil
             moveEverythingSelectionSyncSuppressedUntil = nil
             moveEverythingHoverFocusTransitionDepth = 0
+            moveEverythingPendingHideVisibleSuppressionByKey.removeAll()
             isMoveEverythingActive = true
             moveEverythingControlCenterFocusedLastKnown = isMoveEverythingControlCenterFocused()
 
@@ -1267,6 +1348,7 @@ extension WindowManagerEngine {
                 resolveMoveEverythingWindowInventory(forceRefresh: forceRefreshInventory)
             let liveVisibleByKey = Dictionary(uniqueKeysWithValues: resolvedInventory.visible.map { ($0.key, $0) })
             let liveVisibleKeys = Set(liveVisibleByKey.keys)
+            let pendingHideVisibleKeys = activeMoveEverythingPendingHideVisibleWindowKeys()
             let liveHiddenKeys = Set(
                 resolvedInventory.hidden.map(\.key) +
                 resolvedInventory.hiddenCoreGraphicsFallback.map(\.key)
@@ -1289,6 +1371,9 @@ extension WindowManagerEngine {
                 guard runState.statesByWindowKey[managedWindow.key] != nil else {
                     return nil
                 }
+                if pendingHideVisibleKeys.contains(managedWindow.key) {
+                    return nil
+                }
                 return liveVisibleByKey[managedWindow.key]
             }
 
@@ -1306,9 +1391,15 @@ extension WindowManagerEngine {
             moveEverythingHiddenWindowVisibilitySuppressionByKey = moveEverythingHiddenWindowVisibilitySuppressionByKey.filter {
                 liveHiddenKeys.contains($0.key) && $0.value > suppressionNow
             }
+            moveEverythingPendingHideVisibleSuppressionByKey = moveEverythingPendingHideVisibleSuppressionByKey.filter {
+                $0.value > suppressionNow
+            }
 
             var existingWindowKeys = Set(runState.windows.map(\.key))
             for managedWindow in resolvedInventory.visible where !existingWindowKeys.contains(managedWindow.key) {
+                if pendingHideVisibleKeys.contains(managedWindow.key) {
+                    continue
+                }
                 runState.windows.append(managedWindow)
                 if runState.statesByWindowKey[managedWindow.key] == nil {
                     runState.statesByWindowKey[managedWindow.key] = MoveEverythingWindowState(
@@ -2447,6 +2538,15 @@ extension WindowManagerEngine {
                     return info[kCGWindowNumber as String] as? Int
                 }
             )
+            let onScreenLayerZeroPIDs: Set<pid_t> = Set(
+                onScreenInfoList.compactMap { info -> pid_t? in
+                    guard let layer = info[kCGWindowLayer as String] as? Int, layer == 0,
+                          let ownerPIDNumber = info[kCGWindowOwnerPID as String] as? NSNumber else {
+                        return nil
+                    }
+                    return pid_t(ownerPIDNumber.int32Value)
+                }
+            )
             let hiddenCoreGraphicsFallbackCandidatesByPID = hiddenCoreGraphicsFallbackCandidates(
                 from: allInfoList,
                 visibleWindowNumbers: visibleWindowNumbers
@@ -2500,7 +2600,10 @@ extension WindowManagerEngine {
                 }()
                 let appElement = applicationAXElement(for: app.processIdentifier)
                 guard let windows = copyWindowList(from: appElement), !windows.isEmpty else {
-                    if let fallbackCandidates = hiddenCoreGraphicsFallbackCandidatesByPID[app.processIdentifier] {
+                    let shouldUseHiddenCoreGraphicsFallback =
+                        app.isHidden || !onScreenLayerZeroPIDs.contains(app.processIdentifier)
+                    if shouldUseHiddenCoreGraphicsFallback,
+                       let fallbackCandidates = hiddenCoreGraphicsFallbackCandidatesByPID[app.processIdentifier] {
                         for candidate in fallbackCandidates {
                             let key = coreGraphicsFallbackWindowKey(
                                 pid: app.processIdentifier,
@@ -2768,6 +2871,39 @@ extension WindowManagerEngine {
             moveEverythingHiddenWindowVisibilitySuppressionByKey = moveEverythingHiddenWindowVisibilitySuppressionByKey
                 .filter { $0.value > now }
             return Set(moveEverythingHiddenWindowVisibilitySuppressionByKey.keys)
+        }
+        func suppressMoveEverythingPendingHideVisibleWindow(
+            forKey key: String,
+            duration: TimeInterval = 1.2
+        ) {
+            let clampedDuration = max(duration, 0)
+            if clampedDuration == 0 {
+                moveEverythingPendingHideVisibleSuppressionByKey.removeValue(forKey: key)
+                return
+            }
+            moveEverythingPendingHideVisibleSuppressionByKey[key] = Date().addingTimeInterval(clampedDuration)
+        }
+        func clearMoveEverythingPendingHideVisibleSuppression(forKey key: String) {
+            moveEverythingPendingHideVisibleSuppressionByKey.removeValue(forKey: key)
+        }
+        func activeMoveEverythingPendingHideVisibleWindowKeys() -> Set<String> {
+            let now = Date()
+            moveEverythingPendingHideVisibleSuppressionByKey = moveEverythingPendingHideVisibleSuppressionByKey
+                .filter { $0.value > now }
+            return Set(moveEverythingPendingHideVisibleSuppressionByKey.keys)
+        }
+        func dedupeMoveEverythingWindowSnapshotsByKey(
+            _ snapshots: [MoveEverythingWindowSnapshot]
+        ) -> [MoveEverythingWindowSnapshot] {
+            var seenKeys: Set<String> = []
+            var deduped: [MoveEverythingWindowSnapshot] = []
+            for snapshot in snapshots {
+                guard seenKeys.insert(snapshot.key).inserted else {
+                    continue
+                }
+                deduped.append(snapshot)
+            }
+            return deduped
         }
         func hiddenCoreGraphicsFallbackCandidates(
             from infoList: [[String: Any]],
@@ -3184,7 +3320,17 @@ extension WindowManagerEngine {
         func revealMoveEverythingHiddenWindow(_ managedWindow: MoveEverythingManagedWindow, targetFrame: CGRect?) -> Bool {
             if let app = NSRunningApplication(processIdentifier: managedWindow.pid) {
                 _ = app.unhide()
-                app.activate(options: [.activateIgnoringOtherApps])
+            }
+
+            func waitForUnminimized(timeout: TimeInterval) -> Bool {
+                let deadline = Date().addingTimeInterval(max(0, timeout))
+                while Date() < deadline {
+                    _ = RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.01))
+                    if !isWindowMinimized(managedWindow.window) {
+                        return true
+                    }
+                }
+                return !isWindowMinimized(managedWindow.window)
             }
 
             applyAXMessagingTimeout(to: managedWindow.window)
@@ -3198,8 +3344,7 @@ extension WindowManagerEngine {
                 _ = setMoveEverythingWindowFrame(managedWindow, cocoaRect: targetFrame)
             }
 
-            _ = focusMoveEverythingWindow(managedWindow)
-            return !isWindowMinimized(managedWindow.window)
+            return waitForUnminimized(timeout: targetFrame == nil ? 0.08 : 0.14)
         }
         func defaultMoveEverythingCenterRect() -> CGRect? {
             guard let screen = NSScreen.main ?? sortedScreens().first else {

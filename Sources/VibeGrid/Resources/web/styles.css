@@ -565,6 +565,12 @@ input[type="number"] {
   color: #5a735f;
 }
 
+.move-window-bulk-actions {
+  display: flex;
+  justify-content: center;
+  margin-top: 8px;
+}
+
 .move-window-row {
   display: flex;
   align-items: center;
