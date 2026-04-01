@@ -930,7 +930,8 @@ extension WindowManagerEngine {
         }
         func clearMoveEverythingHoveredWindowState(in runState: MoveEverythingRunState) {
             guard moveEverythingHoveredWindowKey != nil ||
-                  !moveEverythingHoverAdvancedOriginalFrameByWindowKey.isEmpty else {
+                  !moveEverythingHoverAdvancedOriginalFrameByWindowKey.isEmpty ||
+                  !moveEverythingHoverElevatedWindows.isEmpty else {
                 return
             }
             restoreAllMoveEverythingAdvancedHoverLayoutsSilentlyIfNeeded(in: runState)
@@ -1265,6 +1266,7 @@ extension WindowManagerEngine {
             let resolvedInventory = liveInventory ??
                 resolveMoveEverythingWindowInventory(forceRefresh: forceRefreshInventory)
             let liveVisibleByKey = Dictionary(uniqueKeysWithValues: resolvedInventory.visible.map { ($0.key, $0) })
+            let liveVisibleKeys = Set(liveVisibleByKey.keys)
             let liveHiddenKeys = Set(
                 resolvedInventory.hidden.map(\.key) +
                 resolvedInventory.hiddenCoreGraphicsFallback.map(\.key)
@@ -1273,6 +1275,15 @@ extension WindowManagerEngine {
                 resolvedInventory.visible.map(\.key) +
                 Array(liveHiddenKeys)
             )
+
+            if let hoveredKey = moveEverythingHoveredWindowKey,
+               !liveVisibleKeys.contains(hoveredKey) {
+                WindowListDebugLogger.log(
+                    "hover-raise",
+                    "prune clearing stale hover key=\(hoveredKey) visibleNow=false"
+                )
+                clearMoveEverythingHoveredWindowState(in: runState)
+            }
 
             runState.windows = runState.windows.compactMap { managedWindow in
                 guard runState.statesByWindowKey[managedWindow.key] != nil else {
@@ -1569,12 +1580,16 @@ extension WindowManagerEngine {
         func restoreAllHoverElevatedWindowLevels() {
             guard !moveEverythingHoverElevatedWindows.isEmpty else { return }
             let conn = CGSMainConnectionID()
-            for entry in moveEverythingHoverElevatedWindows {
-                let result = CGSSetWindowLevel(conn, UInt32(entry.windowNumber), entry.originalLevel)
+            let entriesByWindowNumber = moveEverythingHoverElevatedWindows.reduce(into: [Int: Int32]()) {
+                $0[$1.windowNumber] = $1.originalLevel
+            }
+            for (windowNumber, originalLevel) in entriesByWindowNumber {
+                let result = CGSSetWindowLevel(conn, UInt32(windowNumber), originalLevel)
                 WindowListDebugLogger.log(
                     "hover-raise",
-                    "restore wid=\(entry.windowNumber) toLevel=\(entry.originalLevel) result=\(result)"
+                    "restore wid=\(windowNumber) toLevel=\(originalLevel) result=\(result)"
                 )
+                moveEverythingHoverOriginalLevelByWindowNumber.removeValue(forKey: windowNumber)
             }
             moveEverythingHoverElevatedWindows.removeAll()
         }
