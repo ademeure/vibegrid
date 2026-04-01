@@ -52,12 +52,14 @@ final class AppState {
     private var windowEditorSavedFrame: NSRect?
     private var windowEditorWasVisible = false
     private var windowEditorCursorPosition: NSPoint?
+    private var windowEditorRestorePending = false
     private var quickViewActive = false
     private var quickViewSavedFrame: NSRect?
     private var quickViewWasVisible = false
     private(set) var iTermActivityCache: [String: String] = [:]  // snapshot key → "active"/"idle"
     private(set) var iTermBadgeTextCache: [String: String] = [:]  // snapshot key → badge text
     private(set) var iTermSessionNameCache: [String: String] = [:]  // snapshot key → session/tmux name
+    private(set) var iTermLastLineCache: [String: String] = [:]  // snapshot key → last non-empty screen line
     private var iTermActivityPollInFlight = false
 
     private(set) var config: AppConfig
@@ -125,6 +127,7 @@ final class AppState {
                 self.windowEditorCursorPosition = cursor
                 self.windowEditorWasVisible = self.controlCenter?.window?.isVisible ?? false
                 self.windowEditorSavedFrame = self.controlCenter?.window?.frame
+                self.windowEditorRestorePending = true
                 // Show at cursor with a sensible initial compact size; JS will send exact dimensions
                 self.controlCenter?.placeWindowNearCursor(at: cursor, contentSize: NSSize(width: 580, height: 500))
                 self.controlCenter?.showWindow(nil)
@@ -178,21 +181,30 @@ final class AppState {
     }
 
     func handleWindowEditorOpened(cardWidth: Int, cardHeight: Int) {
-        guard let cursor = windowEditorCursorPosition else { return }
+        guard windowEditorRestorePending,
+              let cursor = windowEditorCursorPosition else { return }
         // Add modal overlay padding (20px each side)
         let contentSize = NSSize(width: CGFloat(cardWidth) + 40, height: CGFloat(cardHeight) + 40)
         controlCenter?.placeWindowNearCursor(at: cursor, contentSize: contentSize)
     }
 
     func handleWindowEditorClosed() {
+        defer {
+            windowEditorSavedFrame = nil
+            windowEditorWasVisible = false
+            windowEditorCursorPosition = nil
+            windowEditorRestorePending = false
+        }
+
+        guard windowEditorRestorePending else {
+            return
+        }
+
         if !windowEditorWasVisible {
             controlCenter?.window?.orderOut(nil)
         } else if let saved = windowEditorSavedFrame {
             controlCenter?.window?.setFrame(saved, display: false, animate: false)
         }
-        windowEditorSavedFrame = nil
-        windowEditorWasVisible = false
-        windowEditorCursorPosition = nil
     }
 
     func toggleQuickView() {
@@ -1021,6 +1033,7 @@ final class AppState {
                 var newCache: [String: String] = [:]
                 var newBadgeCache: [String: String] = [:]
                 var newSessionNameCache: [String: String] = [:]
+                var newLastLineCache: [String: String] = [:]
                 let desktopHeight = NSScreen.screens.reduce(CGRect.null) { $0.union($1.frame) }.height
 
                 for snapshot in currentInventory.visible + currentInventory.hidden {
@@ -1041,6 +1054,9 @@ final class AppState {
                         if !matched.sessionName.isEmpty {
                             newSessionNameCache[snapshot.key] = matched.sessionName
                         }
+                        if !matched.lastLine.isEmpty {
+                            newLastLineCache[snapshot.key] = matched.lastLine
+                        }
                     } else {
                         newCache[snapshot.key] = self.iTermActivityCache[snapshot.key] ?? "idle"
                         if let existingBadge = self.iTermBadgeTextCache[snapshot.key] {
@@ -1049,14 +1065,18 @@ final class AppState {
                         if let existingName = self.iTermSessionNameCache[snapshot.key] {
                             newSessionNameCache[snapshot.key] = existingName
                         }
+                        if let existingLastLine = self.iTermLastLineCache[snapshot.key] {
+                            newLastLineCache[snapshot.key] = existingLastLine
+                        }
                     }
                 }
                 self.iTermActivityCache = newCache
                 self.iTermBadgeTextCache = newBadgeCache
                 self.iTermSessionNameCache = newSessionNameCache
+                self.iTermLastLineCache = newLastLineCache
                 WindowListDebugLogger.log(
                     "iterm-activity",
-                    "poll done: sessions=\(newSessionNameCache) activity=\(newCache.filter { $0.value == "active" }.keys.sorted())"
+                    "poll done: sessions=\(newSessionNameCache) lastLines=\(newLastLineCache) activity=\(newCache.filter { $0.value == "active" }.keys.sorted())"
                 )
                 // Trigger a UI refresh so the updated cache is rendered
                 self.controlCenter?.refresh()
@@ -1072,6 +1092,7 @@ final class AppState {
         let height: Double
         let badgeText: String
         let sessionName: String
+        let lastLine: String
     }
 
     private static func pollITermTTYActivity(
@@ -1114,6 +1135,7 @@ final class AppState {
                     f = window.frame
                     # Extract a descriptive name from the current session
                     session_name = ""
+                    last_line = ""
                     try:
                         cur = window.current_tab.current_session
                         cmd = await cur.async_get_variable("commandLine") or ""
@@ -1125,6 +1147,15 @@ final class AppState {
                             session_name = m.group(1)
                         elif pname.strip() and pname.strip() not in ("-zsh", "zsh", "bash", "-bash", "fish", "login"):
                             session_name = pname.strip()
+                        try:
+                            screen = await cur.async_get_screen_contents()
+                            for idx in range(screen.number_of_lines - 1, -1, -1):
+                                candidate = screen.line(idx).string.strip()
+                                if candidate:
+                                    last_line = candidate[:240]
+                                    break
+                        except Exception:
+                            pass
                     except Exception:
                         pass
                     result.append({
@@ -1135,6 +1166,7 @@ final class AppState {
                         "h": f.size.height,
                         "b": badge,
                         "n": session_name,
+                        "l": last_line,
                     })
                 print(json.dumps(result))
 
@@ -1172,7 +1204,17 @@ final class AppState {
             let h = (entry["h"] as? NSNumber)?.doubleValue ?? 0
             let badge = (entry["b"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             let sessionName = (entry["n"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            return ITermActivityEntry(active: active, x: x, y: y, width: w, height: h, badgeText: badge, sessionName: sessionName)
+            let lastLine = (entry["l"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            return ITermActivityEntry(
+                active: active,
+                x: x,
+                y: y,
+                width: w,
+                height: h,
+                badgeText: badge,
+                sessionName: sessionName,
+                lastLine: lastLine
+            )
         }
     }
 

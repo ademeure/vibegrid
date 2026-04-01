@@ -110,6 +110,8 @@ const state = {
   moveEverythingActivitySawIdleSinceUnhover: {},
   moveEverythingActivityActiveUntil: {},
   moveEverythingActivityConsecutiveActive: {},
+  moveEverythingLastButtonActionToken: null,
+  moveEverythingLastButtonActionAt: 0,
 };
 
 const ids = {
@@ -1172,14 +1174,8 @@ function applyOptimisticMoveEverythingWindowAction(action, key) {
       }
       didMutate = true;
     }
-  } else if (action === "show") {
+  } else if (action === "show" || action === "max" || action === "center") {
     if (hiddenIndex >= 0) {
-      const hiddenItem = hidden[hiddenIndex];
-      const isCoreGraphicsOnly = Boolean(hiddenItem?.isCoreGraphicsFallback) &&
-        String(hiddenItem?.key || "").includes("-cg-");
-      if (isCoreGraphicsOnly) {
-        return false;
-      }
       const [windowItem] = hidden.splice(hiddenIndex, 1);
       if (visibleIndex < 0) {
         visible.push(windowItem);
@@ -1233,6 +1229,66 @@ function performMoveEverythingWindowAction(action, key, options = {}) {
   if (action === "max") {
     sendToNative("moveEverythingMaximizeWindow", { key });
   }
+}
+
+function rememberMoveEverythingButtonAction(token) {
+  state.moveEverythingLastButtonActionToken = token;
+  state.moveEverythingLastButtonActionAt = performance.now();
+}
+
+function isDuplicateMoveEverythingButtonClick(token) {
+  return state.moveEverythingLastButtonActionToken === token &&
+    (performance.now() - state.moveEverythingLastButtonActionAt) < 1000;
+}
+
+function handleMoveEverythingWindowListButtonEvent(event, source) {
+  const target = event.target instanceof Element ? event.target : null;
+  if (!target) {
+    return false;
+  }
+
+  const renameButton = target.closest("button[data-me-rename-window]");
+  if (renameButton) {
+    const key = String(renameButton.dataset.meWindowKey || "").trim();
+    const token = `rename:${key}`;
+    if (!key) {
+      return true;
+    }
+    if (source === "click" && isDuplicateMoveEverythingButtonClick(token)) {
+      event.preventDefault();
+      event.stopPropagation();
+      return true;
+    }
+    rememberMoveEverythingButtonAction(token);
+    event.preventDefault();
+    event.stopPropagation();
+    sendJsLog("info", "moveEverythingWindowButton.rename", `source=${source} key=${key}`);
+    renameMoveEverythingWindow(key);
+    return true;
+  }
+
+  const actionButton = target.closest("button[data-me-window-action]");
+  if (actionButton) {
+    const action = String(actionButton.dataset.meWindowAction || "").trim();
+    const key = String(actionButton.dataset.meWindowKey || "").trim();
+    const token = `${action}:${key}`;
+    if (!action || !key) {
+      return true;
+    }
+    if (source === "click" && isDuplicateMoveEverythingButtonClick(token)) {
+      event.preventDefault();
+      event.stopPropagation();
+      return true;
+    }
+    rememberMoveEverythingButtonAction(token);
+    event.preventDefault();
+    event.stopPropagation();
+    sendJsLog("info", "moveEverythingWindowButton.action", `source=${source} action=${action} key=${key}`);
+    performMoveEverythingWindowAction(action, key);
+    return true;
+  }
+
+  return false;
 }
 
 function updateMoveEverythingAlwaysOnTop(enabled) {
@@ -1897,7 +1953,17 @@ function renderMoveEverythingWorkspace() {
   const namedHiddenWindows = allHidden.filter((w) => hasMoveEverythingCustomWindowTitle(w));
   const visibleWindows = allVisible.filter((w) => !hasMoveEverythingCustomWindowTitle(w));
   const hiddenWindows = allHidden.filter((w) => !hasMoveEverythingCustomWindowTitle(w));
+  const namedITermVisibleWindows = namedVisibleWindows.filter((w) => isLikelyITermWindow(w));
+  const namedITermHiddenWindows = namedHiddenWindows.filter((w) => isLikelyITermWindow(w));
+  const iTermVisibleWindows = visibleWindows.filter((w) => isLikelyITermWindow(w));
+  const iTermHiddenWindows = hiddenWindows.filter((w) => isLikelyITermWindow(w));
+  const namedOtherVisibleWindows = namedVisibleWindows.filter((w) => !isLikelyITermWindow(w));
+  const namedOtherHiddenWindows = namedHiddenWindows.filter((w) => !isLikelyITermWindow(w));
+  const otherVisibleWindows = visibleWindows.filter((w) => !isLikelyITermWindow(w));
+  const otherHiddenWindows = hiddenWindows.filter((w) => !isLikelyITermWindow(w));
   const namedCount = namedVisibleWindows.length + namedHiddenWindows.length;
+  const namedITermCount = namedITermVisibleWindows.length + namedITermHiddenWindows.length;
+  const iTermCount = iTermVisibleWindows.length + iTermHiddenWindows.length;
 
   if (state.moveEverythingHoveredWindowKey &&
       !allVisible.some((windowItem) => windowItem.key === state.moveEverythingHoveredWindowKey) &&
@@ -1908,18 +1974,30 @@ function renderMoveEverythingWorkspace() {
 
   const fragment = document.createDocumentFragment();
 
-  if (namedCount > 0) {
-    const namedSection = document.createElement("section");
-    namedSection.className = "move-window-section";
-    const namedTitle = document.createElement("h4");
-    namedTitle.textContent = `Named Windows (${namedCount})`;
-    namedSection.appendChild(namedTitle);
-    namedVisibleWindows.forEach((windowItem) => {
+  function appendMoveEverythingSection(titleText, visibleItems, hiddenItems, emptyText) {
+    const totalCount = visibleItems.length + hiddenItems.length;
+    if (!totalCount && !emptyText) {
+      return;
+    }
+    const section = document.createElement("section");
+    section.className = "move-window-section";
+    const title = document.createElement("h4");
+    title.textContent = `${titleText} (${totalCount})`;
+    section.appendChild(title);
+    if (!totalCount) {
+      const empty = document.createElement("p");
+      empty.className = "move-window-empty";
+      empty.textContent = emptyText;
+      section.appendChild(empty);
+      fragment.appendChild(section);
+      return;
+    }
+    visibleItems.forEach((windowItem) => {
       const rowHovered = !windowItem.isControlCenter &&
         state.moveEverythingHoveredWindowKey === windowItem.key;
       const rowFocused = !windowItem.isControlCenter &&
         state.moveEverythingFocusedWindowKey === windowItem.key;
-      namedSection.appendChild(
+      section.appendChild(
         buildMoveEverythingWindowRow(windowItem, {
           hovered: rowHovered,
           focused: rowFocused,
@@ -1927,63 +2005,53 @@ function renderMoveEverythingWorkspace() {
         })
       );
     });
-    namedHiddenWindows.forEach((windowItem) => {
-      namedSection.appendChild(
+    hiddenItems.forEach((windowItem) => {
+      section.appendChild(
         buildMoveEverythingWindowRow(windowItem, {
           hidden: true,
         })
       );
     });
-    fragment.appendChild(namedSection);
+    fragment.appendChild(section);
   }
 
-  const visibleSection = document.createElement("section");
-  visibleSection.className = "move-window-section";
-  const visibleTitle = document.createElement("h4");
-  visibleTitle.textContent = `Visible Windows (${visibleWindows.length})`;
-  visibleSection.appendChild(visibleTitle);
-  if (!visibleWindows.length) {
-    const empty = document.createElement("p");
-    empty.className = "move-window-empty";
-    empty.textContent = "No visible windows.";
-    visibleSection.appendChild(empty);
-  } else {
-      visibleWindows.forEach((windowItem) => {
-        const rowHovered = !windowItem.isControlCenter &&
-          state.moveEverythingHoveredWindowKey === windowItem.key;
-        const rowFocused = !windowItem.isControlCenter &&
-          state.moveEverythingFocusedWindowKey === windowItem.key;
-        visibleSection.appendChild(
-          buildMoveEverythingWindowRow(windowItem, {
-            hovered: rowHovered,
-            focused: rowFocused,
-            hidden: false,
-          })
-        );
-    });
+  if (namedITermCount > 0) {
+    appendMoveEverythingSection(
+      "Named iTerm",
+      namedITermVisibleWindows,
+      namedITermHiddenWindows
+    );
   }
-  fragment.appendChild(visibleSection);
 
-  const hiddenSection = document.createElement("section");
-  hiddenSection.className = "move-window-section";
-  const hiddenTitle = document.createElement("h4");
-  hiddenTitle.textContent = `Hidden Windows (${hiddenWindows.length})`;
-  hiddenSection.appendChild(hiddenTitle);
-  if (!hiddenWindows.length) {
-    const empty = document.createElement("p");
-    empty.className = "move-window-empty";
-    empty.textContent = "No hidden windows.";
-    hiddenSection.appendChild(empty);
-  } else {
-    hiddenWindows.forEach((windowItem) => {
-      hiddenSection.appendChild(
-        buildMoveEverythingWindowRow(windowItem, {
-          hidden: true,
-        })
-      );
-    });
+  if (iTermCount > 0) {
+    appendMoveEverythingSection(
+      "iTerm",
+      iTermVisibleWindows,
+      iTermHiddenWindows
+    );
   }
-  fragment.appendChild(hiddenSection);
+
+  if (namedCount - namedITermCount > 0) {
+    appendMoveEverythingSection(
+      "Named Windows",
+      namedOtherVisibleWindows,
+      namedOtherHiddenWindows
+    );
+  }
+
+  appendMoveEverythingSection(
+    "Visible Windows",
+    otherVisibleWindows,
+    [],
+    "No visible windows."
+  );
+
+  appendMoveEverythingSection(
+    "Hidden Windows",
+    [],
+    otherHiddenWindows,
+    "No hidden windows."
+  );
 
   ids.moveEverythingWindowList.appendChild(fragment);
   applyMoveEverythingTitleSizing();
@@ -2373,6 +2441,38 @@ function resolveMoveEverythingDisplayedWindowTitle(windowItem) {
   }
   const rawTitle = String(windowItem?.title || "");
   return stripMoveEverythingStatusMarkersForDisplay(rawTitle, windowItem);
+}
+
+function resolveMoveEverythingWindowSubtitle(windowItem) {
+  const isCoreGraphicsFallback = Boolean(windowItem?.isCoreGraphicsFallback);
+  if (isCoreGraphicsFallback) {
+    const key = String(windowItem?.key || "");
+    const match = key.match(/(?:-cg-|-)(\d+)$/);
+    const fallbackLabel = (!match || !match[1]) ? "Window" : `Window ${match[1]}`;
+    return `${fallbackLabel} • ${key} • CG fallback`;
+  }
+
+  const appName = String(windowItem?.appName || "App").trim() || "App";
+  if (isLikelyITermWindow(windowItem)) {
+    const lastLine = String(windowItem?.iTermLastLine || "").trim();
+    if (lastLine.length) {
+      return `${appName} • ${lastLine}`;
+    }
+    const sessionName = String(windowItem?.iTermSessionName || "").trim();
+    if (sessionName.length) {
+      return `${appName} • ${sessionName}`;
+    }
+    const iTermName = String(windowItem?.iTermWindowName || "").trim();
+    if (iTermName.length) {
+      return `${appName} • ${iTermName}`;
+    }
+    const fallbackTitle = String(windowItem?.title || "").trim();
+    if (fallbackTitle.length) {
+      return `${appName} • ${stripMoveEverythingStatusMarkersForDisplay(fallbackTitle, windowItem)}`;
+    }
+  }
+
+  return `${appName} • ${String(windowItem?.key || "")}`;
 }
 
 function pruneMoveEverythingCustomWindowTitles(visibleWindows, hiddenWindows) {
@@ -2853,13 +2953,8 @@ function buildMoveEverythingWindowRow(windowItem, options = {}) {
       copy.classList.add("activity-status-box", `activity-status-${activityStatus}`);
     }
   }
-  const isCoreGraphicsFallback = Boolean(windowItem.isCoreGraphicsFallback);
-  const coreGraphicsFallbackWindowLabel = moveEverythingCoreGraphicsFallbackWindowLabel(windowItem);
   const subtitle = document.createElement("small");
-  const baseSubtitle = isCoreGraphicsFallback
-    ? `${coreGraphicsFallbackWindowLabel} • ${windowItem.key} • CG fallback`
-    : `${windowItem.appName} • ${windowItem.key}`;
-  subtitle.textContent = baseSubtitle;
+  subtitle.textContent = resolveMoveEverythingWindowSubtitle(windowItem);
   copy.appendChild(title);
   copy.appendChild(subtitle);
   main.appendChild(copy);
@@ -2873,34 +2968,29 @@ function buildMoveEverythingWindowRow(windowItem, options = {}) {
     }
 
     if (hidden) {
-      if (isCoreGraphicsFallback) {
-        const closeBtn = document.createElement("button");
-        closeBtn.type = "button";
-        closeBtn.className = "btn tiny danger";
-        closeBtn.textContent = compactActions ? "X" : "Exit";
-        closeBtn.dataset.meWindowAction = "close";
-        closeBtn.dataset.meWindowKey = windowItem.key;
-        actions.appendChild(closeBtn);
-      }
-      if (!isCoreGraphicsFallback) {
-        const maxBtn = document.createElement("button");
-        maxBtn.type = "button";
-        maxBtn.className = "btn tiny primary";
-        maxBtn.textContent = compactActions ? "M" : "Max";
-        maxBtn.dataset.meWindowAction = "max";
-        maxBtn.dataset.meWindowKey = windowItem.key;
-        actions.appendChild(maxBtn);
-      }
+      const maxBtn = document.createElement("button");
+      maxBtn.type = "button";
+      maxBtn.className = "btn tiny primary";
+      maxBtn.textContent = compactActions ? "M" : "Max";
+      maxBtn.dataset.meWindowAction = "max";
+      maxBtn.dataset.meWindowKey = windowItem.key;
+      actions.appendChild(maxBtn);
 
       const showBtn = document.createElement("button");
       showBtn.type = "button";
       showBtn.className = "btn tiny move-everything";
-      showBtn.textContent = isCoreGraphicsFallback
-        ? (compactActions ? "O" : "Open")
-        : (compactActions ? "S" : "Show");
+      showBtn.textContent = compactActions ? "S" : "Show";
       showBtn.dataset.meWindowAction = "show";
       showBtn.dataset.meWindowKey = windowItem.key;
       actions.appendChild(showBtn);
+
+      const closeBtn = document.createElement("button");
+      closeBtn.type = "button";
+      closeBtn.className = "btn tiny danger";
+      closeBtn.textContent = compactActions ? "X" : (isCoreGraphicsFallback ? "Quit" : "Close");
+      closeBtn.dataset.meWindowAction = "close";
+      closeBtn.dataset.meWindowKey = windowItem.key;
+      actions.appendChild(closeBtn);
     } else {
       const renameBtn = document.createElement("button");
       renameBtn.type = "button";
@@ -2921,7 +3011,7 @@ function buildMoveEverythingWindowRow(windowItem, options = {}) {
       const closeBtn = document.createElement("button");
       closeBtn.type = "button";
       closeBtn.className = "btn tiny danger";
-      closeBtn.textContent = compactActions ? "X" : "Exit";
+      closeBtn.textContent = compactActions ? "X" : "Close";
       closeBtn.dataset.meWindowAction = "close";
       closeBtn.dataset.meWindowKey = windowItem.key;
       actions.appendChild(closeBtn);
@@ -5322,6 +5412,7 @@ function normalizeMoveEverythingWindow(value) {
   const iTermBadgeText = typeof value.iTermBadgeText === "string" ? value.iTermBadgeText : null;
   const iTermWindowName = typeof value.iTermWindowName === "string" ? value.iTermWindowName.trim() || null : null;
   const iTermSessionName = typeof value.iTermSessionName === "string" ? value.iTermSessionName.trim() || null : null;
+  const iTermLastLine = typeof value.iTermLastLine === "string" ? value.iTermLastLine.trim() || null : null;
 
   return {
     key,
@@ -5338,6 +5429,7 @@ function normalizeMoveEverythingWindow(value) {
     iTermBadgeText,
     iTermWindowName,
     iTermSessionName,
+    iTermLastLine,
   };
 }
 
@@ -5657,22 +5749,15 @@ function wireEvents() {
   });
   ids.exitBtn.addEventListener("click", () => sendToNative("exitApp"));
   on(ids.moveEverythingBtn, "click", toggleMoveEverythingFromButton);
+  on(ids.moveEverythingWindowList, "pointerdown", (event) => {
+    if (event.button !== 0 || event.isPrimary === false) {
+      return;
+    }
+    handleMoveEverythingWindowListButtonEvent(event, "pointerdown");
+  });
   on(ids.moveEverythingWindowList, "click", (event) => {
-    const target = event.target instanceof Element ? event.target : null;
-    if (!target) {
+    if (handleMoveEverythingWindowListButtonEvent(event, "click")) {
       return;
-    }
-    const renameButton = target.closest("button[data-me-rename-window]");
-    if (renameButton) {
-      renameMoveEverythingWindow(renameButton.dataset.meWindowKey);
-      return;
-    }
-    const actionButton = target.closest("button[data-me-window-action]");
-    if (actionButton) {
-      performMoveEverythingWindowAction(
-        actionButton.dataset.meWindowAction,
-        actionButton.dataset.meWindowKey
-      );
     }
   });
   on(ids.moveEverythingWindowList, "dblclick", (event) => {
@@ -5705,6 +5790,9 @@ function wireEvents() {
     // Don't change hover while a mouse button is pressed — a DOM rebuild
     // during a click would destroy the button element and eat the click.
     if (event.buttons !== 0) {
+      return;
+    }
+    if (event.target instanceof Element && isInteractiveElement(event.target)) {
       return;
     }
     const key = resolveMoveEverythingHoverKeyFromTarget(event.target, event.clientY);

@@ -613,6 +613,7 @@ final class UIBridge: NSObject, WKScriptMessageHandler {
         let ttyCache = appState.iTermActivityCache
         let badgeTextCache = appState.iTermBadgeTextCache
         let sessionNameCache = appState.iTermSessionNameCache
+        let lastLineCache = appState.iTermLastLineCache
         var statusByKey: [String: String] = [:]
 
         for snapshot in inventory.visible + inventory.hidden {
@@ -638,6 +639,9 @@ final class UIBridge: NSObject, WKScriptMessageHandler {
                 if let sessionName = sessionNameCache[key] {
                     w["iTermSessionName"] = sessionName
                     WindowListDebugLogger.log("enrich", "key=\(key) sessionName=\(sessionName)")
+                }
+                if let lastLine = lastLineCache[key] {
+                    w["iTermLastLine"] = lastLine
                 }
                 return w
             }
