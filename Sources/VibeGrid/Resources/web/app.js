@@ -2668,20 +2668,21 @@ function resolveMoveEverythingWindowSubtitle(windowItem) {
   if (isLikelyITermWindow(windowItem)) {
     const lastLine = String(windowItem?.iTermLastLine || "").trim();
     if (lastLine.length) {
-      return `${appName} • ${lastLine}`;
+      return lastLine;
     }
     const sessionName = String(windowItem?.iTermSessionName || "").trim();
     if (sessionName.length) {
-      return `${appName} • ${sessionName}`;
+      return sessionName;
     }
     const iTermName = String(windowItem?.iTermWindowName || "").trim();
     if (iTermName.length) {
-      return `${appName} • ${iTermName}`;
+      return iTermName;
     }
     const fallbackTitle = String(windowItem?.title || "").trim();
     if (fallbackTitle.length) {
-      return `${appName} • ${stripMoveEverythingStatusMarkersForDisplay(fallbackTitle, windowItem)}`;
+      return stripMoveEverythingStatusMarkersForDisplay(fallbackTitle, windowItem);
     }
+    return String(windowItem?.key || "");
   }
 
   return `${appName} • ${String(windowItem?.key || "")}`;
