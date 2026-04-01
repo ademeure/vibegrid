@@ -33,4 +33,21 @@ struct MoveEverythingWindowInventory: Codable {
     let visible: [MoveEverythingWindowSnapshot]
     let hidden: [MoveEverythingWindowSnapshot]
     let undoRetileAvailable: Bool
+    let savedPositionsPreviousAvailable: Bool
+    let savedPositionsNextAvailable: Bool
+}
+
+struct MoveEverythingSavedWindowPosition: Codable {
+    let pid: Int32
+    let appName: String
+    let title: String
+    let windowNumber: Int?
+    let iTermWindowID: String?
+    let frame: MoveEverythingWindowFrameSnapshot
+    let captureOrder: Int
+}
+
+struct MoveEverythingSavedWindowPositionsSnapshot: Codable {
+    let createdAt: Date
+    let windows: [MoveEverythingSavedWindowPosition]
 }

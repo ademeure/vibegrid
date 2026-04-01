@@ -7,6 +7,7 @@ protocol WindowManagerEngineProtocol: AnyObject {
     var onMoveEverythingInventoryRefreshed: (() -> Void)? { get set }
     var onMoveEverythingNameWindowRequested: ((String) -> Void)? { get set }
     var onMoveEverythingQuickViewRequested: (() -> Void)? { get set }
+    var onMoveEverythingLatestSavedWindowPositionsChanged: ((MoveEverythingSavedWindowPositionsSnapshot?) -> Void)? { get set }
     var isMoveEverythingActive: Bool { get }
     var moveEverythingHoveredWindowKey: String? { get }
 
@@ -23,6 +24,12 @@ protocol WindowManagerEngineProtocol: AnyObject {
     func hideMoveEverythingWindow(withKey key: String) -> Bool
     func showHiddenMoveEverythingWindow(withKey key: String) -> Bool
     func showAllHiddenMoveEverythingWindows() -> Bool
+    func saveCurrentMoveEverythingWindowPositions() -> MoveEverythingSavedWindowPositionsSnapshot?
+    func restorePreviousMoveEverythingSavedWindowPositions() -> Bool
+    func restoreNextMoveEverythingSavedWindowPositions() -> Bool
+    func seedMoveEverythingSavedWindowPositions(_ snapshot: MoveEverythingSavedWindowPositionsSnapshot?)
+    func moveEverythingSavedPositionsPreviousAvailable() -> Bool
+    func moveEverythingSavedPositionsNextAvailable() -> Bool
     func focusMoveEverythingWindow(withKey key: String, movePointerToTopMiddle: Bool) -> Bool
     func centerMoveEverythingWindow(withKey key: String) -> Bool
     func maximizeMoveEverythingWindow(withKey key: String) -> Bool

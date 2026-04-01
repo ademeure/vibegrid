@@ -38,6 +38,7 @@ final class AppState {
     private static let startupAccessibilityKnownGrantedMarkerKey = "VibeGridStartupAccessibilityKnownGranted"
     private static let startupAccessibilityKnownFingerprintMarkerKey = "VibeGridStartupAccessibilityKnownFingerprint"
     private let configStore = ConfigStore()
+    private let windowPositionSaveStore = WindowPositionSaveStore()
     private let windowListActivityConfigSync = WindowListActivityConfigSync()
     private var moveEverythingITermWindowOverridesByID: [String: WindowListActivityConfigSync.ITermWindowOverride] = [:]
     private var moveEverythingITermWindowOverridesByNumber: [Int: WindowListActivityConfigSync.ITermWindowOverride] = [:]
@@ -77,6 +78,12 @@ final class AppState {
         )
         ITermWindowInventoryResolver.ensurePythonVenv(debugContext: "startup")
         windowManager = Self.makeWindowManager(initialConfig: initialConfig)
+        windowManager.seedMoveEverythingSavedWindowPositions(windowPositionSaveStore.loadLatest())
+        windowManager.onMoveEverythingLatestSavedWindowPositionsChanged = { [windowPositionSaveStore] snapshot in
+            DispatchQueue.global(qos: .utility).async {
+                _ = windowPositionSaveStore.saveLatest(snapshot)
+            }
+        }
         windowManager.isMoveEverythingAlwaysOnTopEnabledProvider = { [weak self] in
             self?.moveEverythingAlwaysOnTop ?? false
         }
@@ -537,6 +544,25 @@ final class AppState {
     @discardableResult
     func showAllHiddenMoveEverythingWindows() -> Bool {
         windowManager.showAllHiddenMoveEverythingWindows()
+    }
+
+    @discardableResult
+    func saveCurrentMoveEverythingWindowPositions() -> Bool {
+        guard let snapshot = windowManager.saveCurrentMoveEverythingWindowPositions() else {
+            return false
+        }
+        _ = windowPositionSaveStore.saveLatest(snapshot)
+        return true
+    }
+
+    @discardableResult
+    func restorePreviousMoveEverythingSavedWindowPositions() -> Bool {
+        windowManager.restorePreviousMoveEverythingSavedWindowPositions()
+    }
+
+    @discardableResult
+    func restoreNextMoveEverythingSavedWindowPositions() -> Bool {
+        windowManager.restoreNextMoveEverythingSavedWindowPositions()
     }
 
     @discardableResult
@@ -1049,18 +1075,29 @@ final class AppState {
                 var newSessionNameCache: [String: String] = [:]
                 var newLastLineCache: [String: String] = [:]
                 let desktopHeight = NSScreen.screens.reduce(CGRect.null) { $0.union($1.frame) }.height
+                var unmatchedEntries = Array(activityEntries.enumerated())
 
                 for snapshot in currentInventory.visible + currentInventory.hidden {
                     let appName = snapshot.appName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
                     guard appName.contains("iterm"), let sf = snapshot.frame else { continue }
                     let cocoaY = desktopHeight - sf.y - sf.height
-                    let matched = activityEntries.first { entry in
-                        abs(entry.x - sf.x) <= 4 &&
-                        abs(entry.y - cocoaY) <= 4 &&
-                        abs(entry.width - sf.width) <= 4 &&
-                        abs(entry.height - sf.height) <= 4
-                    }
-                    if let matched {
+                    let matchedEntryIndex: Int? = {
+                        if let iTermWindowID = snapshot.iTermWindowID?.trimmingCharacters(in: .whitespacesAndNewlines),
+                           !iTermWindowID.isEmpty,
+                           let stableMatchIndex = unmatchedEntries.firstIndex(where: {
+                               $0.element.windowID == iTermWindowID
+                           }) {
+                            return stableMatchIndex
+                        }
+                        return unmatchedEntries.firstIndex(where: {
+                            abs($0.element.x - sf.x) <= 4 &&
+                            abs($0.element.y - cocoaY) <= 4 &&
+                            abs($0.element.width - sf.width) <= 4 &&
+                            abs($0.element.height - sf.height) <= 4
+                        })
+                    }()
+                    if let matchedEntryIndex {
+                        let matched = unmatchedEntries.remove(at: matchedEntryIndex).element
                         newCache[snapshot.key] = matched.active ? "active" : "idle"
                         if !matched.badgeText.isEmpty {
                             newBadgeCache[snapshot.key] = matched.badgeText
@@ -1099,6 +1136,7 @@ final class AppState {
     }
 
     private struct ITermActivityEntry {
+        let windowID: String
         let active: Bool
         let x: Double
         let y: Double
@@ -1173,6 +1211,7 @@ final class AppState {
                     except Exception:
                         pass
                     result.append({
+                        "i": str(window.window_id),
                         "a": min_age < timeout,
                         "x": f.origin.x,
                         "y": f.origin.y,
@@ -1211,6 +1250,10 @@ final class AppState {
         }
 
         return entries.compactMap { entry -> ITermActivityEntry? in
+            let windowID = (entry["i"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            guard !windowID.isEmpty else {
+                return nil
+            }
             let active = entry["a"] as? Bool ?? false
             let x = (entry["x"] as? NSNumber)?.doubleValue ?? 0
             let y = (entry["y"] as? NSNumber)?.doubleValue ?? 0
@@ -1220,6 +1263,7 @@ final class AppState {
             let sessionName = (entry["n"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             let lastLine = (entry["l"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             return ITermActivityEntry(
+                windowID: windowID,
                 active: active,
                 x: x,
                 y: y,

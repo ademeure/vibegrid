@@ -117,16 +117,28 @@ extension WindowManagerEngine {
         let isControlCenter = ownFocusedWindow.map(isControlCenterWindow) ?? false
         let targetRect = makeTargetRect(normalizedRect: normalizedRect, on: screen, excludeControlCenter: !isControlCenter)
         let didMove: Bool
+        let movementTarget: HotkeyWindowMovementTarget?
         if let ownFocusedWindow {
             didMove = setOwnWindow(ownFocusedWindow, cocoaRect: targetRect)
+            movementTarget = hotkeyWindowMovementTarget(for: ownFocusedWindow)
         } else if let focusedWindowElement {
             didMove = setWindow(focusedWindowElement, cocoaRect: targetRect)
+            movementTarget = hotkeyWindowMovementTarget(for: focusedWindowElement)
         } else {
             didMove = false
+            movementTarget = nil
         }
 
         if !didMove {
             NSLog("VibeGrid: failed to move focused window for shortcut '%@'", shortcutID)
+            return
+        }
+        if let movementTarget, let focusedWindowRect {
+            recordHotkeyWindowMovement(
+                target: movementTarget,
+                from: focusedWindowRect,
+                to: targetRect
+            )
         }
     }
 
@@ -197,6 +209,12 @@ extension WindowManagerEngine {
             NSLog("VibeGrid: failed to move control center window for shortcut '%@'", shortcutID)
             return false
         }
+
+        recordHotkeyWindowMovement(
+            target: hotkeyWindowMovementTarget(for: controlCenterWindow),
+            from: referenceFrame,
+            to: targetRect
+        )
 
         ensureControlCenterWindowVisibleForMoveEverything()
         return true
@@ -298,6 +316,14 @@ extension WindowManagerEngine {
             return true
         }
 
+        if let referenceFrame {
+            recordHotkeyWindowMovement(
+                target: hotkeyWindowMovementTarget(for: managedWindow),
+                from: referenceFrame,
+                to: targetRect
+            )
+        }
+
         var state = runState.statesByWindowKey[managedWindow.key] ??
             MoveEverythingWindowState(
                 originalFrame: referenceFrame ?? targetRect,
@@ -347,7 +373,253 @@ extension WindowManagerEngine {
 
         case .quickView:
             onMoveEverythingQuickViewRequested?()
+
+        case .undoWindowMovement:
+            _ = undoHotkeyWindowMovement()
+
+        case .redoWindowMovement:
+            _ = redoHotkeyWindowMovement()
         }
+    }
+
+    func hotkeyWindowMovementTarget(for managedWindow: MoveEverythingManagedWindow) -> HotkeyWindowMovementTarget {
+        HotkeyWindowMovementTarget(
+            pid: managedWindow.pid,
+            windowNumber: managedWindow.windowNumber,
+            title: moveEverythingWindowTitle(for: managedWindow),
+            appName: managedWindow.appName
+        )
+    }
+
+    func hotkeyWindowMovementTarget(for ownWindow: NSWindow) -> HotkeyWindowMovementTarget {
+        HotkeyWindowMovementTarget(
+            pid: ProcessInfo.processInfo.processIdentifier,
+            windowNumber: ownWindow.windowNumber,
+            title: ownWindow.title.trimmingCharacters(in: .whitespacesAndNewlines),
+            appName: "VibeGrid"
+        )
+    }
+
+    func hotkeyWindowMovementTarget(for axWindow: AXUIElement) -> HotkeyWindowMovementTarget? {
+        var pid: pid_t = 0
+        AXUIElementGetPid(axWindow, &pid)
+        guard pid != 0 else {
+            return nil
+        }
+
+        let title = copyStringAttribute(from: axWindow, attribute: kAXTitleAttribute)?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let appName = NSRunningApplication(processIdentifier: pid)?.localizedName?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? "PID \(pid)"
+        return HotkeyWindowMovementTarget(
+            pid: pid,
+            windowNumber: copyIntAttribute(from: axWindow, attribute: "AXWindowNumber"),
+            title: title,
+            appName: appName
+        )
+    }
+
+    func recordHotkeyWindowMovement(
+        target: HotkeyWindowMovementTarget,
+        from fromFrame: CGRect,
+        to toFrame: CGRect
+    ) {
+        guard !moveEverythingFramesApproximatelyEqual(fromFrame, toFrame, tolerance: 1) else {
+            return
+        }
+
+        hotkeyWindowMovementUndoHistory.append(
+            HotkeyWindowMovementRecord(
+                target: target,
+                fromFrame: fromFrame,
+                toFrame: toFrame
+            )
+        )
+        if hotkeyWindowMovementUndoHistory.count > hotkeyWindowMovementHistoryLimit {
+            hotkeyWindowMovementUndoHistory.removeFirst(
+                hotkeyWindowMovementUndoHistory.count - hotkeyWindowMovementHistoryLimit
+            )
+        }
+        hotkeyWindowMovementRedoHistory.removeAll()
+    }
+
+    @discardableResult
+    func undoHotkeyWindowMovement() -> Bool {
+        guard let record = hotkeyWindowMovementUndoHistory.popLast() else {
+            return false
+        }
+        guard applyHotkeyWindowMovementRecord(record, targetFrame: record.fromFrame) else {
+            hotkeyWindowMovementUndoHistory.append(record)
+            return false
+        }
+        hotkeyWindowMovementRedoHistory.append(record)
+        if hotkeyWindowMovementRedoHistory.count > hotkeyWindowMovementHistoryLimit {
+            hotkeyWindowMovementRedoHistory.removeFirst(
+                hotkeyWindowMovementRedoHistory.count - hotkeyWindowMovementHistoryLimit
+            )
+        }
+        return true
+    }
+
+    @discardableResult
+    func redoHotkeyWindowMovement() -> Bool {
+        guard let record = hotkeyWindowMovementRedoHistory.popLast() else {
+            return false
+        }
+        guard applyHotkeyWindowMovementRecord(record, targetFrame: record.toFrame) else {
+            hotkeyWindowMovementRedoHistory.append(record)
+            return false
+        }
+        hotkeyWindowMovementUndoHistory.append(record)
+        if hotkeyWindowMovementUndoHistory.count > hotkeyWindowMovementHistoryLimit {
+            hotkeyWindowMovementUndoHistory.removeFirst(
+                hotkeyWindowMovementUndoHistory.count - hotkeyWindowMovementHistoryLimit
+            )
+        }
+        return true
+    }
+
+    func applyHotkeyWindowMovementRecord(
+        _ record: HotkeyWindowMovementRecord,
+        targetFrame: CGRect
+    ) -> Bool {
+        guard let resolvedTarget = resolveHotkeyWindowMovementTarget(
+            record.target,
+            expectedCurrentFrame: targetFrame == record.fromFrame ? record.toFrame : record.fromFrame
+        ) else {
+            return false
+        }
+
+        switch resolvedTarget {
+        case .own(let ownWindow):
+            return setOwnWindow(ownWindow, cocoaRect: targetFrame)
+        case .managed(let managedWindow):
+            guard setMoveEverythingWindowFrame(managedWindow, cocoaRect: targetFrame) else {
+                return false
+            }
+            syncMoveEverythingRunStateAfterHotkeyMovement(managedWindow, targetFrame: targetFrame)
+            return true
+        }
+    }
+
+    func syncMoveEverythingRunStateAfterHotkeyMovement(
+        _ managedWindow: MoveEverythingManagedWindow,
+        targetFrame: CGRect
+    ) {
+        guard var runState = moveEverythingRunState,
+              let windowIndex = runState.windows.firstIndex(where: { $0.key == managedWindow.key }) else {
+            return
+        }
+
+        runState.windows[windowIndex] = managedWindow
+        var state = runState.statesByWindowKey[managedWindow.key] ??
+            MoveEverythingWindowState(
+                originalFrame: targetFrame,
+                hasVisited: true,
+                isCentered: false
+            )
+        if state.originalFrame == .zero {
+            state.originalFrame = targetFrame
+        }
+        state.hasVisited = true
+        state.isCentered = false
+        runState.statesByWindowKey[managedWindow.key] = state
+        moveEverythingRunState = runState
+        clearMoveEverythingExternalFocusOverlayState()
+        refreshMoveEverythingOverlayPresentation()
+        notifyMoveEverythingModeChanged()
+    }
+
+    func resolveHotkeyWindowMovementTarget(
+        _ target: HotkeyWindowMovementTarget,
+        expectedCurrentFrame: CGRect?
+    ) -> ResolvedHotkeyWindowMovementTarget? {
+        if target.pid == ProcessInfo.processInfo.processIdentifier {
+            if let windowNumber = target.windowNumber,
+               let window = NSApp.windows.first(where: { $0.windowNumber == windowNumber }) {
+                return .own(window)
+            }
+            let normalizedTitle = target.title.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !normalizedTitle.isEmpty,
+               let window = NSApp.windows.first(where: {
+                   $0.title.trimmingCharacters(in: .whitespacesAndNewlines) == normalizedTitle
+               }) {
+                return .own(window)
+            }
+            return nil
+        }
+
+        let inventory = resolveMoveEverythingWindowInventory(forceRefresh: true)
+        let candidates = (inventory.visible + inventory.hidden).filter { $0.pid == target.pid }
+        guard !candidates.isEmpty else {
+            return nil
+        }
+
+        if let windowNumber = target.windowNumber,
+           let exact = candidates.first(where: { $0.windowNumber == windowNumber }) {
+            return .managed(exact)
+        }
+
+        let normalizedTitle = target.title.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if !normalizedTitle.isEmpty {
+            let titleMatches = candidates.filter {
+                moveEverythingWindowTitle(for: $0).trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == normalizedTitle
+            }
+            if titleMatches.count == 1, let exactTitleMatch = titleMatches.first {
+                return .managed(exactTitleMatch)
+            }
+            if let expectedCurrentFrame, !titleMatches.isEmpty,
+               let nearestTitleMatch = nearestHotkeyWindowMovementCandidate(
+                   from: titleMatches,
+                   expectedCurrentFrame: expectedCurrentFrame
+               ) {
+                return .managed(nearestTitleMatch)
+            }
+        }
+
+        if let expectedCurrentFrame,
+           let nearest = nearestHotkeyWindowMovementCandidate(
+               from: candidates,
+               expectedCurrentFrame: expectedCurrentFrame
+           ) {
+            return .managed(nearest)
+        }
+
+        if candidates.count == 1, let onlyCandidate = candidates.first {
+            return .managed(onlyCandidate)
+        }
+
+        return nil
+    }
+
+    func nearestHotkeyWindowMovementCandidate(
+        from candidates: [MoveEverythingManagedWindow],
+        expectedCurrentFrame: CGRect
+    ) -> MoveEverythingManagedWindow? {
+        candidates.min { left, right in
+            let leftDistance = hotkeyWindowMovementDistance(
+                currentWindowRect(for: left.window),
+                expected: expectedCurrentFrame
+            )
+            let rightDistance = hotkeyWindowMovementDistance(
+                currentWindowRect(for: right.window),
+                expected: expectedCurrentFrame
+            )
+            if leftDistance == rightDistance {
+                return left.key < right.key
+            }
+            return leftDistance < rightDistance
+        }
+    }
+
+    func hotkeyWindowMovementDistance(_ rect: CGRect?, expected: CGRect) -> CGFloat {
+        guard let rect else {
+            return .greatestFiniteMagnitude
+        }
+        return abs(rect.minX - expected.minX) +
+            abs(rect.minY - expected.minY) +
+            abs(rect.width - expected.width) +
+            abs(rect.height - expected.height)
     }
 
     func nameWindowFromHotkey() {

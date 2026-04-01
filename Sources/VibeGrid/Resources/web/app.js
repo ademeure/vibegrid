@@ -91,6 +91,8 @@ const state = {
     visible: [],
     hidden: [],
     undoRetileAvailable: false,
+    savedPositionsPreviousAvailable: false,
+    savedPositionsNextAvailable: false,
   },
   moveEverythingHoveredWindowKey: null,
   moveEverythingFocusedWindowKey: null,
@@ -224,6 +226,8 @@ const ids = {
   moveEverythingHideWindowPreview: document.getElementById("moveEverythingHideWindowPreview"),
   moveEverythingNameWindowPreview: document.getElementById("moveEverythingNameWindowPreview"),
   moveEverythingQuickViewPreview: document.getElementById("moveEverythingQuickViewPreview"),
+  moveEverythingUndoWindowMovementPreview: document.getElementById("moveEverythingUndoWindowMovementPreview"),
+  moveEverythingRedoWindowMovementPreview: document.getElementById("moveEverythingRedoWindowMovementPreview"),
   moveEverythingCloseHideOutsideMode: document.getElementById("moveEverythingCloseHideOutsideMode"),
   moveEverythingWindowEditorModal: document.getElementById("moveEverythingWindowEditorModal"),
   moveEverythingWindowEditorTitle: document.getElementById("moveEverythingWindowEditorTitle"),
@@ -300,12 +304,16 @@ const moveEverythingHotkeyFieldOrder = [
   "moveEverythingHideWindowHotkey",
   "moveEverythingNameWindowHotkey",
   "moveEverythingQuickViewHotkey",
+  "moveEverythingUndoWindowMovementHotkey",
+  "moveEverythingRedoWindowMovementHotkey",
 ];
 const moveEverythingHotkeyPreviewByField = {
   moveEverythingCloseWindowHotkey: ids.moveEverythingCloseWindowPreview,
   moveEverythingHideWindowHotkey: ids.moveEverythingHideWindowPreview,
   moveEverythingNameWindowHotkey: ids.moveEverythingNameWindowPreview,
   moveEverythingQuickViewHotkey: ids.moveEverythingQuickViewPreview,
+  moveEverythingUndoWindowMovementHotkey: ids.moveEverythingUndoWindowMovementPreview,
+  moveEverythingRedoWindowMovementHotkey: ids.moveEverythingRedoWindowMovementPreview,
 };
 let permissionPollTimer = null;
 let autosaveTimer = null;
@@ -1195,6 +1203,8 @@ function applyOptimisticMoveEverythingWindowAction(action, key) {
     visible,
     hidden,
     undoRetileAvailable: Boolean(inventory.undoRetileAvailable),
+    savedPositionsPreviousAvailable: Boolean(inventory.savedPositionsPreviousAvailable),
+    savedPositionsNextAvailable: Boolean(inventory.savedPositionsNextAvailable),
   };
   if (state.moveEverythingHoveredWindowKey === key) {
     setMoveEverythingHoveredWindow(null, { render: false, immediate: true });
@@ -1221,6 +1231,8 @@ function applyOptimisticShowAllMoveEverythingWindows() {
     visible,
     hidden: [],
     undoRetileAvailable: Boolean(inventory.undoRetileAvailable),
+    savedPositionsPreviousAvailable: Boolean(inventory.savedPositionsPreviousAvailable),
+    savedPositionsNextAvailable: Boolean(inventory.savedPositionsNextAvailable),
   };
   return true;
 }
@@ -1287,6 +1299,16 @@ function scheduleMoveEverythingWindowActionRefresh(action) {
   );
 }
 
+function scheduleMoveEverythingSavedPositionsRefresh() {
+  cancelMoveEverythingWindowActionRefreshTimers();
+  const delays = [180, 520];
+  state.moveEverythingActionRefreshTimers = delays.map((delayMs) =>
+    window.setTimeout(() => {
+      sendToNative("requestState", { forceMoveEverythingWindowRefresh: true });
+    }, delayMs)
+  );
+}
+
 function showAllMoveEverythingWindows(options = {}) {
   const { render = true } = options;
   const didOptimisticUpdate = applyOptimisticShowAllMoveEverythingWindows();
@@ -1295,6 +1317,21 @@ function showAllMoveEverythingWindows(options = {}) {
   }
   sendToNative("moveEverythingShowAllWindows");
   scheduleMoveEverythingWindowActionRefresh("show");
+}
+
+function saveMoveEverythingWindowPositions() {
+  sendToNative("moveEverythingSavePositions");
+  scheduleMoveEverythingSavedPositionsRefresh();
+}
+
+function restorePreviousMoveEverythingWindowPositions() {
+  sendToNative("moveEverythingRestorePreviousPositions");
+  scheduleMoveEverythingSavedPositionsRefresh();
+}
+
+function restoreNextMoveEverythingWindowPositions() {
+  sendToNative("moveEverythingRestoreNextPositions");
+  scheduleMoveEverythingSavedPositionsRefresh();
 }
 
 function rememberMoveEverythingButtonAction(token) {
@@ -1331,6 +1368,15 @@ function handleMoveEverythingWindowListButtonEvent(event, source) {
     if (action === "showAll") {
       sendJsLog("info", "moveEverythingWindowButton.bulk", `source=${source} action=${action}`);
       showAllMoveEverythingWindows();
+    } else if (action === "savePositions") {
+      sendJsLog("info", "moveEverythingWindowButton.bulk", `source=${source} action=${action}`);
+      saveMoveEverythingWindowPositions();
+    } else if (action === "restorePreviousPositions") {
+      sendJsLog("info", "moveEverythingWindowButton.bulk", `source=${source} action=${action}`);
+      restorePreviousMoveEverythingWindowPositions();
+    } else if (action === "restoreNextPositions") {
+      sendJsLog("info", "moveEverythingWindowButton.bulk", `source=${source} action=${action}`);
+      restoreNextMoveEverythingWindowPositions();
     }
     return true;
   }
@@ -2189,6 +2235,35 @@ function renderMoveEverythingWorkspace() {
     bulkActions.appendChild(showAllBtn);
     fragment.appendChild(bulkActions);
   }
+
+  const savedPositionsActions = document.createElement("div");
+  savedPositionsActions.className = "move-window-bulk-actions";
+
+  const previousBtn = document.createElement("button");
+  previousBtn.type = "button";
+  previousBtn.className = "btn move-everything-bulk-btn";
+  previousBtn.textContent = "Previous";
+  previousBtn.dataset.meWindowBulkAction = "restorePreviousPositions";
+  previousBtn.disabled = !state.moveEverythingWindows?.savedPositionsPreviousAvailable;
+  savedPositionsActions.appendChild(previousBtn);
+
+  const nextBtn = document.createElement("button");
+  nextBtn.type = "button";
+  nextBtn.className = "btn move-everything-bulk-btn";
+  nextBtn.textContent = "Next";
+  nextBtn.dataset.meWindowBulkAction = "restoreNextPositions";
+  nextBtn.disabled = !state.moveEverythingWindows?.savedPositionsNextAvailable;
+  savedPositionsActions.appendChild(nextBtn);
+
+  const saveBtn = document.createElement("button");
+  saveBtn.type = "button";
+  saveBtn.className = "btn primary move-everything-bulk-btn";
+  saveBtn.textContent = "Save";
+  saveBtn.dataset.meWindowBulkAction = "savePositions";
+  saveBtn.disabled = visibleWindows.length === 0;
+  savedPositionsActions.appendChild(saveBtn);
+
+  fragment.appendChild(savedPositionsActions);
 
   ids.moveEverythingWindowList.appendChild(fragment);
   applyMoveEverythingTitleSizing();
@@ -5492,6 +5567,12 @@ function normalizeSettings(settings) {
     moveEverythingHideWindowHotkey: normalizeHotkeyObject(source.moveEverythingHideWindowHotkey),
     moveEverythingNameWindowHotkey: normalizeHotkeyObject(source.moveEverythingNameWindowHotkey),
     moveEverythingQuickViewHotkey: normalizeHotkeyObject(source.moveEverythingQuickViewHotkey),
+    moveEverythingUndoWindowMovementHotkey: normalizeHotkeyObject(
+      source.moveEverythingUndoWindowMovementHotkey
+    ),
+    moveEverythingRedoWindowMovementHotkey: normalizeHotkeyObject(
+      source.moveEverythingRedoWindowMovementHotkey
+    ),
   };
 }
 
@@ -5619,6 +5700,8 @@ function normalizeMoveEverythingWindowInventory(value) {
     visible,
     hidden,
     undoRetileAvailable: Boolean(value?.undoRetileAvailable),
+    savedPositionsPreviousAvailable: Boolean(value?.savedPositionsPreviousAvailable),
+    savedPositionsNextAvailable: Boolean(value?.savedPositionsNextAvailable),
   };
 }
 
@@ -5721,6 +5804,9 @@ function createDefaultConfig() {
       moveEverythingCloseWindowHotkey: null,
       moveEverythingHideWindowHotkey: null,
       moveEverythingNameWindowHotkey: null,
+      moveEverythingQuickViewHotkey: null,
+      moveEverythingUndoWindowMovementHotkey: null,
+      moveEverythingRedoWindowMovementHotkey: null,
     },
     shortcuts: [],
   };

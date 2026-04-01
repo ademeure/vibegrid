@@ -242,6 +242,8 @@ struct Settings: Codable {
     var moveEverythingHideWindowHotkey: Hotkey?
     var moveEverythingNameWindowHotkey: Hotkey?
     var moveEverythingQuickViewHotkey: Hotkey?
+    var moveEverythingUndoWindowMovementHotkey: Hotkey?
+    var moveEverythingRedoWindowMovementHotkey: Hotkey?
 
     static var `default`: Settings {
         Settings(
@@ -291,7 +293,9 @@ struct Settings: Codable {
             moveEverythingCloseWindowHotkey: nil,
             moveEverythingHideWindowHotkey: nil,
             moveEverythingNameWindowHotkey: nil,
-            moveEverythingQuickViewHotkey: nil
+            moveEverythingQuickViewHotkey: nil,
+            moveEverythingUndoWindowMovementHotkey: nil,
+            moveEverythingRedoWindowMovementHotkey: nil
         )
     }
 
@@ -342,7 +346,9 @@ struct Settings: Codable {
         moveEverythingCloseWindowHotkey: Hotkey? = nil,
         moveEverythingHideWindowHotkey: Hotkey? = nil,
         moveEverythingNameWindowHotkey: Hotkey? = nil,
-        moveEverythingQuickViewHotkey: Hotkey? = nil
+        moveEverythingQuickViewHotkey: Hotkey? = nil,
+        moveEverythingUndoWindowMovementHotkey: Hotkey? = nil,
+        moveEverythingRedoWindowMovementHotkey: Hotkey? = nil
     ) {
         self.defaultGridColumns = defaultGridColumns
         self.defaultGridRows = defaultGridRows
@@ -391,6 +397,8 @@ struct Settings: Codable {
         self.moveEverythingHideWindowHotkey = moveEverythingHideWindowHotkey
         self.moveEverythingNameWindowHotkey = moveEverythingNameWindowHotkey
         self.moveEverythingQuickViewHotkey = moveEverythingQuickViewHotkey
+        self.moveEverythingUndoWindowMovementHotkey = moveEverythingUndoWindowMovementHotkey
+        self.moveEverythingRedoWindowMovementHotkey = moveEverythingRedoWindowMovementHotkey
     }
 
     enum CodingKeys: String, CodingKey {
@@ -442,6 +450,8 @@ struct Settings: Codable {
         case moveEverythingHideWindowHotkey
         case moveEverythingNameWindowHotkey
         case moveEverythingQuickViewHotkey
+        case moveEverythingUndoWindowMovementHotkey
+        case moveEverythingRedoWindowMovementHotkey
     }
 
     init(from decoder: Decoder) throws {
@@ -549,6 +559,14 @@ struct Settings: Codable {
         moveEverythingHideWindowHotkey = try container.decodeIfPresent(Hotkey.self, forKey: .moveEverythingHideWindowHotkey)
         moveEverythingNameWindowHotkey = try container.decodeIfPresent(Hotkey.self, forKey: .moveEverythingNameWindowHotkey)
         moveEverythingQuickViewHotkey = try container.decodeIfPresent(Hotkey.self, forKey: .moveEverythingQuickViewHotkey)
+        moveEverythingUndoWindowMovementHotkey = try container.decodeIfPresent(
+            Hotkey.self,
+            forKey: .moveEverythingUndoWindowMovementHotkey
+        )
+        moveEverythingRedoWindowMovementHotkey = try container.decodeIfPresent(
+            Hotkey.self,
+            forKey: .moveEverythingRedoWindowMovementHotkey
+        )
         if let decodedThemeMode = try container.decodeIfPresent(ThemeMode.self, forKey: .themeMode) {
             themeMode = decodedThemeMode
         } else {
@@ -615,6 +633,14 @@ struct Settings: Codable {
         try container.encodeIfPresent(moveEverythingHideWindowHotkey, forKey: .moveEverythingHideWindowHotkey)
         try container.encodeIfPresent(moveEverythingNameWindowHotkey, forKey: .moveEverythingNameWindowHotkey)
         try container.encodeIfPresent(moveEverythingQuickViewHotkey, forKey: .moveEverythingQuickViewHotkey)
+        try container.encodeIfPresent(
+            moveEverythingUndoWindowMovementHotkey,
+            forKey: .moveEverythingUndoWindowMovementHotkey
+        )
+        try container.encodeIfPresent(
+            moveEverythingRedoWindowMovementHotkey,
+            forKey: .moveEverythingRedoWindowMovementHotkey
+        )
     }
 }
 
@@ -623,6 +649,8 @@ enum MoveEverythingHotkeyAction: String, CaseIterable {
     case hideWindow
     case nameWindow
     case quickView
+    case undoWindowMovement
+    case redoWindowMovement
 
     var displayName: String {
         switch self {
@@ -634,6 +662,10 @@ enum MoveEverythingHotkeyAction: String, CaseIterable {
             return "Name Window"
         case .quickView:
             return "Quick View"
+        case .undoWindowMovement:
+            return "Undo Window Movement"
+        case .redoWindowMovement:
+            return "Redo Window Movement"
         }
     }
 }
@@ -649,6 +681,10 @@ extension Settings {
             return moveEverythingNameWindowHotkey
         case .quickView:
             return moveEverythingQuickViewHotkey
+        case .undoWindowMovement:
+            return moveEverythingUndoWindowMovementHotkey
+        case .redoWindowMovement:
+            return moveEverythingRedoWindowMovementHotkey
         }
     }
 }
@@ -909,6 +945,12 @@ extension AppConfig {
         copy.settings.moveEverythingHideWindowHotkey = normalizeHotkey(copy.settings.moveEverythingHideWindowHotkey)
         copy.settings.moveEverythingNameWindowHotkey = normalizeHotkey(copy.settings.moveEverythingNameWindowHotkey)
         copy.settings.moveEverythingQuickViewHotkey = normalizeHotkey(copy.settings.moveEverythingQuickViewHotkey)
+        copy.settings.moveEverythingUndoWindowMovementHotkey = normalizeHotkey(
+            copy.settings.moveEverythingUndoWindowMovementHotkey
+        )
+        copy.settings.moveEverythingRedoWindowMovementHotkey = normalizeHotkey(
+            copy.settings.moveEverythingRedoWindowMovementHotkey
+        )
 
         var seenShortcutIDs: Set<String> = []
         copy.shortcuts = copy.shortcuts.map { shortcut in

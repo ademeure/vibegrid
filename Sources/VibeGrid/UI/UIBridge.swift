@@ -169,6 +169,33 @@ final class UIBridge: NSObject, WKScriptMessageHandler {
                 sendNotice(level: "error", message: "Unable to show hidden windows")
             }
 
+        case "moveEverythingSavePositions":
+            if !appState.saveCurrentMoveEverythingWindowPositions() {
+                let message = appState.moveEverythingLastDirectActionError() ?? "Unable to save current window positions"
+                sendNotice(level: "error", message: message)
+            } else if let message = appState.moveEverythingLastDirectActionError(), !message.isEmpty {
+                sendNotice(level: "info", message: message)
+            }
+            pushStateToWeb(forceMoveEverythingWindowRefresh: false, allowMoveEverythingWindowRefresh: false)
+
+        case "moveEverythingRestorePreviousPositions":
+            if !appState.restorePreviousMoveEverythingSavedWindowPositions() {
+                let message = appState.moveEverythingLastDirectActionError() ?? "Unable to restore previous saved positions"
+                sendNotice(level: "error", message: message)
+            } else if let message = appState.moveEverythingLastDirectActionError(), !message.isEmpty {
+                sendNotice(level: "info", message: message)
+            }
+            pushStateToWeb(forceMoveEverythingWindowRefresh: false, allowMoveEverythingWindowRefresh: false)
+
+        case "moveEverythingRestoreNextPositions":
+            if !appState.restoreNextMoveEverythingSavedWindowPositions() {
+                let message = appState.moveEverythingLastDirectActionError() ?? "Unable to restore next saved positions"
+                sendNotice(level: "error", message: message)
+            } else if let message = appState.moveEverythingLastDirectActionError(), !message.isEmpty {
+                sendNotice(level: "info", message: message)
+            }
+            pushStateToWeb(forceMoveEverythingWindowRefresh: false, allowMoveEverythingWindowRefresh: false)
+
         case "moveEverythingFocusWindow":
             let payload = (body["payload"] as? [String: Any]) ?? [:]
             let key = payload["key"] as? String ?? ""
@@ -665,7 +692,9 @@ final class UIBridge: NSObject, WKScriptMessageHandler {
     private static let emptyMoveEverythingWindowInventoryPayload: [String: Any] = [
         "visible": [],
         "hidden": [],
-        "undoRetileAvailable": false
+        "undoRetileAvailable": false,
+        "savedPositionsPreviousAvailable": false,
+        "savedPositionsNextAvailable": false,
     ]
 }
 

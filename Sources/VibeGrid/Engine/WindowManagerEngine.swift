@@ -71,11 +71,35 @@ final class WindowManagerEngine: WindowManagerEngineProtocol {
     struct MoveEverythingRetileUndoWindowState {
         let originalFrame: CGRect
         let retiledFrame: CGRect
+        let targetFrame: CGRect
     }
 
     struct MoveEverythingRetileUndoRecord {
         var windowStatesByKey: [String: MoveEverythingRetileUndoWindowState]
         var orderedWindowKeys: [String]
+    }
+
+    struct MoveEverythingSavedWindowPositionMatch {
+        let saved: MoveEverythingSavedWindowPosition
+        let managedWindow: MoveEverythingManagedWindow
+    }
+
+    struct HotkeyWindowMovementTarget {
+        let pid: pid_t
+        let windowNumber: Int?
+        let title: String
+        let appName: String
+    }
+
+    struct HotkeyWindowMovementRecord {
+        let target: HotkeyWindowMovementTarget
+        let fromFrame: CGRect
+        let toFrame: CGRect
+    }
+
+    enum ResolvedHotkeyWindowMovementTarget {
+        case own(NSWindow)
+        case managed(MoveEverythingManagedWindow)
     }
 
     // MARK: - Stored properties
@@ -120,6 +144,10 @@ final class WindowManagerEngine: WindowManagerEngineProtocol {
     var moveEverythingHiddenWindowVisibilitySuppressionByKey: [String: Date] = [:]
     var moveEverythingPendingHideVisibleSuppressionByKey: [String: Date] = [:]
     var moveEverythingLastRetileUndoRecord: MoveEverythingRetileUndoRecord?
+    var moveEverythingSavedWindowPositionSnapshots: [MoveEverythingSavedWindowPositionsSnapshot] = []
+    var moveEverythingSavedWindowPositionSelectedIndex: Int?
+    var hotkeyWindowMovementUndoHistory: [HotkeyWindowMovementRecord] = []
+    var hotkeyWindowMovementRedoHistory: [HotkeyWindowMovementRecord] = []
     var moveEverythingHoverAdvancedOriginalFrameByWindowKey: [String: CGRect] = [:]
     var moveEverythingIconDataURLByPID: [pid_t: String] = [:]
     var moveEverythingResolvedInventoryCache: MoveEverythingManagedWindowInventory?
@@ -139,7 +167,12 @@ final class WindowManagerEngine: WindowManagerEngineProtocol {
     let moveEverythingSelectionSyncSuppressionInterval: TimeInterval = 0.2
     let moveEverythingHoverRetentionInterval: TimeInterval = 0.35
     let moveEverythingResolvedInventoryRefreshInterval: TimeInterval = 0.35
-    let moveEverythingRetileUndoFrameTolerance: CGFloat = 6
+    let moveEverythingRetileUndoPositionTolerance: CGFloat = 14
+    let moveEverythingRetileUndoCaptureTimeout: TimeInterval = 0.18
+    let moveEverythingRetileUndoRestoreTimeout: TimeInterval = 0.45
+    let moveEverythingSavedPositionRestoreTimeout: TimeInterval = 0.12
+    let moveEverythingSavedPositionRestoreSettleDelay: TimeInterval = 0.06
+    let hotkeyWindowMovementHistoryLimit = 100
     let axMessagingTimeout: Float = 1.0
     let axFocusMessagingTimeout: Float = 0.2
     let moveEverythingAdvancedControlCenterWidth: CGFloat = 1450
@@ -159,6 +192,7 @@ final class WindowManagerEngine: WindowManagerEngineProtocol {
     var onMoveEverythingInventoryRefreshed: (() -> Void)?
     var onMoveEverythingNameWindowRequested: ((String) -> Void)?
     var onMoveEverythingQuickViewRequested: (() -> Void)?
+    var onMoveEverythingLatestSavedWindowPositionsChanged: ((MoveEverythingSavedWindowPositionsSnapshot?) -> Void)?
     var isMoveEverythingAlwaysOnTopEnabledProvider: (() -> Bool)?
     var cachedDesktopFrame: CGRect?
     var cachedDesktopFrameScreenCount: Int = 0
@@ -300,6 +334,8 @@ final class WindowManagerEngine: WindowManagerEngineProtocol {
 
         actions.append(.nameWindow)
         actions.append(.quickView)
+        actions.append(.undoWindowMovement)
+        actions.append(.redoWindowMovement)
 
         return actions
     }
