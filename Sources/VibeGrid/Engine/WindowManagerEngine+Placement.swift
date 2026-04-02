@@ -347,7 +347,7 @@ extension WindowManagerEngine {
     // MARK: - MoveEverything action dispatch
 
     func handleMoveEverythingAction(_ action: MoveEverythingHotkeyAction) {
-        if isMoveEverythingActive {
+        if isMoveEverythingActive && (action == .closeWindow || action == .hideWindow) {
             syncMoveEverythingSelectionToFocusedWindowIfNeeded(forceFocusedWindowRefresh: true)
         }
 
@@ -413,7 +413,7 @@ extension WindowManagerEngine {
             .trimmingCharacters(in: .whitespacesAndNewlines) ?? "PID \(pid)"
         return HotkeyWindowMovementTarget(
             pid: pid,
-            windowNumber: copyIntAttribute(from: axWindow, attribute: "AXWindowNumber"),
+            windowNumber: resolvedAXWindowNumber(for: axWindow),
             title: title,
             appName: appName
         )
@@ -623,51 +623,62 @@ extension WindowManagerEngine {
     }
 
     func nameWindowFromHotkey() {
-        guard let focusedAXWindow = focusedWindow() else {
+        if isMoveEverythingActive,
+           let hoveredKey = moveEverythingHoveredWindowKey,
+           isMoveEverythingControlCenterFocused() {
+            onMoveEverythingNameWindowRequested?(hoveredKey)
             return
         }
-        var focusedPID: pid_t = 0
-        AXUIElementGetPid(focusedAXWindow, &focusedPID)
-        if focusedPID == ProcessInfo.processInfo.processIdentifier {
-            // Control center is focused — use the hovered window from the list if available
-            if let key = moveEverythingHoveredWindowKey {
-                onMoveEverythingNameWindowRequested?(key)
+
+        let currentRunState = moveEverythingRunState
+        let currentSelectionKey: String? = {
+            guard let currentRunState,
+                  currentRunState.windows.indices.contains(currentRunState.currentIndex) else {
+                return nil
             }
+            return currentRunState.windows[currentRunState.currentIndex].key
+        }()
+
+        let focusedAXWindow = focusedWindow()
+        if isMoveEverythingActive,
+           let focusedAXWindow,
+           let currentRunState,
+           let matchedKey = moveEverythingMatchingWindowKey(
+                forFocusedAXWindow: focusedAXWindow,
+                among: currentRunState.windows
+           ) {
+            onMoveEverythingNameWindowRequested?(matchedKey)
+            return
+        }
+
+        if isMoveEverythingActive,
+           let focusedAXWindow {
+            var focusedPID: pid_t = 0
+            AXUIElementGetPid(focusedAXWindow, &focusedPID)
+            if focusedPID == ProcessInfo.processInfo.processIdentifier,
+               let currentSelectionKey {
+                onMoveEverythingNameWindowRequested?(currentSelectionKey)
+                return
+            }
+        } else if let currentSelectionKey {
+            onMoveEverythingNameWindowRequested?(currentSelectionKey)
+            return
+        }
+
+        guard let focusedAXWindow else {
             return
         }
 
         let inventory = resolveMoveEverythingWindowInventory(forceRefresh: true)
         let allWindows = inventory.visible + inventory.hidden
-
-        let candidates = allWindows.filter { $0.pid == focusedPID }
-        guard !candidates.isEmpty else {
+        guard let matchedKey = moveEverythingMatchingWindowKey(
+            forFocusedAXWindow: focusedAXWindow,
+            among: allWindows
+        ) else {
             return
         }
 
-        var matchedKey: String?
-        if let focusedWindowNumber = copyIntAttribute(from: focusedAXWindow, attribute: "AXWindowNumber") {
-            matchedKey = candidates.first(where: { $0.windowNumber == focusedWindowNumber })?.key
-        }
-        if matchedKey == nil {
-            matchedKey = candidates.first(where: { CFEqual($0.window, focusedAXWindow) })?.key
-        }
-        if matchedKey == nil, let focusedFrame = currentWindowRect(for: focusedAXWindow)?.integral {
-            matchedKey = candidates.first(where: { managedWindow in
-                guard let frame = currentWindowRect(for: managedWindow.window)?.integral else {
-                    return false
-                }
-                return frame == focusedFrame
-            })?.key
-        }
-        if matchedKey == nil, candidates.count == 1 {
-            matchedKey = candidates.first?.key
-        }
-
-        guard let key = matchedKey else {
-            return
-        }
-
-        onMoveEverythingNameWindowRequested?(key)
+        onMoveEverythingNameWindowRequested?(matchedKey)
     }
 
     // MARK: - Placement cycling

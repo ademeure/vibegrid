@@ -134,6 +134,10 @@ final class WindowManagerEngine: WindowManagerEngineProtocol {
     var moveEverythingHoverElevatedWindows: [(windowNumber: Int, originalLevel: Int32)] = []
     var moveEverythingHoverOriginalLevelByWindowNumber: [Int: Int32] = [:]
     var moveEverythingResolvedWindowNumberByKey: [String: Int] = [:]
+    /// Caches the iTerm window descriptor by CG window number so that hotkey
+    /// moves (which change the frame) don't cause the frame-based iTerm
+    /// resolver to match the wrong session.
+    var moveEverythingITermDescriptorByWindowNumber: [Int: ITermWindowInventoryResolver.WindowDescriptor] = [:]
     var moveEverythingFocusedKeyBeforeHover: String?
     var moveEverythingShowOverlays = true
     var moveEverythingMoveToBottom = false
@@ -172,6 +176,7 @@ final class WindowManagerEngine: WindowManagerEngineProtocol {
     let moveEverythingRetileUndoRestoreTimeout: TimeInterval = 0.45
     let moveEverythingSavedPositionRestoreTimeout: TimeInterval = 0.12
     let moveEverythingSavedPositionRestoreSettleDelay: TimeInterval = 0.06
+    let moveEverythingSavedWindowPositionHistoryLimit = 20
     let hotkeyWindowMovementHistoryLimit = 100
     let axMessagingTimeout: Float = 1.0
     let axFocusMessagingTimeout: Float = 0.2
@@ -192,7 +197,7 @@ final class WindowManagerEngine: WindowManagerEngineProtocol {
     var onMoveEverythingInventoryRefreshed: (() -> Void)?
     var onMoveEverythingNameWindowRequested: ((String) -> Void)?
     var onMoveEverythingQuickViewRequested: (() -> Void)?
-    var onMoveEverythingLatestSavedWindowPositionsChanged: ((MoveEverythingSavedWindowPositionsSnapshot?) -> Void)?
+    var onMoveEverythingSavedWindowPositionsHistoryChanged: (([MoveEverythingSavedWindowPositionsSnapshot]) -> Void)?
     var isMoveEverythingAlwaysOnTopEnabledProvider: (() -> Bool)?
     var cachedDesktopFrame: CGRect?
     var cachedDesktopFrameScreenCount: Int = 0

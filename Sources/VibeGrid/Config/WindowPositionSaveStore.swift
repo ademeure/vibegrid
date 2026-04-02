@@ -9,30 +9,40 @@ final class WindowPositionSaveStore {
         self.saveURL = saveURL ?? Self.defaultSaveURL(fileManager: fileManager)
     }
 
-    func loadLatest() -> MoveEverythingSavedWindowPositionsSnapshot? {
+    func loadSnapshots() -> [MoveEverythingSavedWindowPositionsSnapshot] {
         ensureDirectoryExists()
         guard fileManager.fileExists(atPath: saveURL.path) else {
-            return nil
+            return []
         }
 
         do {
             let data = try Data(contentsOf: saveURL)
-            return try JSONDecoder().decode(MoveEverythingSavedWindowPositionsSnapshot.self, from: data)
+            if let payload = try? JSONDecoder().decode(SavedSnapshotHistory.self, from: data) {
+                return payload.snapshots
+            }
+            if let snapshots = try? JSONDecoder().decode([MoveEverythingSavedWindowPositionsSnapshot].self, from: data) {
+                return snapshots
+            }
+            if let snapshot = try? JSONDecoder().decode(MoveEverythingSavedWindowPositionsSnapshot.self, from: data) {
+                return snapshot.windows.isEmpty ? [] : [snapshot]
+            }
+            NSLog("VibeGrid: failed to decode saved window positions history from %@", saveURL.path)
+            return []
         } catch {
             NSLog(
                 "VibeGrid: failed to load saved window positions from %@: %@",
                 saveURL.path,
                 String(describing: error)
             )
-            return nil
+            return []
         }
     }
 
     @discardableResult
-    func saveLatest(_ snapshot: MoveEverythingSavedWindowPositionsSnapshot?) -> Bool {
+    func saveSnapshots(_ snapshots: [MoveEverythingSavedWindowPositionsSnapshot]) -> Bool {
         ensureDirectoryExists()
 
-        if snapshot == nil {
+        if snapshots.isEmpty {
             do {
                 if fileManager.fileExists(atPath: saveURL.path) {
                     try fileManager.removeItem(at: saveURL)
@@ -49,7 +59,9 @@ final class WindowPositionSaveStore {
         }
 
         do {
-            let data = try JSONEncoder().encode(snapshot)
+            let data = try JSONEncoder().encode(
+                SavedSnapshotHistory(snapshots: snapshots)
+            )
             try data.write(to: saveURL, options: .atomic)
             return true
         } catch {
@@ -83,5 +95,9 @@ final class WindowPositionSaveStore {
         } catch {
             NSLog("VibeGrid: failed to create window position save directory: %@", String(describing: error))
         }
+    }
+
+    private struct SavedSnapshotHistory: Codable {
+        let snapshots: [MoveEverythingSavedWindowPositionsSnapshot]
     }
 }

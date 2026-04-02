@@ -109,11 +109,6 @@ const state = {
   moveEverythingCustomITermWindowBadgeColorByKey: {},
   moveEverythingCustomITermWindowBadgeOpacityByKey: {},
   moveEverythingCustomTitleStaleSince: {},
-  moveEverythingActivityLastStatus: {},
-  moveEverythingActivityFrozenUntil: {},
-  moveEverythingActivitySawIdleSinceUnhover: {},
-  moveEverythingActivityActiveUntil: {},
-  moveEverythingActivityConsecutiveActive: {},
   moveEverythingLastButtonActionToken: null,
   moveEverythingLastButtonActionAt: 0,
 };
@@ -180,6 +175,7 @@ const ids = {
   moveEverythingWindowList: document.getElementById("moveEverythingWindowList"),
   moveEverythingRetileBtn: document.getElementById("moveEverythingRetileBtn"),
   moveEverythingMiniRetileBtn: document.getElementById("moveEverythingMiniRetileBtn"),
+  moveEverythingHybridRetileBtn: document.getElementById("moveEverythingHybridRetileBtn"),
   moveEverythingUndoRetileBtn: document.getElementById("moveEverythingUndoRetileBtn"),
   moveEverythingAlwaysOnTop: document.getElementById("moveEverythingAlwaysOnTop"),
   moveEverythingAlwaysOnTopLabel: document.getElementById("moveEverythingAlwaysOnTopLabel"),
@@ -490,24 +486,7 @@ function receiveState(payload) {
     Boolean(payload?.moveEverythingDontMoveVibeGrid)
   );
   state.moveEverythingWindows = normalizeMoveEverythingWindowInventory(payload?.moveEverythingWindows);
-  const previousFocusedWindowKey = state.moveEverythingFocusedWindowKey;
   state.moveEverythingFocusedWindowKey = String(payload?.moveEverythingFocusedWindowKey || "").trim() || null;
-  // When focus changes, freeze BOTH the newly-focused and previously-focused
-  // windows. Apps like Claude Code write to TTY on both focus and defocus
-  // (status line updates, state saves).
-  if (state.moveEverythingFocusedWindowKey !== previousFocusedWindowKey) {
-    const now = Date.now();
-    // Always reset the freeze on focus change — an expired freeze from a
-    // previous focus change must not block setting a new one.
-    if (state.moveEverythingFocusedWindowKey) {
-      state.moveEverythingActivityFrozenUntil[state.moveEverythingFocusedWindowKey] = now + 1500;
-      delete state.moveEverythingActivitySawIdleSinceUnhover[state.moveEverythingFocusedWindowKey];
-    }
-    if (previousFocusedWindowKey) {
-      state.moveEverythingActivityFrozenUntil[previousFocusedWindowKey] = now + 1500;
-      delete state.moveEverythingActivitySawIdleSinceUnhover[previousFocusedWindowKey];
-    }
-  }
   applyTheme();
   applyLargerFonts();
 
@@ -967,10 +946,10 @@ function renderMoveEverythingModal() {
       );
     }
     if (ids.moveEverythingITermRecentActivityTimeoutSetting && ids.moveEverythingITermRecentActivityTimeoutSetting.parentElement) {
-      ids.moveEverythingITermRecentActivityTimeoutSetting.parentElement.style.display = "";
+      ids.moveEverythingITermRecentActivityTimeoutSetting.parentElement.style.display = "none";
     }
     if (ids.moveEverythingITermRecentActivityBufferSetting && ids.moveEverythingITermRecentActivityBufferSetting.parentElement) {
-      ids.moveEverythingITermRecentActivityBufferSetting.parentElement.style.display = "";
+      ids.moveEverythingITermRecentActivityBufferSetting.parentElement.style.display = "none";
     }
     if (ids.moveEverythingITermRecentActivityActiveTextSetting && ids.moveEverythingITermRecentActivityActiveTextSetting.parentElement) {
       ids.moveEverythingITermRecentActivityActiveTextSetting.parentElement.style.display = "";
@@ -1493,6 +1472,10 @@ function retileVisibleMoveEverythingWindows() {
 
 function miniRetileVisibleMoveEverythingWindows() {
   sendToNative("moveEverythingMiniRetileVisibleWindows");
+}
+
+function hybridRetileVisibleMoveEverythingWindows() {
+  sendToNative("moveEverythingHybridRetileVisibleWindows");
 }
 
 function undoLastMoveEverythingRetile() {
@@ -2506,9 +2489,8 @@ function resolveMoveEverythingWindowActivityStatus(windowItem) {
     return "unknown";
   }
   // For iTerm windows: prefer the enriched activity status from the Swift
-  // layer (which combines TTY mtime + title-change tracking and is
-  // hover-aware). Fall through to raw-title markers only when the enriched
-  // status is unavailable.
+  // layer. Fall through to raw-title markers only when the enriched status
+  // is unavailable.
   if (isLikelyITermWindow(windowItem)) {
     const status = windowItem.iTermActivityStatus;
     if (status === "active" || status === "idle") {
@@ -2529,101 +2511,14 @@ function resolveMoveEverythingWindowActivityStatus(windowItem) {
     return "idle";
   }
   if (isLikelyITermWindow(windowItem)) {
-    return "idle";
+    return "unknown";
   }
   return "unknown";
 }
 
-// Hover-raise activates iTerm which touches the TTY, causing a spurious
-// ttyActive=true. Freeze the activity status during hover and for a grace
-// period after so the color doesn't flash.
-// Slightly longer than moveEverythingITermRecentActivityTimeout (5s) so the
-// TTY spike from hover-raise has fully expired by the time the freeze lifts.
 function resolveStableActivityStatus(windowItem, hovered) {
-  const key = String(windowItem?.key || "");
-  const liveStatus = resolveMoveEverythingWindowActivityStatus(windowItem);
-  const now = Date.now();
-  const activityTimeoutMs = (state.config?.settings?.moveEverythingITermRecentActivityTimeout ?? 1) * 1000;
-
-  if (hovered) {
-    // Freeze: snapshot the pre-hover status so we can detect the false spike.
-    // Always update frozenUntil so re-hovering resets the grace period.
-    state.moveEverythingActivityFrozenUntil[key] = now + 1500;
-    delete state.moveEverythingActivitySawIdleSinceUnhover[key];
-    return state.moveEverythingActivityLastStatus[key] || liveStatus;
-  }
-
-  const frozenUntil = state.moveEverythingActivityFrozenUntil[key];
-  const frozenStatus = state.moveEverythingActivityLastStatus[key];
-
-  // Short grace (1s) right after unhover for async poll lag.
-  if (frozenUntil && now < frozenUntil) {
-    return frozenStatus || liveStatus;
-  }
-
-  // After the 1s grace: detect the false spike pattern.
-  // If the window was idle before hover and is now active, suppress until
-  // the spike subsides (live goes back to idle) OR a max duration expires.
-  // Some apps (Claude Code) write to the TTY continuously while focused
-  // from hover-raise, so sawIdle alone would deadlock — the max duration
-  // (2x activity timeout) is the safety valve.
-  if (frozenUntil && frozenStatus === "idle") {
-    const maxSuppression = frozenUntil + activityTimeoutMs;
-    if (liveStatus === "idle") {
-      state.moveEverythingActivitySawIdleSinceUnhover[key] = true;
-    }
-    if (liveStatus === "active" &&
-        !state.moveEverythingActivitySawIdleSinceUnhover[key] &&
-        now < maxSuppression) {
-      return "idle";
-    }
-  }
-
-  // No freeze active. Normal tracking with active→idle buffer, but only
-  // arm the buffer after sustained activity (3+ consecutive active polls)
-  // so that brief TTY spikes (e.g. tmux status-bar redraws) show green
-  // for at most 1-2 render cycles instead of getting a full 4s tail.
-  delete state.moveEverythingActivityFrozenUntil[key];
-  delete state.moveEverythingActivitySawIdleSinceUnhover[key];
-
-  // Update lastStatus with the REAL live status (not buffered) so the
-  // spike detector sees the true pre-focus state on the next focus change.
-  state.moveEverythingActivityLastStatus[key] = liveStatus;
-
-  if (liveStatus === "active") {
-    const bufferMs = (state.config?.settings?.moveEverythingITermRecentActivityBuffer ?? 4) * 1000;
-    state.moveEverythingActivityConsecutiveActive[key] =
-      (state.moveEverythingActivityConsecutiveActive[key] || 0) + 1;
-    const consecutiveActive = state.moveEverythingActivityConsecutiveActive[key];
-
-    // If already in confirmed-active buffer (from prior sustained activity),
-    // extend it immediately — handles brief gaps in ongoing activity.
-    const activeUntil = state.moveEverythingActivityActiveUntil[key];
-    if (activeUntil && now < activeUntil) {
-      state.moveEverythingActivityActiveUntil[key] = now + bufferMs;
-      return "active";
-    }
-
-    // Only arm the hold-active buffer once we've seen 3+ consecutive
-    // active polls, proving sustained TTY writes rather than a single
-    // periodic spike (tmux status-bar refresh, cursor blink, etc.).
-    if (consecutiveActive >= 3) {
-      state.moveEverythingActivityActiveUntil[key] = now + bufferMs;
-    }
-    // Always show green immediately — no detection delay.
-    return "active";
-  }
-
-  // liveStatus is idle — reset consecutive counter and check buffer.
-  delete state.moveEverythingActivityConsecutiveActive[key];
-
-  const activeUntil = state.moveEverythingActivityActiveUntil[key];
-  if (activeUntil && now < activeUntil) {
-    return "active";
-  }
-
-  delete state.moveEverythingActivityActiveUntil[key];
-  return liveStatus;
+  void hovered;
+  return resolveMoveEverythingWindowActivityStatus(windowItem);
 }
 
 function resolveMoveEverythingDisplayedWindowTitle(windowItem) {
@@ -6063,6 +5958,7 @@ function wireEvents() {
   );
   on(ids.moveEverythingRetileBtn, "click", retileVisibleMoveEverythingWindows);
   on(ids.moveEverythingMiniRetileBtn, "click", miniRetileVisibleMoveEverythingWindows);
+  on(ids.moveEverythingHybridRetileBtn, "click", hybridRetileVisibleMoveEverythingWindows);
   on(ids.moveEverythingUndoRetileBtn, "click", undoLastMoveEverythingRetile);
   on(ids.moveEverythingSaveDefaultsBtn, "click", saveCurrentMoveEverythingAsDefaults);
   on(ids.moveEverythingResetDefaultsBtn, "click", resetMoveEverythingDefaults);

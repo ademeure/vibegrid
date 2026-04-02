@@ -337,6 +337,15 @@ final class UIBridge: NSObject, WKScriptMessageHandler {
             }
             pushStateToWeb(forceMoveEverythingWindowRefresh: true)
 
+        case "moveEverythingHybridRetileVisibleWindows":
+            if !appState.hybridRetileVisibleMoveEverythingWindows() {
+                let message = appState.moveEverythingLastDirectActionError() ?? "Unable to hybrid retile visible windows"
+                sendNotice(level: "error", message: message)
+            } else if let message = appState.moveEverythingLastDirectActionError(), !message.isEmpty {
+                sendNotice(level: "info", message: message)
+            }
+            pushStateToWeb(forceMoveEverythingWindowRefresh: true)
+
         case "moveEverythingUndoRetile":
             if !appState.undoLastMoveEverythingRetile() {
                 let message = appState.moveEverythingLastDirectActionError() ?? "Unable to undo the last retile"
@@ -643,12 +652,13 @@ final class UIBridge: NSObject, WKScriptMessageHandler {
     }
 
     private func enrichInventoryWithActivity(_ payload: Any, inventory: MoveEverythingWindowInventory) -> Any {
-        // Kick off an async TTY activity poll (results arrive and trigger refresh).
+        // Kick off an async iTerm screen poll (results arrive and trigger refresh).
         // Pass the inventory we already have to avoid a redundant AX enumeration.
         appState.refreshITermActivity(cachedInventory: inventory)
 
-        // Compute activity status from TTY mtime only (Python poll).
-        let ttyCache = appState.iTermActivityCache
+        // Compute activity status from detector output built from recent
+        // visible-screen deltas and profile-specific rules.
+        let activityCache = appState.iTermActivityCache
         let badgeTextCache = appState.iTermBadgeTextCache
         let sessionNameCache = appState.iTermSessionNameCache
         let lastLineCache = appState.iTermLastLineCache
@@ -658,8 +668,10 @@ final class UIBridge: NSObject, WKScriptMessageHandler {
             let appName = snapshot.appName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
             guard appName.contains("iterm") else { continue }
 
-            let ttyActive = ttyCache[snapshot.key] == "active"
-            statusByKey[snapshot.key] = ttyActive ? "active" : "idle"
+            if let status = activityCache[snapshot.key],
+               status == "active" || status == "idle" {
+                statusByKey[snapshot.key] = status
+            }
         }
 
         guard var dict = payload as? [String: Any] else { return payload }

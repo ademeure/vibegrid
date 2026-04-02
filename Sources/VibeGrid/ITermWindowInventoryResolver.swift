@@ -1,5 +1,6 @@
 import CoreGraphics
 import Foundation
+import ITermActivityKit
 
 struct ITermWindowInventoryResolver {
     struct WindowDescriptor {
@@ -712,9 +713,7 @@ struct ITermWindowInventoryResolver {
     private static var venvProvisioningInProgress = false
 
     static func pythonURL() -> URL {
-        FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(venvRelativePath)
-            .appendingPathComponent("bin/python")
+        ITermWindowActivityDetector.defaultPythonURL()
     }
 
     /// Ensures the Python venv with the iterm2 package exists.
