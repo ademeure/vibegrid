@@ -143,7 +143,6 @@ final class UIBridge: NSObject, WKScriptMessageHandler {
             if !appState.closeMoveEverythingWindow(withKey: key) {
                 sendNotice(level: "error", message: "Unable to close that window")
             }
-            pushStateToWeb(forceMoveEverythingWindowRefresh: true)
 
         case "moveEverythingHideWindow":
             let key = (body["payload"] as? [String: Any])?["key"] as? String ?? ""
@@ -154,7 +153,6 @@ final class UIBridge: NSObject, WKScriptMessageHandler {
             if !appState.hideMoveEverythingWindow(withKey: key) {
                 sendNotice(level: "error", message: "Unable to hide that window")
             }
-            pushStateToWeb(forceMoveEverythingWindowRefresh: true)
 
         case "moveEverythingShowWindow":
             let key = (body["payload"] as? [String: Any])?["key"] as? String ?? ""
@@ -165,7 +163,38 @@ final class UIBridge: NSObject, WKScriptMessageHandler {
             if !appState.showHiddenMoveEverythingWindow(withKey: key) {
                 sendNotice(level: "error", message: "Unable to show that window")
             }
-            pushStateToWeb(forceMoveEverythingWindowRefresh: true)
+
+        case "moveEverythingShowAllWindows":
+            if !appState.showAllHiddenMoveEverythingWindows() {
+                sendNotice(level: "error", message: "Unable to show hidden windows")
+            }
+
+        case "moveEverythingSavePositions":
+            if !appState.saveCurrentMoveEverythingWindowPositions() {
+                let message = appState.moveEverythingLastDirectActionError() ?? "Unable to save current window positions"
+                sendNotice(level: "error", message: message)
+            } else if let message = appState.moveEverythingLastDirectActionError(), !message.isEmpty {
+                sendNotice(level: "info", message: message)
+            }
+            pushStateToWeb(forceMoveEverythingWindowRefresh: false, allowMoveEverythingWindowRefresh: false)
+
+        case "moveEverythingRestorePreviousPositions":
+            if !appState.restorePreviousMoveEverythingSavedWindowPositions() {
+                let message = appState.moveEverythingLastDirectActionError() ?? "Unable to restore previous saved positions"
+                sendNotice(level: "error", message: message)
+            } else if let message = appState.moveEverythingLastDirectActionError(), !message.isEmpty {
+                sendNotice(level: "info", message: message)
+            }
+            pushStateToWeb(forceMoveEverythingWindowRefresh: false, allowMoveEverythingWindowRefresh: false)
+
+        case "moveEverythingRestoreNextPositions":
+            if !appState.restoreNextMoveEverythingSavedWindowPositions() {
+                let message = appState.moveEverythingLastDirectActionError() ?? "Unable to restore next saved positions"
+                sendNotice(level: "error", message: message)
+            } else if let message = appState.moveEverythingLastDirectActionError(), !message.isEmpty {
+                sendNotice(level: "info", message: message)
+            }
+            pushStateToWeb(forceMoveEverythingWindowRefresh: false, allowMoveEverythingWindowRefresh: false)
 
         case "moveEverythingFocusWindow":
             let payload = (body["payload"] as? [String: Any]) ?? [:]
@@ -302,6 +331,24 @@ final class UIBridge: NSObject, WKScriptMessageHandler {
         case "moveEverythingMiniRetileVisibleWindows":
             if !appState.miniRetileVisibleMoveEverythingWindows() {
                 let message = appState.moveEverythingLastDirectActionError() ?? "Unable to mini retile visible windows"
+                sendNotice(level: "error", message: message)
+            } else if let message = appState.moveEverythingLastDirectActionError(), !message.isEmpty {
+                sendNotice(level: "info", message: message)
+            }
+            pushStateToWeb(forceMoveEverythingWindowRefresh: true)
+
+        case "moveEverythingHybridRetileVisibleWindows":
+            if !appState.hybridRetileVisibleMoveEverythingWindows() {
+                let message = appState.moveEverythingLastDirectActionError() ?? "Unable to hybrid retile visible windows"
+                sendNotice(level: "error", message: message)
+            } else if let message = appState.moveEverythingLastDirectActionError(), !message.isEmpty {
+                sendNotice(level: "info", message: message)
+            }
+            pushStateToWeb(forceMoveEverythingWindowRefresh: true)
+
+        case "moveEverythingUndoRetile":
+            if !appState.undoLastMoveEverythingRetile() {
+                let message = appState.moveEverythingLastDirectActionError() ?? "Unable to undo the last retile"
                 sendNotice(level: "error", message: message)
             } else if let message = appState.moveEverythingLastDirectActionError(), !message.isEmpty {
                 sendNotice(level: "info", message: message)
@@ -605,22 +652,26 @@ final class UIBridge: NSObject, WKScriptMessageHandler {
     }
 
     private func enrichInventoryWithActivity(_ payload: Any, inventory: MoveEverythingWindowInventory) -> Any {
-        // Kick off an async TTY activity poll (results arrive and trigger refresh).
+        // Kick off an async iTerm screen poll (results arrive and trigger refresh).
         // Pass the inventory we already have to avoid a redundant AX enumeration.
         appState.refreshITermActivity(cachedInventory: inventory)
 
-        // Compute activity status from TTY mtime only (Python poll).
-        let ttyCache = appState.iTermActivityCache
+        // Compute activity status from detector output built from recent
+        // visible-screen deltas and profile-specific rules.
+        let activityCache = appState.iTermActivityCache
         let badgeTextCache = appState.iTermBadgeTextCache
         let sessionNameCache = appState.iTermSessionNameCache
+        let lastLineCache = appState.iTermLastLineCache
         var statusByKey: [String: String] = [:]
 
         for snapshot in inventory.visible + inventory.hidden {
             let appName = snapshot.appName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
             guard appName.contains("iterm") else { continue }
 
-            let ttyActive = ttyCache[snapshot.key] == "active"
-            statusByKey[snapshot.key] = ttyActive ? "active" : "idle"
+            if let status = activityCache[snapshot.key],
+               status == "active" || status == "idle" {
+                statusByKey[snapshot.key] = status
+            }
         }
 
         guard var dict = payload as? [String: Any] else { return payload }
@@ -639,6 +690,9 @@ final class UIBridge: NSObject, WKScriptMessageHandler {
                     w["iTermSessionName"] = sessionName
                     WindowListDebugLogger.log("enrich", "key=\(key) sessionName=\(sessionName)")
                 }
+                if let lastLine = lastLineCache[key] {
+                    w["iTermLastLine"] = lastLine
+                }
                 return w
             }
         }
@@ -649,7 +703,10 @@ final class UIBridge: NSObject, WKScriptMessageHandler {
 
     private static let emptyMoveEverythingWindowInventoryPayload: [String: Any] = [
         "visible": [],
-        "hidden": []
+        "hidden": [],
+        "undoRetileAvailable": false,
+        "savedPositionsPreviousAvailable": false,
+        "savedPositionsNextAvailable": false,
     ]
 }
 

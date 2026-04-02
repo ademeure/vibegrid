@@ -111,10 +111,16 @@
               <div class="move-everything-runtime-controls">
                 <div class="move-everything-bulk-actions">
                   <button id="moveEverythingRetileBtn" class="btn tiny move-everything-bulk-btn" type="button">
-                    Retile All Windows
+                    Full Retile
                   </button>
                   <button id="moveEverythingMiniRetileBtn" class="btn tiny move-everything-bulk-btn" type="button">
                     Mini Retile
+                  </button>
+                  <button id="moveEverythingHybridRetileBtn" class="btn tiny move-everything-bulk-btn" type="button">
+                    Hybrid Retile
+                  </button>
+                  <button id="moveEverythingUndoRetileBtn" class="btn tiny move-everything-bulk-btn" type="button">
+                    Undo Retile
                   </button>
                 </div>
                 <div id="moveEverythingNativeOnlyControls" class="move-everything-native-controls">
@@ -406,7 +412,7 @@
                 <input id="moveEverythingITermBadgeRightMarginSetting" type="number" min="0" max="200" step="1" />
               </label>
             </div>
-            <p id="moveEverythingITermRecentActivityHint" class="settings-hint">Activity labels update iTerm2 titles. Use per-window Badge button for custom text/color.</p>
+            <p id="moveEverythingITermRecentActivityHint" class="settings-hint">Activity colors now follow visible screen changes and per-profile rules. Use per-window Badge button for custom text/color.</p>
           </div>
           <div class="settings-section">
             <h4>Hotkeys</h4>
@@ -450,6 +456,24 @@
                 <span id="moveEverythingQuickViewPreview" class="hotkey-preview move-hotkey-preview"></span>
                 <button class="btn tiny capture" type="button" data-me-record="moveEverythingQuickViewHotkey">Record</button>
                 <button class="btn tiny ghost" type="button" data-me-clear="moveEverythingQuickViewHotkey">Clear</button>
+              </div>
+              <div class="move-hotkey-row">
+                <div class="move-hotkey-meta">
+                  <strong>Undo Window Movement</strong>
+                  <small>Optional</small>
+                </div>
+                <span id="moveEverythingUndoWindowMovementPreview" class="hotkey-preview move-hotkey-preview"></span>
+                <button class="btn tiny capture" type="button" data-me-record="moveEverythingUndoWindowMovementHotkey">Record</button>
+                <button class="btn tiny ghost" type="button" data-me-clear="moveEverythingUndoWindowMovementHotkey">Clear</button>
+              </div>
+              <div class="move-hotkey-row">
+                <div class="move-hotkey-meta">
+                  <strong>Redo Window Movement</strong>
+                  <small>Optional</small>
+                </div>
+                <span id="moveEverythingRedoWindowMovementPreview" class="hotkey-preview move-hotkey-preview"></span>
+                <button class="btn tiny capture" type="button" data-me-record="moveEverythingRedoWindowMovementHotkey">Record</button>
+                <button class="btn tiny ghost" type="button" data-me-clear="moveEverythingRedoWindowMovementHotkey">Clear</button>
               </div>
             </div>
           </div>

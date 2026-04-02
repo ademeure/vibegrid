@@ -91,9 +91,9 @@ extension WindowManagerEngine {
         return nil
     }
 
-    func currentWindowRect(for window: AXUIElement) -> CGRect? {
+    func currentWindowRect(for window: AXUIElement, timeout: Float? = nil) -> CGRect? {
         // Apply timeout once for both attribute reads instead of per-attribute.
-        applyAXMessagingTimeout(to: window)
+        applyAXMessagingTimeout(to: window, timeout: timeout)
         guard let axPosition = copyCGPointAttributeRaw(window: window, attribute: kAXPositionAttribute),
               let axSize = copyCGSizeAttributeRaw(window: window, attribute: kAXSizeAttribute) else {
             return nil
@@ -700,17 +700,45 @@ extension WindowManagerEngine {
 
     func hideAccessibilityWindow(_ window: AXUIElement, pid: pid_t) -> Bool {
         applyAXMessagingTimeout(to: window)
-        let minimizeStatus = AXUIElementSetAttributeValue(
-            window,
-            kAXMinimizedAttribute as CFString,
-            kCFBooleanTrue
-        )
-        if minimizeStatus == .success {
+        if isWindowMinimized(window) {
             return true
         }
 
-        if let app = NSRunningApplication(processIdentifier: pid) {
-            return app.hide()
+        func waitForMinimized(timeout: TimeInterval) -> Bool {
+            let deadline = Date().addingTimeInterval(max(0, timeout))
+            while Date() < deadline {
+                _ = RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.01))
+                if isWindowMinimized(window) {
+                    return true
+                }
+            }
+            return isWindowMinimized(window)
+        }
+
+        func requestMinimize() -> AXError {
+            AXUIElementSetAttributeValue(
+                window,
+                kAXMinimizedAttribute as CFString,
+                kCFBooleanTrue
+            )
+        }
+
+        let firstMinimizeStatus = requestMinimize()
+        if firstMinimizeStatus == .success && waitForMinimized(timeout: 0.08) {
+            return true
+        }
+
+        let secondMinimizeStatus = requestMinimize()
+        if secondMinimizeStatus == .success && waitForMinimized(timeout: 0.12) {
+            return true
+        }
+
+        if let minimizeButton = copyAXElementAttribute(from: window, attribute: kAXMinimizeButtonAttribute) {
+            applyAXMessagingTimeout(to: minimizeButton)
+            let pressStatus = AXUIElementPerformAction(minimizeButton, kAXPressAction as CFString)
+            if pressStatus == .success && waitForMinimized(timeout: 0.12) {
+                return true
+            }
         }
 
         return false

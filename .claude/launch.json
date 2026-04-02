@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "VibeGrid (dev + dock icon)",
+      "runtimeExecutable": "make",
+      "runtimeArgs": ["dev-dock"],
+      "port": null
+    }
+  ]
+}

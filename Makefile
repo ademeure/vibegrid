@@ -1,7 +1,10 @@
-.PHONY: dev build app run-app install-app setup-codesign appstore-pkg sync-web windows-exe windows-bin
+.PHONY: dev dev-dock dev-app build app app-debug run-app install-app setup-codesign appstore-pkg sync-web windows-exe windows-bin
 
 dev:
 	CLANG_MODULE_CACHE_PATH=$(PWD)/.build/ModuleCache SWIFT_MODULE_CACHE_PATH=$(PWD)/.build/ModuleCache swift run --disable-sandbox
+
+dev-dock:
+	VIBEGRID_SHOW_DOCK=1 CLANG_MODULE_CACHE_PATH=$(PWD)/.build/ModuleCache SWIFT_MODULE_CACHE_PATH=$(PWD)/.build/ModuleCache swift run --disable-sandbox
 
 build:
 	CLANG_MODULE_CACHE_PATH=$(PWD)/.build/ModuleCache SWIFT_MODULE_CACHE_PATH=$(PWD)/.build/ModuleCache swift build --disable-sandbox
@@ -9,8 +12,20 @@ build:
 app:
 	./scripts/build_app.sh
 
+app-debug:
+	CONFIGURATION=debug ./scripts/build_app.sh
+
+dev-app: app-debug
+	open "$(PWD)/dist/VibeGrid.app"
+
 run-app: app
 	open "$(PWD)/dist/VibeGrid.app"
+
+app-dock:
+	VIBEGRID_LSUIELEMENT=false ./scripts/build_app.sh
+
+run-app-dock: app-dock
+	VIBEGRID_SHOW_DOCK=1 open "$(PWD)/dist/VibeGrid.app"
 
 install-app:
 	./scripts/install_app.sh

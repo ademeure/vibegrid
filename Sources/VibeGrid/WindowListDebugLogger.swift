@@ -23,10 +23,15 @@ final class WindowListDebugLogger {
         shared.fileURL.path
     }
 
+    private static let dateFormatter: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        return f
+    }()
+
     private func append(component: String, message: String) {
         let sanitizedMessage = message.replacingOccurrences(of: "\n", with: "\\n")
         NSLog("VibeGrid %@: %@", component, sanitizedMessage)
-        let timestamp = ISO8601DateFormatter().string(from: Date())
+        let timestamp = Self.dateFormatter.string(from: Date())
         let line = "\(timestamp) [\(component)] \(sanitizedMessage)\n"
 
         queue.async { [fileManager, fileURL] in

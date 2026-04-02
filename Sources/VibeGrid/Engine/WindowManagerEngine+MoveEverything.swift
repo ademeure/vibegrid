@@ -3,6 +3,11 @@ import AppKit
 import ApplicationServices
 import Foundation
 
+// Private API: get the CGWindowID for an AXUIElement.  Much more reliable
+// than frame-matching because it works regardless of window position.
+@_silgen_name("_AXUIElementGetWindow")
+private func _AXUIElementGetWindow(_ element: AXUIElement, _ outWindowID: UnsafeMutablePointer<UInt32>) -> AXError
+
 // CGS private API for manipulating window levels of other apps' windows.
 @_silgen_name("CGSMainConnectionID")
 private func CGSMainConnectionID() -> Int32
@@ -12,6 +17,12 @@ private func CGSGetWindowLevel(_ connection: Int32, _ windowID: UInt32, _ level:
 
 @_silgen_name("CGSSetWindowLevel")
 private func CGSSetWindowLevel(_ connection: Int32, _ windowID: UInt32, _ level: Int32) -> Int32
+
+@_silgen_name("CGSOrderWindow")
+private func CGSOrderWindow(_ connection: Int32, _ windowID: UInt32, _ ordering: Int32, _ relativeToWindow: UInt32) -> Int32
+
+private let kCGSOrderAbove: Int32 = 1
+private let kCGSOrderBelow: Int32 = -1
 
 // kCGModalPanelWindowLevel (8) is above floating (3) and torn-off menus (3),
 // but below status bar (25) where the control center can live.
@@ -34,14 +45,25 @@ extension WindowManagerEngine {
         func moveEverythingWindowInventory() -> MoveEverythingWindowInventory {
             let liveInventory = resolveMoveEverythingWindowInventory()
             let suppressedHiddenKeys = activeMoveEverythingSuppressedHiddenWindowKeys()
+            let pendingHideVisibleKeys = activeMoveEverythingPendingHideVisibleWindowKeys()
             let hiddenCoreGraphicsFallbackSnapshots = liveInventory.hiddenCoreGraphicsFallback
                 .filter { !suppressedHiddenKeys.contains($0.key) }
                 .map { fallbackWindow in
                     moveEverythingSnapshot(for: fallbackWindow)
                 }
             let fallbackStyleHiddenKeys = moveEverythingFallbackStyleHiddenWindowKeys
+            let syntheticPendingHiddenSnapshots = liveInventory.visible
+                .filter { pendingHideVisibleKeys.contains($0.key) }
+                .map { managedWindow in
+                    moveEverythingSnapshot(
+                        for: managedWindow,
+                        isCoreGraphicsFallback: fallbackStyleHiddenKeys.contains(managedWindow.key)
+                    )
+                }
             guard isMoveEverythingActive else {
-                let visibleSnapshots = liveInventory.visible.map { managedWindow in
+                let visibleSnapshots = liveInventory.visible
+                    .filter { !pendingHideVisibleKeys.contains($0.key) }
+                    .map { managedWindow in
                     moveEverythingSnapshot(for: managedWindow)
                 }
                 let regularHiddenSnapshots = liveInventory.hidden
@@ -56,7 +78,15 @@ extension WindowManagerEngine {
                     }
                 return MoveEverythingWindowInventory(
                     visible: visibleSnapshots,
-                    hidden: regularHiddenSnapshots + fallbackStyleHiddenSnapshots + hiddenCoreGraphicsFallbackSnapshots
+                    hidden: dedupeMoveEverythingWindowSnapshotsByKey(
+                        regularHiddenSnapshots +
+                        fallbackStyleHiddenSnapshots +
+                        syntheticPendingHiddenSnapshots +
+                        hiddenCoreGraphicsFallbackSnapshots
+                    ),
+                    undoRetileAvailable: moveEverythingUndoRetileAvailable(),
+                    savedPositionsPreviousAvailable: moveEverythingSavedPositionsPreviousAvailable(),
+                    savedPositionsNextAvailable: moveEverythingSavedPositionsNextAvailable()
                 )
             }
 
@@ -74,12 +104,26 @@ extension WindowManagerEngine {
                     }
                 return MoveEverythingWindowInventory(
                     visible: [],
-                    hidden: regularHiddenSnapshots + fallbackStyleHiddenSnapshots + hiddenCoreGraphicsFallbackSnapshots
+                    hidden: dedupeMoveEverythingWindowSnapshotsByKey(
+                        regularHiddenSnapshots +
+                        fallbackStyleHiddenSnapshots +
+                        syntheticPendingHiddenSnapshots +
+                        hiddenCoreGraphicsFallbackSnapshots
+                    ),
+                    undoRetileAvailable: moveEverythingUndoRetileAvailable(),
+                    savedPositionsPreviousAvailable: moveEverythingSavedPositionsPreviousAvailable(),
+                    savedPositionsNextAvailable: moveEverythingSavedPositionsNextAvailable()
                 )
             }
-            let visibleWindowKeys = Set(runState.windows.map(\.key))
+            let visibleWindowKeys = Set(
+                runState.windows
+                    .map(\.key)
+                    .filter { !pendingHideVisibleKeys.contains($0) }
+            )
 
-            let visibleSnapshots = runState.windows.map { managedWindow in
+            let visibleSnapshots = runState.windows
+                .filter { !pendingHideVisibleKeys.contains($0.key) }
+                .map { managedWindow in
                 moveEverythingSnapshot(for: managedWindow)
             }
 
@@ -98,8 +142,117 @@ extension WindowManagerEngine {
 
             return MoveEverythingWindowInventory(
                 visible: visibleSnapshots,
-                hidden: regularHiddenSnapshots + fallbackStyleHiddenSnapshots + hiddenCoreGraphicsFallbackSnapshots
+                hidden: dedupeMoveEverythingWindowSnapshotsByKey(
+                    regularHiddenSnapshots +
+                    fallbackStyleHiddenSnapshots +
+                    syntheticPendingHiddenSnapshots +
+                    hiddenCoreGraphicsFallbackSnapshots
+                ),
+                undoRetileAvailable: moveEverythingUndoRetileAvailable(),
+                savedPositionsPreviousAvailable: moveEverythingSavedPositionsPreviousAvailable(),
+                savedPositionsNextAvailable: moveEverythingSavedPositionsNextAvailable()
             )
+        }
+        func moveEverythingUndoRetileAvailable() -> Bool {
+            guard let undoRecord = moveEverythingLastRetileUndoRecord else {
+                return false
+            }
+            return !undoRecord.orderedWindowKeys.isEmpty
+        }
+        func moveEverythingSavedPositionsPreviousAvailable() -> Bool {
+            previousMoveEverythingSavedWindowPositionIndex() != nil
+        }
+        func moveEverythingSavedPositionsNextAvailable() -> Bool {
+            nextMoveEverythingSavedWindowPositionIndex() != nil
+        }
+        func seedMoveEverythingSavedWindowPositions(_ snapshots: [MoveEverythingSavedWindowPositionsSnapshot]) {
+            moveEverythingSavedWindowPositionSnapshots = normalizedMoveEverythingSavedWindowPositionSnapshots(
+                snapshots
+            )
+            moveEverythingSavedWindowPositionSelectedIndex = nil
+        }
+        func latestMoveEverythingSavedWindowPositionsSnapshot() -> MoveEverythingSavedWindowPositionsSnapshot? {
+            moveEverythingSavedWindowPositionSnapshots.last
+        }
+        func appendMoveEverythingSavedWindowPositionsSnapshot(
+            _ snapshot: MoveEverythingSavedWindowPositionsSnapshot,
+            persistLatest: Bool
+        ) {
+            if let selectedIndex = moveEverythingSavedWindowPositionSelectedIndex,
+               selectedIndex + 1 < moveEverythingSavedWindowPositionSnapshots.count {
+                moveEverythingSavedWindowPositionSnapshots.removeSubrange(
+                    (selectedIndex + 1)..<moveEverythingSavedWindowPositionSnapshots.count
+                )
+            }
+            moveEverythingSavedWindowPositionSnapshots.append(snapshot)
+            if moveEverythingSavedWindowPositionSnapshots.count > moveEverythingSavedWindowPositionHistoryLimit {
+                moveEverythingSavedWindowPositionSnapshots.removeFirst(
+                    moveEverythingSavedWindowPositionSnapshots.count - moveEverythingSavedWindowPositionHistoryLimit
+                )
+            }
+            moveEverythingSavedWindowPositionSelectedIndex = nil
+            if persistLatest {
+                onMoveEverythingSavedWindowPositionsHistoryChanged?(
+                    moveEverythingSavedWindowPositionSnapshots
+                )
+            }
+        }
+        func normalizedMoveEverythingSavedWindowPositionSnapshots(
+            _ snapshots: [MoveEverythingSavedWindowPositionsSnapshot]
+        ) -> [MoveEverythingSavedWindowPositionsSnapshot] {
+            let nonEmptySnapshots = snapshots.filter { !$0.windows.isEmpty }
+            guard nonEmptySnapshots.count > moveEverythingSavedWindowPositionHistoryLimit else {
+                return nonEmptySnapshots
+            }
+            return Array(
+                nonEmptySnapshots.suffix(moveEverythingSavedWindowPositionHistoryLimit)
+            )
+        }
+        func saveCurrentMoveEverythingWindowPositions() -> MoveEverythingSavedWindowPositionsSnapshot? {
+            guard ensureMoveEverythingActiveForDirectAction() else {
+                return nil
+            }
+
+            let freshInventory = resolveMoveEverythingWindowInventorySynchronously(
+                controlCenterWindowNumber: currentControlCenterWindowNumberSnapshot()
+            )
+            moveEverythingResolvedInventoryCache = freshInventory
+            moveEverythingResolvedInventoryLastRefreshAt = Date()
+            pruneMoveEverythingWindows(liveInventory: freshInventory)
+
+            let visibleWindows = freshInventory.visible.filter { !isMoveEverythingControlCenterWindow($0) }
+            guard !visibleWindows.isEmpty else {
+                moveEverythingLastDirectActionErrorMessage = "No visible windows were found to save."
+                return nil
+            }
+
+            let captureResult = captureMoveEverythingSavedWindowPositions(from: visibleWindows)
+            guard let snapshot = captureResult.snapshot else {
+                moveEverythingLastDirectActionErrorMessage = "Unable to capture any current window positions."
+                return nil
+            }
+            appendMoveEverythingSavedWindowPositionsSnapshot(snapshot, persistLatest: true)
+
+            var summary = "Saved positions for \(snapshot.windows.count) window\(snapshot.windows.count == 1 ? "" : "s")."
+            if captureResult.skippedCount > 0 {
+                summary += " Skipped \(captureResult.skippedCount) without readable frames."
+            }
+            moveEverythingLastDirectActionErrorMessage = summary
+            return snapshot
+        }
+        func restorePreviousMoveEverythingSavedWindowPositions() -> Bool {
+            guard let targetIndex = previousMoveEverythingSavedWindowPositionIndex() else {
+                moveEverythingLastDirectActionErrorMessage = "No previous saved window positions are available."
+                return false
+            }
+            return restoreMoveEverythingSavedWindowPositions(at: targetIndex)
+        }
+        func restoreNextMoveEverythingSavedWindowPositions() -> Bool {
+            guard let targetIndex = nextMoveEverythingSavedWindowPositionIndex() else {
+                moveEverythingLastDirectActionErrorMessage = "No next saved window positions are available."
+                return false
+            }
+            return restoreMoveEverythingSavedWindowPositions(at: targetIndex)
         }
         func focusMoveEverythingWindowForExplicitSelection(
             _ managedWindow: MoveEverythingManagedWindow,
@@ -228,21 +381,24 @@ extension WindowManagerEngine {
                 return false
             }
 
-            pruneMoveEverythingWindows(forceRefreshInventory: true)
+            pruneMoveEverythingWindows()
             if let runState = moveEverythingRunState,
                let targetIndex = runState.windows.firstIndex(where: { $0.key == key }) {
                 return closeMoveEverythingWindow(at: targetIndex)
             }
 
-            let inventory = resolveMoveEverythingWindowInventory(forceRefresh: true)
+            let inventory = resolveMoveEverythingWindowInventory(forceRefresh: false)
             if let hiddenWindow = inventory.hidden.first(where: { $0.key == key }) {
                 guard closeMoveEverythingWindow(hiddenWindow) else {
                     return false
                 }
                 moveEverythingFallbackStyleHiddenWindowKeys.remove(key)
+                clearMoveEverythingPendingHideVisibleSuppression(forKey: key)
                 suppressMoveEverythingHiddenWindowVisibility(forKey: key)
                 invalidateMoveEverythingResolvedInventoryCache()
-                pruneMoveEverythingWindows(forceRefreshInventory: true)
+                requestMoveEverythingInventoryRefreshIfNeeded(force: true)
+                pruneMoveEverythingWindows()
+                markMoveEverythingSavedWindowPositionsLive()
                 return true
             }
 
@@ -255,10 +411,14 @@ extension WindowManagerEngine {
                 }
                 moveEverythingFallbackStyleHiddenWindowKeys.remove(key)
                 moveEverythingFallbackStyleHiddenWindowKeys.remove(hiddenCoreGraphicsFallbackWindow.key)
+                clearMoveEverythingPendingHideVisibleSuppression(forKey: key)
+                clearMoveEverythingPendingHideVisibleSuppression(forKey: hiddenCoreGraphicsFallbackWindow.key)
                 suppressMoveEverythingHiddenWindowVisibility(forKey: key)
                 suppressMoveEverythingHiddenWindowVisibility(forKey: hiddenCoreGraphicsFallbackWindow.key)
                 invalidateMoveEverythingResolvedInventoryCache()
-                pruneMoveEverythingWindows(forceRefreshInventory: true)
+                requestMoveEverythingInventoryRefreshIfNeeded(force: true)
+                pruneMoveEverythingWindows()
+                markMoveEverythingSavedWindowPositionsLive()
                 return true
             }
 
@@ -269,7 +429,7 @@ extension WindowManagerEngine {
                 return false
             }
 
-            pruneMoveEverythingWindows(forceRefreshInventory: true)
+            pruneMoveEverythingWindows()
             let runStateLookup = moveEverythingRunState
             let targetIndex = runStateLookup?.windows.firstIndex(where: { $0.key == key })
             guard var runState = runStateLookup,
@@ -283,7 +443,9 @@ extension WindowManagerEngine {
             }
             moveEverythingFallbackStyleHiddenWindowKeys.insert(managedWindow.key)
             moveEverythingHiddenWindowVisibilitySuppressionByKey.removeValue(forKey: managedWindow.key)
+            suppressMoveEverythingPendingHideVisibleWindow(forKey: managedWindow.key)
             invalidateMoveEverythingResolvedInventoryCache()
+            requestMoveEverythingInventoryRefreshIfNeeded(force: true)
 
             let preservedState = runState.statesByWindowKey[managedWindow.key] ??
                 MoveEverythingWindowState(
@@ -307,10 +469,38 @@ extension WindowManagerEngine {
                 hideMoveEverythingOverlay()
             }
 
+            markMoveEverythingSavedWindowPositionsLive()
             return true
         }
         func showHiddenMoveEverythingWindow(withKey key: String) -> Bool {
             return showHiddenMoveEverythingWindow(withKey: key, centerOnShow: false, maximizeOnShow: false)
+        }
+        func showAllHiddenMoveEverythingWindows() -> Bool {
+            guard ensureMoveEverythingActiveForDirectAction() else {
+                return false
+            }
+
+            let inventory = resolveMoveEverythingWindowInventory(forceRefresh: false)
+            let hiddenKeys = Array(
+                Set(
+                    inventory.hidden.map(\.key) +
+                    inventory.hiddenCoreGraphicsFallback.map(\.key)
+                )
+            ).sorted()
+            guard !hiddenKeys.isEmpty else {
+                return false
+            }
+
+            var didShowAny = false
+            for key in hiddenKeys {
+                if showHiddenMoveEverythingWindow(withKey: key) {
+                    didShowAny = true
+                }
+            }
+            if didShowAny {
+                markMoveEverythingSavedWindowPositionsLive()
+            }
+            return didShowAny
         }
         @discardableResult
         func showHiddenMoveEverythingWindow(
@@ -345,6 +535,7 @@ extension WindowManagerEngine {
                 moveEverythingRunState = runState
                 moveEverythingFallbackStyleHiddenWindowKeys.remove(key)
                 moveEverythingHiddenWindowVisibilitySuppressionByKey.removeValue(forKey: key)
+                clearMoveEverythingPendingHideVisibleSuppression(forKey: key)
                 notifyMoveEverythingModeChanged()
                 let didFocus = focusMoveEverythingCurrentWindow(
                     showOverlay: true,
@@ -355,10 +546,13 @@ extension WindowManagerEngine {
                 if !didFocus {
                     pruneMoveEverythingWindows()
                 }
+                markMoveEverythingSavedWindowPositionsLive()
                 return didFocus
             }
 
-            let inventory = resolveMoveEverythingWindowInventory(forceRefresh: true)
+            let inventory = resolveMoveEverythingWindowInventory(
+                forceRefresh: centerOnShow || maximizeOnShow
+            )
             guard let hiddenWindow = inventory.hidden.first(where: { $0.key == key }) else {
                 let derivedCoreGraphicsFallbackKey = derivedCoreGraphicsFallbackWindowKey(from: key)
                 guard let hiddenCoreGraphicsFallbackWindow = inventory.hiddenCoreGraphicsFallback.first(
@@ -373,8 +567,12 @@ extension WindowManagerEngine {
                 moveEverythingFallbackStyleHiddenWindowKeys.remove(hiddenCoreGraphicsFallbackWindow.key)
                 moveEverythingHiddenWindowVisibilitySuppressionByKey.removeValue(forKey: key)
                 moveEverythingHiddenWindowVisibilitySuppressionByKey.removeValue(forKey: hiddenCoreGraphicsFallbackWindow.key)
+                clearMoveEverythingPendingHideVisibleSuppression(forKey: key)
+                clearMoveEverythingPendingHideVisibleSuppression(forKey: hiddenCoreGraphicsFallbackWindow.key)
                 invalidateMoveEverythingResolvedInventoryCache()
-                pruneMoveEverythingWindows(forceRefreshInventory: true)
+                requestMoveEverythingInventoryRefreshIfNeeded(force: true)
+                pruneMoveEverythingWindows()
+                markMoveEverythingSavedWindowPositionsLive()
                 return true
             }
 
@@ -402,9 +600,13 @@ extension WindowManagerEngine {
             }
             moveEverythingFallbackStyleHiddenWindowKeys.remove(key)
             moveEverythingHiddenWindowVisibilitySuppressionByKey.removeValue(forKey: key)
+            clearMoveEverythingPendingHideVisibleSuppression(forKey: key)
             invalidateMoveEverythingResolvedInventoryCache()
+            requestMoveEverythingInventoryRefreshIfNeeded(force: true)
 
-            let refreshedInventory = resolveMoveEverythingWindowInventory(forceRefresh: true)
+            let refreshedInventory = resolveMoveEverythingWindowInventory(
+                forceRefresh: centerOnShow || maximizeOnShow
+            )
             let resolvedWindow = refreshedInventory.visible.first(where: { $0.key == key }) ?? hiddenWindow
             runState.windows.append(resolvedWindow)
             runState.currentIndex = runState.windows.count - 1
@@ -429,6 +631,14 @@ extension WindowManagerEngine {
 
             moveEverythingRunState = runState
             notifyMoveEverythingModeChanged()
+            if !centerOnShow && !maximizeOnShow {
+                moveEverythingFocusedWindowLastCheckAt = nil
+                showMoveEverythingOverlay(for: resolvedWindow)
+                ensureControlCenterWindowVisibleForMoveEverything()
+                moveEverythingControlCenterFocusedLastKnown = true
+                markMoveEverythingSavedWindowPositionsLive()
+                return true
+            }
             let didFocus = focusMoveEverythingCurrentWindow(
                 showOverlay: true,
                 applyFirstVisitCenter: false,
@@ -438,6 +648,7 @@ extension WindowManagerEngine {
             if !didFocus {
                 pruneMoveEverythingWindows()
             }
+            markMoveEverythingSavedWindowPositionsLive()
             return didFocus
         }
         func focusMoveEverythingWindow(
@@ -566,6 +777,7 @@ extension WindowManagerEngine {
                 if !didFocus {
                     pruneMoveEverythingWindows()
                 }
+                markMoveEverythingSavedWindowPositionsLive()
                 return didFocus
             }
 
@@ -637,36 +849,128 @@ extension WindowManagerEngine {
                 if !didFocus {
                     pruneMoveEverythingWindows()
                 }
+                markMoveEverythingSavedWindowPositionsLive()
                 return didFocus
             }
 
             return showHiddenMoveEverythingWindow(withKey: key, centerOnShow: false, maximizeOnShow: true)
         }
         func retileVisibleMoveEverythingWindows() -> Bool {
-            retileVisibleMoveEverythingWindows(
-                widthFraction: 1,
-                aspectRatio: 1,  // square tiles
-                successVerb: "Retiled"
-            )
+            performRetileVisibleMoveEverythingWindows(successVerb: "Full retiled") {
+                managedWindows,
+                fullAvailableFrame,
+                _,
+                gap in
+                moveEverythingRetileTargetFramesByKey(
+                    for: managedWindows,
+                    availableFrame: fullAvailableFrame,
+                    aspectRatio: 1,
+                    gap: gap
+                )
+            }
         }
         func miniRetileVisibleMoveEverythingWindows() -> Bool {
             let widthPercent = min(max(config.settings.moveEverythingMiniRetileWidthPercent, 5), 100)
-            return retileVisibleMoveEverythingWindows(
-                widthFraction: CGFloat(widthPercent / 100),
-                aspectRatio: 1,
-                successVerb: "Mini retiled"
-            )
+            let widthFraction = CGFloat(widthPercent / 100)
+            return performRetileVisibleMoveEverythingWindows(successVerb: "Mini retiled") {
+                managedWindows,
+                fullAvailableFrame,
+                controlCenterIsOnRight,
+                gap in
+                let availableFrame = moveEverythingRetileSlice(
+                    within: fullAvailableFrame,
+                    widthFraction: widthFraction,
+                    controlCenterIsOnRight: controlCenterIsOnRight
+                )
+                return moveEverythingRetileTargetFramesByKey(
+                    for: managedWindows,
+                    availableFrame: availableFrame,
+                    aspectRatio: 1,
+                    gap: gap
+                )
+            }
         }
-        func retileVisibleMoveEverythingWindows(
-            widthFraction: CGFloat,
-            aspectRatio: CGFloat,
-            successVerb: String
+        func hybridRetileVisibleMoveEverythingWindows() -> Bool {
+            let widthPercent = min(max(config.settings.moveEverythingMiniRetileWidthPercent, 5), 100)
+            let baseMiniWidthFraction = CGFloat(widthPercent / 100)
+            return performRetileVisibleMoveEverythingWindows(successVerb: "Hybrid retiled") {
+                managedWindows,
+                fullAvailableFrame,
+                controlCenterIsOnRight,
+                gap in
+                let iTermWindows = managedWindows.filter(moveEverythingManagedWindowLooksLikeITerm)
+                let nonITermWindows = managedWindows.filter { !moveEverythingManagedWindowLooksLikeITerm($0) }
+
+                if iTermWindows.isEmpty {
+                    let miniFrame = moveEverythingRetileSlice(
+                        within: fullAvailableFrame,
+                        widthFraction: baseMiniWidthFraction,
+                        controlCenterIsOnRight: controlCenterIsOnRight
+                    )
+                    return moveEverythingRetileTargetFramesByKey(
+                        for: nonITermWindows,
+                        availableFrame: miniFrame,
+                        aspectRatio: 1,
+                        gap: gap
+                    )
+                }
+                if nonITermWindows.isEmpty {
+                    return moveEverythingRetileTargetFramesByKey(
+                        for: iTermWindows,
+                        availableFrame: fullAvailableFrame,
+                        aspectRatio: 1,
+                        gap: gap
+                    )
+                }
+
+                let miniWidthFraction = min(max(baseMiniWidthFraction, 0.05), 0.95)
+                let miniFrame = moveEverythingRetileSlice(
+                    within: fullAvailableFrame,
+                    widthFraction: miniWidthFraction,
+                    controlCenterIsOnRight: controlCenterIsOnRight
+                )
+                let remainingFrame = moveEverythingRetileRemainingSlice(
+                    within: fullAvailableFrame,
+                    widthFraction: miniWidthFraction,
+                    controlCenterIsOnRight: controlCenterIsOnRight
+                )
+                guard let nonITermTargets = moveEverythingRetileTargetFramesByKey(
+                    for: nonITermWindows,
+                    availableFrame: miniFrame,
+                    aspectRatio: 1,
+                    gap: gap
+                ),
+                let iTermTargets = moveEverythingRetileTargetFramesByKey(
+                    for: iTermWindows,
+                    availableFrame: remainingFrame,
+                    aspectRatio: 1,
+                    gap: gap
+                ) else {
+                    return nil
+                }
+
+                return nonITermTargets.merging(iTermTargets) { current, _ in current }
+            }
+        }
+        func performRetileVisibleMoveEverythingWindows(
+            successVerb: String,
+            resolveTargetFramesByKey: (
+                _ managedWindows: [MoveEverythingManagedWindow],
+                _ fullAvailableFrame: CGRect,
+                _ controlCenterIsOnRight: Bool,
+                _ gap: CGFloat
+            ) -> [String: CGRect]?
         ) -> Bool {
             guard ensureMoveEverythingActiveForDirectAction() else {
                 return false
             }
 
-            pruneMoveEverythingWindows(forceRefreshInventory: true)
+            let freshInventory = resolveMoveEverythingWindowInventorySynchronously(
+                controlCenterWindowNumber: currentControlCenterWindowNumberSnapshot()
+            )
+            moveEverythingResolvedInventoryCache = freshInventory
+            moveEverythingResolvedInventoryLastRefreshAt = Date()
+            pruneMoveEverythingWindows(liveInventory: freshInventory)
             guard var runState = moveEverythingRunState else {
                 moveEverythingLastDirectActionErrorMessage = "No visible windows were found."
                 return false
@@ -681,9 +985,18 @@ extension WindowManagerEngine {
             moveEverythingHoveredWindowKey = nil
             clearMoveEverythingHoveredWindowLock()
 
-            let managedWindows = runState.windows
-                .filter { !isMoveEverythingControlCenterWindow($0) }
-                .sorted(by: moveEverythingRetileSortPredicate)
+            let managedWindows = moveEverythingRetileOrderedWindows(
+                from: runState.windows.filter { !isMoveEverythingControlCenterWindow($0) }
+            )
+            let freshVisibleWindowCount = freshInventory.visible.filter {
+                !isMoveEverythingControlCenterWindow($0)
+            }.count
+            if managedWindows.count != freshVisibleWindowCount {
+                WindowListDebugLogger.log(
+                    "retile-undo",
+                    "retile-source-mismatch runStateVisible=\(managedWindows.count) freshVisible=\(freshVisibleWindowCount)"
+                )
+            }
             guard !managedWindows.isEmpty else {
                 moveEverythingLastDirectActionErrorMessage = "No visible windows were found."
                 moveEverythingRunState = runState
@@ -699,47 +1012,51 @@ extension WindowManagerEngine {
                 return false
             }
 
-            let availableFrame: CGRect
-            if widthFraction >= 0.999 {
-                availableFrame = fullAvailableFrame
-            } else {
-                let controlCenterIsOnRight: Bool
-                if let ccFrame = currentControlCenterFrameForMoveEverything() {
-                    controlCenterIsOnRight = ccFrame.midX > fullAvailableFrame.midX
-                } else {
-                    controlCenterIsOnRight = false
-                }
-                availableFrame = controlCenterIsOnRight
-                    ? MoveEverythingRetileLayout.leadingHorizontalSlice(
-                        of: fullAvailableFrame,
-                        widthFraction: widthFraction
-                    )
-                    : MoveEverythingRetileLayout.trailingHorizontalSlice(
-                        of: fullAvailableFrame,
-                        widthFraction: widthFraction
-                    )
-            }
-
             let gap = max(CGFloat(config.settings.gap), 0)
-            let targetFrames = moveEverythingTiledFrames(
-                count: managedWindows.count,
-                availableFrame: availableFrame,
-                aspectRatio: aspectRatio,
-                gap: gap
-            )
-            guard targetFrames.count == managedWindows.count else {
+            let controlCenterIsOnRight = (
+                currentControlCenterFrameForMoveEverything()?.midX ?? 0
+            ) > fullAvailableFrame.midX
+            guard let targetFramesByKey = resolveTargetFramesByKey(
+                managedWindows,
+                fullAvailableFrame,
+                controlCenterIsOnRight,
+                gap
+            ),
+            targetFramesByKey.count == managedWindows.count else {
                 moveEverythingLastDirectActionErrorMessage = "Unable to compute a valid grid for the visible windows."
                 return false
             }
 
+            let saveCaptureResult = captureMoveEverythingSavedWindowPositions(from: managedWindows)
+            if let saveSnapshot = saveCaptureResult.snapshot {
+                appendMoveEverythingSavedWindowPositionsSnapshot(saveSnapshot, persistLatest: true)
+                if saveCaptureResult.skippedCount > 0 {
+                    WindowListDebugLogger.log(
+                        "saved-positions",
+                        "retile-presave saved=\(saveSnapshot.windows.count) skipped=\(saveCaptureResult.skippedCount)"
+                    )
+                }
+            }
+
             var movedCount = 0
             var skippedWindowTitles: [String] = []
-            for (managedWindow, targetFrame) in zip(managedWindows, targetFrames) {
+            var undoWindowStatesByKey: [String: MoveEverythingRetileUndoWindowState] = [:]
+            var undoOrderedWindowKeys: [String] = []
+            for managedWindow in managedWindows {
+                guard let targetFrame = targetFramesByKey[managedWindow.key] else {
+                    moveEverythingLastDirectActionErrorMessage = "Unable to compute a valid grid for the visible windows."
+                    return false
+                }
                 let referenceFrame = currentWindowRect(for: managedWindow.window) ?? targetFrame
                 guard setMoveEverythingWindowFrame(managedWindow, cocoaRect: targetFrame) else {
                     skippedWindowTitles.append(moveEverythingWindowTitle(for: managedWindow))
                     continue
                 }
+                let appliedFrame = resolvedMoveEverythingRetileUndoCapturedFrame(
+                    for: managedWindow,
+                    previousFrame: referenceFrame,
+                    targetFrame: targetFrame
+                )
 
                 var windowState = runState.statesByWindowKey[managedWindow.key] ??
                     MoveEverythingWindowState(
@@ -753,6 +1070,18 @@ extension WindowManagerEngine {
                 windowState.hasVisited = true
                 windowState.isCentered = false
                 runState.statesByWindowKey[managedWindow.key] = windowState
+                undoWindowStatesByKey[managedWindow.key] = MoveEverythingRetileUndoWindowState(
+                    originalFrame: referenceFrame,
+                    retiledFrame: appliedFrame,
+                    targetFrame: targetFrame
+                )
+                undoOrderedWindowKeys.append(managedWindow.key)
+                if !moveEverythingFramesApproximatelyEqual(appliedFrame, targetFrame, tolerance: 1) {
+                    WindowListDebugLogger.log(
+                        "retile-undo",
+                        "capture key=\(managedWindow.key) target=\(describe(rect: targetFrame)) applied=\(describe(rect: appliedFrame))"
+                    )
+                }
                 movedCount += 1
             }
 
@@ -775,10 +1104,461 @@ extension WindowManagerEngine {
                 moveEverythingLastDirectActionErrorMessage = nil
             }
 
+            moveEverythingLastRetileUndoRecord = MoveEverythingRetileUndoRecord(
+                windowStatesByKey: undoWindowStatesByKey,
+                orderedWindowKeys: undoOrderedWindowKeys
+            )
+            markMoveEverythingSavedWindowPositionsLive()
             moveEverythingRunState = runState
             invalidateMoveEverythingResolvedInventoryCache()
             requestMoveEverythingInventoryRefreshIfNeeded(force: true)
             notifyMoveEverythingModeChanged()
+            return true
+        }
+        func moveEverythingRetileTargetFramesByKey(
+            for managedWindows: [MoveEverythingManagedWindow],
+            availableFrame: CGRect,
+            aspectRatio: CGFloat,
+            gap: CGFloat
+        ) -> [String: CGRect]? {
+            guard !managedWindows.isEmpty else {
+                return [:]
+            }
+            let targetFrames = moveEverythingTiledFrames(
+                count: managedWindows.count,
+                availableFrame: availableFrame,
+                aspectRatio: aspectRatio,
+                gap: gap
+            )
+            guard targetFrames.count == managedWindows.count else {
+                return nil
+            }
+            let orderedFrames = moveEverythingRetileFramesOrderedByRecency(targetFrames)
+            return Dictionary(uniqueKeysWithValues: zip(managedWindows.map(\.key), orderedFrames))
+        }
+        func moveEverythingRetileSlice(
+            within fullAvailableFrame: CGRect,
+            widthFraction: CGFloat,
+            controlCenterIsOnRight: Bool
+        ) -> CGRect {
+            guard widthFraction < 0.999 else {
+                return fullAvailableFrame
+            }
+            return controlCenterIsOnRight
+                ? MoveEverythingRetileLayout.leadingHorizontalSlice(
+                    of: fullAvailableFrame,
+                    widthFraction: widthFraction
+                )
+                : MoveEverythingRetileLayout.trailingHorizontalSlice(
+                    of: fullAvailableFrame,
+                    widthFraction: widthFraction
+                )
+        }
+        func moveEverythingRetileRemainingSlice(
+            within fullAvailableFrame: CGRect,
+            widthFraction: CGFloat,
+            controlCenterIsOnRight: Bool
+        ) -> CGRect {
+            let reservedFrame = moveEverythingRetileSlice(
+                within: fullAvailableFrame,
+                widthFraction: widthFraction,
+                controlCenterIsOnRight: controlCenterIsOnRight
+            )
+            if controlCenterIsOnRight {
+                return CGRect(
+                    x: reservedFrame.maxX,
+                    y: fullAvailableFrame.minY,
+                    width: max(fullAvailableFrame.maxX - reservedFrame.maxX, 0),
+                    height: fullAvailableFrame.height
+                ).integral
+            }
+            return CGRect(
+                x: fullAvailableFrame.minX,
+                y: fullAvailableFrame.minY,
+                width: max(reservedFrame.minX - fullAvailableFrame.minX, 0),
+                height: fullAvailableFrame.height
+            ).integral
+        }
+        func moveEverythingManagedWindowLooksLikeITerm(
+            _ managedWindow: MoveEverythingManagedWindow
+        ) -> Bool {
+            if let iTermWindowID = managedWindow.iTermWindowID,
+               !iTermWindowID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                return true
+            }
+            return moveEverythingApplicationLooksLikeITerm(
+                appName: managedWindow.appName,
+                bundleIdentifier: managedWindow.bundleIdentifier
+            )
+        }
+        func moveEverythingRetileOrderedWindows(
+            from windows: [MoveEverythingManagedWindow]
+        ) -> [MoveEverythingManagedWindow] {
+            let recencyRankByKey = moveEverythingRetileRecencyRankByWindowKey(for: windows)
+            return windows.sorted { left, right in
+                let leftRank = recencyRankByKey[left.key] ?? Int.max
+                let rightRank = recencyRankByKey[right.key] ?? Int.max
+                if leftRank != rightRank {
+                    return leftRank < rightRank
+                }
+                return moveEverythingRetileSortPredicate(left, right)
+            }
+        }
+        func moveEverythingRetileRecencyRankByWindowKey(
+            for windows: [MoveEverythingManagedWindow]
+        ) -> [String: Int] {
+            let windowsByNumber = Dictionary(
+                uniqueKeysWithValues: windows.compactMap { managedWindow in
+                    managedWindow.windowNumber.map { ($0, managedWindow.key) }
+                }
+            )
+            guard !windowsByNumber.isEmpty else {
+                return [:]
+            }
+
+            let infoList = CGWindowListCopyWindowInfo(
+                [.optionOnScreenOnly, .excludeDesktopElements],
+                kCGNullWindowID
+            ) as? [[String: Any]] ?? []
+            var rankByKey: [String: Int] = [:]
+            for (index, info) in infoList.enumerated() {
+                guard let layer = info[kCGWindowLayer as String] as? Int,
+                      layer == 0,
+                      let windowNumber = info[kCGWindowNumber as String] as? Int,
+                      let key = windowsByNumber[windowNumber],
+                      rankByKey[key] == nil else {
+                    continue
+                }
+                rankByKey[key] = index
+            }
+            return rankByKey
+        }
+        func moveEverythingRetileFramesOrderedByRecency(_ frames: [CGRect]) -> [CGRect] {
+            frames.sorted { left, right in
+                if abs(left.minY - right.minY) > 1 {
+                    return left.minY < right.minY
+                }
+                if abs(left.minX - right.minX) > 1 {
+                    return left.minX < right.minX
+                }
+                if abs(left.maxY - right.maxY) > 1 {
+                    return left.maxY < right.maxY
+                }
+                return left.maxX < right.maxX
+            }
+        }
+        func undoLastMoveEverythingRetile() -> Bool {
+            guard ensureMoveEverythingActiveForDirectAction() else {
+                return false
+            }
+            guard let undoRecord = moveEverythingLastRetileUndoRecord,
+                  !undoRecord.orderedWindowKeys.isEmpty else {
+                moveEverythingLastDirectActionErrorMessage = "Nothing to undo from the last retile."
+                return false
+            }
+
+            let freshInventory = resolveMoveEverythingWindowInventorySynchronously(
+                controlCenterWindowNumber: currentControlCenterWindowNumberSnapshot()
+            )
+            moveEverythingResolvedInventoryCache = freshInventory
+            moveEverythingResolvedInventoryLastRefreshAt = Date()
+            pruneMoveEverythingWindows(liveInventory: freshInventory)
+            guard var runState = moveEverythingRunState else {
+                moveEverythingLastDirectActionErrorMessage = "No visible windows were found."
+                return false
+            }
+            let freshVisibleByKey = Dictionary(uniqueKeysWithValues: freshInventory.visible.map { ($0.key, $0) })
+
+            clearMoveEverythingHoveredWindowState(in: runState)
+
+            var restoredCount = 0
+            var movedSinceRetileTitles: [String] = []
+            var skippedWindowTitles: [String] = []
+            var restoredWindows: [MoveEverythingManagedWindow] = []
+            var inverseUndoWindowStatesByKey: [String: MoveEverythingRetileUndoWindowState] = [:]
+            var inverseUndoOrderedWindowKeys: [String] = []
+
+            for key in undoRecord.orderedWindowKeys {
+                guard let undoWindowState = undoRecord.windowStatesByKey[key] else {
+                    continue
+                }
+
+                let managedWindow: MoveEverythingManagedWindow
+                if let windowIndex = runState.windows.firstIndex(where: { $0.key == key }) {
+                    managedWindow = runState.windows[windowIndex]
+                } else if let refreshedWindow = freshVisibleByKey[key] {
+                    managedWindow = refreshedWindow
+                    runState.windows.append(refreshedWindow)
+                    if runState.statesByWindowKey[refreshedWindow.key] == nil {
+                        runState.statesByWindowKey[refreshedWindow.key] = MoveEverythingWindowState(
+                            originalFrame: undoWindowState.originalFrame,
+                            hasVisited: true,
+                            isCentered: false
+                        )
+                    }
+                    WindowListDebugLogger.log(
+                        "retile-undo",
+                        "recovered key=\(refreshedWindow.key) from=fresh-visible-inventory"
+                    )
+                } else {
+                    WindowListDebugLogger.log(
+                        "retile-undo",
+                        "skip key=\(key) reason=missing-visible-window"
+                    )
+                    skippedWindowTitles.append(key)
+                    continue
+                }
+                let windowTitle = moveEverythingWindowTitle(for: managedWindow)
+                guard let currentFrame = currentWindowRect(for: managedWindow.window) else {
+                    WindowListDebugLogger.log(
+                        "retile-undo",
+                        "skip key=\(managedWindow.key) reason=no-current-frame expectedPosition=\(describe(rect: undoWindowState.retiledFrame))"
+                    )
+                    skippedWindowTitles.append(windowTitle)
+                    continue
+                }
+                guard moveEverythingPositionsApproximatelyEqual(
+                    currentFrame,
+                    undoWindowState.retiledFrame,
+                    tolerance: moveEverythingRetileUndoPositionTolerance
+                ) || moveEverythingPositionsApproximatelyEqual(
+                    currentFrame,
+                    undoWindowState.targetFrame,
+                    tolerance: moveEverythingRetileUndoPositionTolerance
+                ) else {
+                    WindowListDebugLogger.log(
+                        "retile-undo",
+                        "skip key=\(managedWindow.key) reason=position-changed current=\(describe(rect: currentFrame)) expected=\(describe(rect: undoWindowState.retiledFrame)) target=\(describe(rect: undoWindowState.targetFrame))"
+                    )
+                    movedSinceRetileTitles.append(windowTitle)
+                    continue
+                }
+                guard setMoveEverythingWindowFrame(managedWindow, cocoaRect: undoWindowState.originalFrame) else {
+                    WindowListDebugLogger.log(
+                        "retile-undo",
+                        "skip key=\(managedWindow.key) reason=restore-failed target=\(describe(rect: undoWindowState.originalFrame))"
+                    )
+                    skippedWindowTitles.append(windowTitle)
+                    continue
+                }
+                guard confirmedMoveEverythingRetileUndoRestore(
+                    managedWindow,
+                    targetFrame: undoWindowState.originalFrame
+                ) else {
+                    let actualFrameDescription = currentWindowRect(for: managedWindow.window)
+                        .map(describe(rect:)) ?? "nil"
+                    WindowListDebugLogger.log(
+                        "retile-undo",
+                        "skip key=\(managedWindow.key) reason=restore-not-confirmed target=\(describe(rect: undoWindowState.originalFrame)) actual=\(actualFrameDescription)"
+                    )
+                    skippedWindowTitles.append(windowTitle)
+                    continue
+                }
+
+                var windowState = runState.statesByWindowKey[managedWindow.key] ??
+                    MoveEverythingWindowState(
+                        originalFrame: undoWindowState.originalFrame,
+                        hasVisited: true,
+                        isCentered: false
+                    )
+                windowState.originalFrame = undoWindowState.originalFrame
+                windowState.isCentered = false
+                runState.statesByWindowKey[managedWindow.key] = windowState
+                restoredWindows.append(managedWindow)
+                let restoredFrame = currentWindowRect(for: managedWindow.window) ?? undoWindowState.originalFrame
+                inverseUndoWindowStatesByKey[managedWindow.key] = MoveEverythingRetileUndoWindowState(
+                    originalFrame: currentFrame,
+                    retiledFrame: restoredFrame,
+                    targetFrame: restoredFrame
+                )
+                inverseUndoOrderedWindowKeys.append(managedWindow.key)
+                WindowListDebugLogger.log(
+                    "retile-undo",
+                    "restore key=\(managedWindow.key) from=\(describe(rect: currentFrame)) to=\(describe(rect: undoWindowState.originalFrame))"
+                )
+                restoredCount += 1
+            }
+
+            guard restoredCount > 0 else {
+                if !movedSinceRetileTitles.isEmpty && skippedWindowTitles.isEmpty {
+                    moveEverythingLastDirectActionErrorMessage =
+                        "Nothing to undo because those windows moved after the retile."
+                } else {
+                    moveEverythingLastDirectActionErrorMessage = "Unable to restore any retiled windows."
+                }
+                return false
+            }
+
+            for managedWindow in restoredWindows.reversed() {
+                orderMoveEverythingWindowBelowOthers(managedWindow)
+            }
+
+            var summary = "Restored \(restoredCount) window\(restoredCount == 1 ? "" : "s")."
+            if !movedSinceRetileTitles.isEmpty {
+                summary += " Kept \(movedSinceRetileTitles.count) where they are because they moved after retile."
+            }
+            if !skippedWindowTitles.isEmpty {
+                summary += " Skipped \(skippedWindowTitles.count) that could not be restored."
+            }
+            WindowListDebugLogger.log(
+                "retile-undo",
+                "summary restored=\(restoredCount) movedSinceRetile=\(movedSinceRetileTitles.count) skipped=\(skippedWindowTitles.count)"
+            )
+            moveEverythingLastDirectActionErrorMessage = summary
+            moveEverythingLastRetileUndoRecord = MoveEverythingRetileUndoRecord(
+                windowStatesByKey: inverseUndoWindowStatesByKey,
+                orderedWindowKeys: inverseUndoOrderedWindowKeys
+            )
+            markMoveEverythingSavedWindowPositionsLive()
+            moveEverythingRunState = runState
+            invalidateMoveEverythingResolvedInventoryCache()
+            requestMoveEverythingInventoryRefreshIfNeeded(force: true)
+            notifyMoveEverythingModeChanged()
+            return true
+        }
+        func previousMoveEverythingSavedWindowPositionIndex() -> Int? {
+            guard !moveEverythingSavedWindowPositionSnapshots.isEmpty else {
+                return nil
+            }
+            let anchorIndex = moveEverythingSavedWindowPositionSelectedIndex ??
+                moveEverythingSavedWindowPositionSnapshots.count
+            guard anchorIndex > 0 else {
+                return nil
+            }
+            return anchorIndex - 1
+        }
+        func nextMoveEverythingSavedWindowPositionIndex() -> Int? {
+            guard let selectedIndex = moveEverythingSavedWindowPositionSelectedIndex else {
+                return nil
+            }
+            let nextIndex = selectedIndex + 1
+            guard moveEverythingSavedWindowPositionSnapshots.indices.contains(nextIndex) else {
+                return nil
+            }
+            return nextIndex
+        }
+        func markMoveEverythingSavedWindowPositionsLive() {
+            moveEverythingSavedWindowPositionSelectedIndex = nil
+        }
+        func restoreMoveEverythingSavedWindowPositions(at index: Int) -> Bool {
+            guard moveEverythingSavedWindowPositionSnapshots.indices.contains(index) else {
+                moveEverythingLastDirectActionErrorMessage = "That saved window-position set is no longer available."
+                return false
+            }
+            guard ensureMoveEverythingActiveForDirectAction() else {
+                return false
+            }
+
+            let snapshot = moveEverythingSavedWindowPositionSnapshots[index]
+            guard !snapshot.windows.isEmpty else {
+                moveEverythingLastDirectActionErrorMessage = "That saved window-position set is empty."
+                return false
+            }
+
+            let freshInventory = resolveMoveEverythingWindowInventorySynchronously(
+                controlCenterWindowNumber: currentControlCenterWindowNumberSnapshot()
+            )
+            moveEverythingResolvedInventoryCache = freshInventory
+            moveEverythingResolvedInventoryLastRefreshAt = Date()
+            pruneMoveEverythingWindows(liveInventory: freshInventory)
+            guard var runState = moveEverythingRunState else {
+                moveEverythingLastDirectActionErrorMessage = "No visible windows were found."
+                return false
+            }
+
+            clearMoveEverythingHoveredWindowState(in: runState)
+
+            let visibleWindows = freshInventory.visible.filter { !isMoveEverythingControlCenterWindow($0) }
+            let matches = matchedMoveEverythingSavedWindowPositions(snapshot, to: visibleWindows)
+            guard !matches.isEmpty else {
+                moveEverythingLastDirectActionErrorMessage = "None of the saved window positions match the current windows."
+                return false
+            }
+
+            var restoredCount = 0
+            var skippedTitles: [String] = []
+            var pendingConfirmations: [(match: MoveEverythingSavedWindowPositionMatch, targetFrame: CGRect)] = []
+            for match in matches {
+                let targetFrame = moveEverythingCGRect(from: match.saved.frame)
+                guard setMoveEverythingWindowFrame(match.managedWindow, cocoaRect: targetFrame) else {
+                    skippedTitles.append(moveEverythingWindowTitle(for: match.managedWindow))
+                    WindowListDebugLogger.log(
+                        "saved-positions",
+                        "skip key=\(match.managedWindow.key) reason=restore-failed target=\(describe(rect: targetFrame))"
+                    )
+                    continue
+                }
+                pendingConfirmations.append((match: match, targetFrame: targetFrame))
+            }
+
+            if !pendingConfirmations.isEmpty {
+                _ = RunLoop.current.run(
+                    mode: .default,
+                    before: Date().addingTimeInterval(moveEverythingSavedPositionRestoreSettleDelay)
+                )
+            }
+
+            for pending in pendingConfirmations {
+                let managedWindow = pending.match.managedWindow
+                let targetFrame = pending.targetFrame
+                let windowTitle = moveEverythingWindowTitle(for: managedWindow)
+                let confirmed = currentWindowRect(for: managedWindow.window).map {
+                    moveEverythingPositionsApproximatelyEqual(
+                        $0,
+                        targetFrame,
+                        tolerance: moveEverythingRetileUndoPositionTolerance
+                    )
+                } ?? false
+                let didRestore = confirmed || confirmedMoveEverythingSavedPositionRestore(
+                    managedWindow,
+                    targetFrame: targetFrame
+                )
+                guard didRestore else {
+                    skippedTitles.append(windowTitle)
+                    WindowListDebugLogger.log(
+                        "saved-positions",
+                        "skip key=\(managedWindow.key) reason=restore-not-confirmed target=\(describe(rect: targetFrame))"
+                    )
+                    continue
+                }
+
+                var windowState = runState.statesByWindowKey[managedWindow.key] ??
+                    MoveEverythingWindowState(
+                        originalFrame: targetFrame,
+                        hasVisited: true,
+                        isCentered: false
+                    )
+                windowState.originalFrame = targetFrame
+                windowState.isCentered = false
+                runState.statesByWindowKey[managedWindow.key] = windowState
+                restoredCount += 1
+            }
+
+            guard restoredCount > 0 else {
+                moveEverythingLastDirectActionErrorMessage = "Unable to restore any saved window positions."
+                return false
+            }
+
+            let unmatchedCount = snapshot.windows.count - matches.count
+            var summary = "Restored \(restoredCount) saved window position\(restoredCount == 1 ? "" : "s")."
+            if unmatchedCount > 0 {
+                summary += " \(unmatchedCount) saved window\(unmatchedCount == 1 ? "" : "s") did not match current windows."
+            }
+            if !skippedTitles.isEmpty {
+                summary += " Skipped \(skippedTitles.count) that could not be restored."
+            }
+
+            WindowListDebugLogger.log(
+                "saved-positions",
+                "restore index=\(index) restored=\(restoredCount) matched=\(matches.count) unmatched=\(unmatchedCount) skipped=\(skippedTitles.count)"
+            )
+            moveEverythingLastDirectActionErrorMessage = summary
+            moveEverythingSavedWindowPositionSelectedIndex = index
+            moveEverythingRunState = runState
+            invalidateMoveEverythingResolvedInventoryCache()
+            requestMoveEverythingInventoryRefreshIfNeeded(force: true)
+            notifyMoveEverythingModeChanged()
+            ensureControlCenterWindowVisibleForMoveEverything()
             return true
         }
         func toggleMoveEverythingMode() -> MoveEverythingToggleResult {
@@ -856,6 +1636,7 @@ extension WindowManagerEngine {
             }
 
             guard isMoveEverythingActive else {
+                restoreAllHoverElevatedWindowLevels()
                 moveEverythingHoverAdvancedOriginalFrameByWindowKey.removeAll()
                 clearMoveEverythingExternalFocusOverlayState()
                 moveEverythingHoveredWindowKey = nil
@@ -864,6 +1645,7 @@ extension WindowManagerEngine {
             }
 
             guard let runState = moveEverythingRunState else {
+                restoreAllHoverElevatedWindowLevels()
                 moveEverythingHoverAdvancedOriginalFrameByWindowKey.removeAll()
                 clearMoveEverythingExternalFocusOverlayState()
                 moveEverythingHoveredWindowKey = nil
@@ -923,7 +1705,8 @@ extension WindowManagerEngine {
         }
         func clearMoveEverythingHoveredWindowState(in runState: MoveEverythingRunState) {
             guard moveEverythingHoveredWindowKey != nil ||
-                  !moveEverythingHoverAdvancedOriginalFrameByWindowKey.isEmpty else {
+                  !moveEverythingHoverAdvancedOriginalFrameByWindowKey.isEmpty ||
+                  !moveEverythingHoverElevatedWindows.isEmpty else {
                 return
             }
             restoreAllMoveEverythingAdvancedHoverLayoutsSilentlyIfNeeded(in: runState)
@@ -1007,6 +1790,12 @@ extension WindowManagerEngine {
                 statesByWindowKey: statesByWindowKey,
                 hiddenWindowRestoreByKey: [:]
             )
+            if let startupSnapshot = moveEverythingSavedWindowPositionsSnapshot(
+                from: windowsWithState,
+                statesByWindowKey: statesByWindowKey
+            ) {
+                appendMoveEverythingSavedWindowPositionsSnapshot(startupSnapshot, persistLatest: true)
+            }
             moveEverythingHoverAdvancedOriginalFrameByWindowKey.removeAll()
             clearMoveEverythingExternalFocusOverlayState()
             moveEverythingHoveredWindowKey = nil
@@ -1015,6 +1804,8 @@ extension WindowManagerEngine {
             moveEverythingFocusedWindowLastCheckAt = nil
             moveEverythingSelectionSyncSuppressedUntil = nil
             moveEverythingHoverFocusTransitionDepth = 0
+            moveEverythingLastRetileUndoRecord = nil
+            moveEverythingPendingHideVisibleSuppressionByKey.removeAll()
             isMoveEverythingActive = true
             moveEverythingControlCenterFocusedLastKnown = isMoveEverythingControlCenterFocused()
 
@@ -1051,15 +1842,18 @@ extension WindowManagerEngine {
             moveEverythingRunState = nil
             moveEverythingIconDataURLByPID.removeAll()
             moveEverythingResolvedWindowNumberByKey.removeAll()
+            moveEverythingITermDescriptorByWindowNumber.removeAll()
             moveEverythingHoverAdvancedOriginalFrameByWindowKey.removeAll()
             clearMoveEverythingExternalFocusOverlayState()
             restoreAllHoverElevatedWindowLevels()
+            moveEverythingHoverOriginalLevelByWindowNumber.removeAll()
             moveEverythingHoveredWindowKey = nil
             clearMoveEverythingHoveredWindowLock()
             moveEverythingFocusedWindowKey = nil
             moveEverythingFocusedWindowLastCheckAt = nil
             moveEverythingSelectionSyncSuppressedUntil = nil
             moveEverythingHoverFocusTransitionDepth = 0
+            moveEverythingLastRetileUndoRecord = nil
             moveEverythingControlCenterFocusedLastKnown = false
             moveEverythingMoveToBottom = false
             hideMoveEverythingOverlay()
@@ -1201,6 +1995,7 @@ extension WindowManagerEngine {
                 hideMoveEverythingOverlay()
             }
 
+            markMoveEverythingSavedWindowPositionsLive()
             return true
         }
         func removeMoveEverythingWindowFromRunState(_ runState: inout MoveEverythingRunState, at index: Int) {
@@ -1257,6 +2052,8 @@ extension WindowManagerEngine {
             let resolvedInventory = liveInventory ??
                 resolveMoveEverythingWindowInventory(forceRefresh: forceRefreshInventory)
             let liveVisibleByKey = Dictionary(uniqueKeysWithValues: resolvedInventory.visible.map { ($0.key, $0) })
+            let liveVisibleKeys = Set(liveVisibleByKey.keys)
+            let pendingHideVisibleKeys = activeMoveEverythingPendingHideVisibleWindowKeys()
             let liveHiddenKeys = Set(
                 resolvedInventory.hidden.map(\.key) +
                 resolvedInventory.hiddenCoreGraphicsFallback.map(\.key)
@@ -1266,8 +2063,20 @@ extension WindowManagerEngine {
                 Array(liveHiddenKeys)
             )
 
+            if let hoveredKey = moveEverythingHoveredWindowKey,
+               !liveVisibleKeys.contains(hoveredKey) {
+                WindowListDebugLogger.log(
+                    "hover-raise",
+                    "prune clearing stale hover key=\(hoveredKey) visibleNow=false"
+                )
+                clearMoveEverythingHoveredWindowState(in: runState)
+            }
+
             runState.windows = runState.windows.compactMap { managedWindow in
                 guard runState.statesByWindowKey[managedWindow.key] != nil else {
+                    return nil
+                }
+                if pendingHideVisibleKeys.contains(managedWindow.key) {
                     return nil
                 }
                 return liveVisibleByKey[managedWindow.key]
@@ -1287,9 +2096,15 @@ extension WindowManagerEngine {
             moveEverythingHiddenWindowVisibilitySuppressionByKey = moveEverythingHiddenWindowVisibilitySuppressionByKey.filter {
                 liveHiddenKeys.contains($0.key) && $0.value > suppressionNow
             }
+            moveEverythingPendingHideVisibleSuppressionByKey = moveEverythingPendingHideVisibleSuppressionByKey.filter {
+                $0.value > suppressionNow
+            }
 
             var existingWindowKeys = Set(runState.windows.map(\.key))
             for managedWindow in resolvedInventory.visible where !existingWindowKeys.contains(managedWindow.key) {
+                if pendingHideVisibleKeys.contains(managedWindow.key) {
+                    continue
+                }
                 runState.windows.append(managedWindow)
                 if runState.statesByWindowKey[managedWindow.key] == nil {
                     runState.statesByWindowKey[managedWindow.key] = MoveEverythingWindowState(
@@ -1481,7 +2296,7 @@ extension WindowManagerEngine {
                 return false
             }
 
-            let focusedWindowNumber = copyIntAttribute(from: focusedWindow, attribute: "AXWindowNumber")
+            let focusedWindowNumber = resolvedAXWindowNumber(for: focusedWindow)
             if let focusedWindowNumber,
                let managedWindowNumber = managedWindow.windowNumber {
                 return focusedWindowNumber == managedWindowNumber
@@ -1537,18 +2352,16 @@ extension WindowManagerEngine {
             // stale elevated windows blocking the newly-hovered one.
             restoreAllHoverElevatedWindowLevels()
 
+            // Suppress selection sync while we temporarily shift OS focus to the
+            // target app and back — without this, the 20ms overlay sync timer
+            // picks up the transient focus change and bounces the selection.
+            suppressMoveEverythingSelectionSyncForProgrammaticFocus()
+
             // Pin the control center above everything so it stays interactive
             // even after we activate another app to bring its window to front.
             temporarilyPinControlCenterWindowOnTopForMoveEverything()
 
-            // Activate the target app so its windows come above all other
-            // normal-level windows, then raise the specific window within it.
-            if let app = NSRunningApplication(processIdentifier: managedWindow.pid) {
-                app.activate(options: [])
-            }
-            let hoveredWindow = managedWindow.window
-            applyAXMessagingTimeout(to: hoveredWindow, timeout: axFocusMessagingTimeout)
-            let raiseResult = AXUIElementPerformAction(hoveredWindow, kAXRaiseAction as CFString)
+            let hoverRaise = raiseMoveEverythingWindowForHover(managedWindow)
 
             // Re-activate VibeGrid so the control center remains key for input.
             NSApp.activate(ignoringOtherApps: true)
@@ -1556,19 +2369,23 @@ extension WindowManagerEngine {
 
             WindowListDebugLogger.log(
                 "hover-raise",
-                "pulse key=\(managedWindow.key) app=\(managedWindow.appName) raise=\(raiseResult == .success ? "ok" : "err:\(raiseResult.rawValue)") elevated=\(moveEverythingHoverElevatedWindows.count)"
+                "pulse key=\(managedWindow.key) app=\(managedWindow.appName) raise=\(hoverRaise.result == .success ? "ok" : "err:\(hoverRaise.result.rawValue)") fallbackActivate=\(hoverRaise.didActivateApp) elevated=\(moveEverythingHoverElevatedWindows.count)"
             )
         }
 
         func restoreAllHoverElevatedWindowLevels() {
             guard !moveEverythingHoverElevatedWindows.isEmpty else { return }
             let conn = CGSMainConnectionID()
-            for entry in moveEverythingHoverElevatedWindows {
-                let result = CGSSetWindowLevel(conn, UInt32(entry.windowNumber), entry.originalLevel)
+            let entriesByWindowNumber = moveEverythingHoverElevatedWindows.reduce(into: [Int: Int32]()) {
+                $0[$1.windowNumber] = $1.originalLevel
+            }
+            for (windowNumber, originalLevel) in entriesByWindowNumber {
+                let result = CGSSetWindowLevel(conn, UInt32(windowNumber), originalLevel)
                 WindowListDebugLogger.log(
                     "hover-raise",
-                    "restore wid=\(entry.windowNumber) toLevel=\(entry.originalLevel) result=\(result)"
+                    "restore wid=\(windowNumber) toLevel=\(originalLevel) result=\(result)"
                 )
+                moveEverythingHoverOriginalLevelByWindowNumber.removeValue(forKey: windowNumber)
             }
             moveEverythingHoverElevatedWindows.removeAll()
         }
@@ -1578,7 +2395,9 @@ extension WindowManagerEngine {
         func resolveCGWindowNumber(for managedWindow: MoveEverythingManagedWindow) -> Int? {
             if let wn = managedWindow.windowNumber { return wn }
             if let cached = moveEverythingResolvedWindowNumberByKey[managedWindow.key] { return cached }
-            if let wn = copyIntAttribute(from: managedWindow.window, attribute: "AXWindowNumber") {
+            // Use fast timeout — this is called during hover and must not stall.
+            applyAXMessagingTimeout(to: managedWindow.window, timeout: axFocusMessagingTimeout)
+            if let wn = resolvedAXWindowNumber(for: managedWindow.window) {
                 moveEverythingResolvedWindowNumberByKey[managedWindow.key] = wn
                 return wn
             }
@@ -1614,23 +2433,79 @@ extension WindowManagerEngine {
             }
             let conn = CGSMainConnectionID()
             let wid = UInt32(windowNumber)
-            var currentLevel: Int32 = 0
-            let getResult = CGSGetWindowLevel(conn, wid, &currentLevel)
-            guard getResult == 0 else {
+
+            // Use the saved original level if we've elevated this window before,
+            // so that a window stuck at level 8 doesn't poison its "original" record.
+            let originalLevel: Int32
+            if let saved = moveEverythingHoverOriginalLevelByWindowNumber[windowNumber] {
+                originalLevel = saved
+            } else {
+                var currentLevel: Int32 = 0
+                let getResult = CGSGetWindowLevel(conn, wid, &currentLevel)
+                guard getResult == 0 else {
+                    WindowListDebugLogger.log(
+                        "hover-raise",
+                        "elevate: CGSGetWindowLevel failed conn=\(conn) wid=\(wid) err=\(getResult)"
+                    )
+                    return
+                }
+                // If the window is already at our hover level, it was likely
+                // stuck from a previous hover — treat its true original as normal (0).
+                originalLevel = (currentLevel == kCGSHoverRaiseWindowLevel) ? 0 : currentLevel
+                moveEverythingHoverOriginalLevelByWindowNumber[windowNumber] = originalLevel
+            }
+
+            moveEverythingHoverElevatedWindows.append(
+                (windowNumber: windowNumber, originalLevel: originalLevel)
+            )
+            let setResult = CGSSetWindowLevel(conn, wid, kCGSHoverRaiseWindowLevel)
+            // Reorder the window above all others at this level so it actually
+            // appears on top even when another window is already at level 8.
+            let orderResult = CGSOrderWindow(conn, wid, kCGSOrderAbove, 0)
+            WindowListDebugLogger.log(
+                "hover-raise",
+                "elevate: wid=\(wid) origLevel=\(originalLevel) to=\(kCGSHoverRaiseWindowLevel) set=\(setResult) order=\(orderResult)"
+            )
+        }
+
+        func orderMoveEverythingWindowBelowOthers(_ managedWindow: MoveEverythingManagedWindow) {
+            guard let windowNumber = resolveCGWindowNumber(for: managedWindow) else {
                 WindowListDebugLogger.log(
-                    "hover-raise",
-                    "elevate: CGSGetWindowLevel failed conn=\(conn) wid=\(wid) err=\(getResult)"
+                    "retile-undo",
+                    "order-below: NO windowNumber for key=\(managedWindow.key)"
                 )
                 return
             }
-            moveEverythingHoverElevatedWindows.append(
-                (windowNumber: windowNumber, originalLevel: currentLevel)
-            )
-            let setResult = CGSSetWindowLevel(conn, wid, kCGSHoverRaiseWindowLevel)
+
+            let conn = CGSMainConnectionID()
+            let wid = UInt32(windowNumber)
+            let orderResult = CGSOrderWindow(conn, wid, kCGSOrderBelow, 0)
             WindowListDebugLogger.log(
-                "hover-raise",
-                "elevate: wid=\(wid) from=\(currentLevel) to=\(kCGSHoverRaiseWindowLevel) result=\(setResult)"
+                "retile-undo",
+                "order-below: wid=\(wid) result=\(orderResult)"
             )
+        }
+
+        func raiseMoveEverythingWindowForHover(
+            _ managedWindow: MoveEverythingManagedWindow
+        ) -> (result: AXError, didActivateApp: Bool) {
+            let hoveredWindow = managedWindow.window
+            applyAXMessagingTimeout(to: hoveredWindow, timeout: axFocusMessagingTimeout)
+
+            // Try a background AX raise first. Activating iTerm on hover is what
+            // causes the false-positive recent-activity spikes that turn rows green.
+            var raiseResult = AXUIElementPerformAction(hoveredWindow, kAXRaiseAction as CFString)
+            guard raiseResult != .success else {
+                return (raiseResult, false)
+            }
+
+            guard let app = NSRunningApplication(processIdentifier: managedWindow.pid) else {
+                return (raiseResult, false)
+            }
+
+            let didActivateApp = app.activate(options: [])
+            raiseResult = AXUIElementPerformAction(hoveredWindow, kAXRaiseAction as CFString)
+            return (raiseResult, didActivateApp)
         }
 
         func shouldApplyMoveEverythingAdvancedHoverLayout(
@@ -1654,7 +2529,8 @@ extension WindowManagerEngine {
             guard moveEverythingHoverAdvancedOriginalFrameByWindowKey[managedWindow.key] == nil else {
                 return
             }
-            guard let originalFrame = currentWindowRect(for: managedWindow.window),
+            // Use the fast hover timeout to avoid main-thread stalls on slow apps.
+            guard let originalFrame = currentWindowRect(for: managedWindow.window, timeout: axFocusMessagingTimeout),
                   let hoverFrame = moveEverythingAdvancedHoverRect(for: originalFrame) else {
                 return
             }
@@ -1696,9 +2572,10 @@ extension WindowManagerEngine {
             }
 
             // Focus new hovered window, apply layout, then return focus to control center.
+            // Use the fast hover timeout to avoid main-thread stalls on slow apps.
             if shouldApplyMoveEverythingAdvancedHoverLayout(to: hoveredWindow),
                moveEverythingHoverAdvancedOriginalFrameByWindowKey[hoveredWindow.key] == nil,
-               let originalFrame = currentWindowRect(for: hoveredWindow.window),
+               let originalFrame = currentWindowRect(for: hoveredWindow.window, timeout: axFocusMessagingTimeout),
                let hoverFrame = moveEverythingAdvancedHoverRect(for: originalFrame) {
                 moveEverythingHoverAdvancedOriginalFrameByWindowKey[hoveredWindow.key] = originalFrame
                 suppressMoveEverythingSelectionSyncForProgrammaticFocus()
@@ -1739,15 +2616,10 @@ extension WindowManagerEngine {
             suppressMoveEverythingSelectionSyncForProgrammaticFocus()
             temporarilyPinControlCenterWindowOnTopForMoveEverything()
 
-            if let app = NSRunningApplication(processIdentifier: managedWindow.pid) {
-                app.activate(options: [])
-            }
-            let hoveredWindow = managedWindow.window
-            applyAXMessagingTimeout(to: hoveredWindow, timeout: axFocusMessagingTimeout)
-            let raiseResult = AXUIElementPerformAction(hoveredWindow, kAXRaiseAction as CFString)
+            let hoverRaise = raiseMoveEverythingWindowForHover(managedWindow)
             WindowListDebugLogger.log(
                 "hover-raise",
-                "noFocus key=\(managedWindow.key) app=\(managedWindow.appName) raise=\(raiseResult == .success ? "ok" : "err:\(raiseResult.rawValue)")"
+                "noFocus key=\(managedWindow.key) app=\(managedWindow.appName) raise=\(hoverRaise.result == .success ? "ok" : "err:\(hoverRaise.result.rawValue)") fallbackActivate=\(hoverRaise.didActivateApp)"
             )
 
             NSApp.activate(ignoringOtherApps: true)
@@ -2010,32 +2882,11 @@ extension WindowManagerEngine {
         }
         func moveEverythingFocusedWindowKey(in windows: [MoveEverythingManagedWindow]) -> String? {
             if let focusedAXWindow = focusedWindow() {
-                var focusedPID: pid_t = 0
-                AXUIElementGetPid(focusedAXWindow, &focusedPID)
-                let focusedCandidates = windows.filter { managedWindow in
-                    !isMoveEverythingControlCenterWindow(managedWindow) && managedWindow.pid == focusedPID
-                }
-                if !focusedCandidates.isEmpty {
-                    if let focusedWindowNumber = copyIntAttribute(from: focusedAXWindow, attribute: "AXWindowNumber") {
-                        let numberedMatches = focusedCandidates.filter { $0.windowNumber == focusedWindowNumber }
-                        if let exactNumberedMatch = numberedMatches.first {
-                            return exactNumberedMatch.key
-                        }
-                    }
-
-                    let elementMatches = focusedCandidates.filter { CFEqual($0.window, focusedAXWindow) }
-                    if let exactElementMatch = elementMatches.first {
-                        return exactElementMatch.key
-                    }
-
-                    if let focusedFrame = currentWindowRect(for: focusedAXWindow)?.integral {
-                        let frameMatches = focusedCandidates.filter { managedWindow in
-                            currentWindowRect(for: managedWindow.window)?.integral == focusedFrame
-                        }
-                        if frameMatches.count == 1 {
-                            return frameMatches[0].key
-                        }
-                    }
+                if let matchedKey = moveEverythingMatchingWindowKey(
+                    forFocusedAXWindow: focusedAXWindow,
+                    among: windows
+                ) {
+                    return matchedKey
                 }
             }
 
@@ -2055,6 +2906,43 @@ extension WindowManagerEngine {
 
             if identityCandidates.count == 1 {
                 return identityCandidates[0].key
+            }
+
+            return nil
+        }
+        func moveEverythingMatchingWindowKey(
+            forFocusedAXWindow focusedAXWindow: AXUIElement,
+            among windows: [MoveEverythingManagedWindow]
+        ) -> String? {
+            var focusedPID: pid_t = 0
+            AXUIElementGetPid(focusedAXWindow, &focusedPID)
+            let focusedCandidates = windows.filter { managedWindow in
+                !isMoveEverythingControlCenterWindow(managedWindow) && managedWindow.pid == focusedPID
+            }
+            guard !focusedCandidates.isEmpty else {
+                return nil
+            }
+
+            if let focusedWindowNumber = resolvedAXWindowNumber(for: focusedAXWindow),
+               let exactNumberedMatch = focusedCandidates.first(where: { $0.windowNumber == focusedWindowNumber }) {
+                return exactNumberedMatch.key
+            }
+
+            if let exactElementMatch = focusedCandidates.first(where: { CFEqual($0.window, focusedAXWindow) }) {
+                return exactElementMatch.key
+            }
+
+            if let focusedFrame = currentWindowRect(for: focusedAXWindow)?.integral {
+                let frameMatches = focusedCandidates.filter { managedWindow in
+                    currentWindowRect(for: managedWindow.window)?.integral == focusedFrame
+                }
+                if frameMatches.count == 1 {
+                    return frameMatches[0].key
+                }
+            }
+
+            if focusedCandidates.count == 1 {
+                return focusedCandidates[0].key
             }
 
             return nil
@@ -2389,6 +3277,15 @@ extension WindowManagerEngine {
                     return info[kCGWindowNumber as String] as? Int
                 }
             )
+            let onScreenLayerZeroPIDs: Set<pid_t> = Set(
+                onScreenInfoList.compactMap { info -> pid_t? in
+                    guard let layer = info[kCGWindowLayer as String] as? Int, layer == 0,
+                          let ownerPIDNumber = info[kCGWindowOwnerPID as String] as? NSNumber else {
+                        return nil
+                    }
+                    return pid_t(ownerPIDNumber.int32Value)
+                }
+            )
             let hiddenCoreGraphicsFallbackCandidatesByPID = hiddenCoreGraphicsFallbackCandidates(
                 from: allInfoList,
                 visibleWindowNumbers: visibleWindowNumbers
@@ -2442,7 +3339,10 @@ extension WindowManagerEngine {
                 }()
                 let appElement = applicationAXElement(for: app.processIdentifier)
                 guard let windows = copyWindowList(from: appElement), !windows.isEmpty else {
-                    if let fallbackCandidates = hiddenCoreGraphicsFallbackCandidatesByPID[app.processIdentifier] {
+                    let shouldUseHiddenCoreGraphicsFallback =
+                        app.isHidden || !onScreenLayerZeroPIDs.contains(app.processIdentifier)
+                    if shouldUseHiddenCoreGraphicsFallback,
+                       let fallbackCandidates = hiddenCoreGraphicsFallbackCandidatesByPID[app.processIdentifier] {
                         for candidate in fallbackCandidates {
                             let key = coreGraphicsFallbackWindowKey(
                                 pid: app.processIdentifier,
@@ -2470,11 +3370,32 @@ extension WindowManagerEngine {
                     let rects = bothWindowRects(for: window)
                     let frame = rects?.cocoa
                     let rawFrame = rects?.raw
+                    // Resolve a stable CG window number for the key.
+                    // _AXUIElementGetWindow is the most reliable path, and
+                    // resolvedAXWindowNumber() falls back to AXWindowNumber.
+                    var windowNumber = resolvedAXWindowNumber(for: window)
+                    if windowNumber == nil {
+                        windowNumber = rawFrame.flatMap { frame in
+                            resolveCGWindowNumber(
+                                forPID: app.processIdentifier,
+                                frame: frame,
+                                in: allInfoList
+                            )
+                        }
+                    }
+                    // Resolve iTerm session data.  Prefer a cached descriptor (keyed
+                    // by the stable CG window number) so that hotkey moves don't cause
+                    // the frame-based resolver to match the wrong session.
                     let resolvedITermWindow: ITermWindowInventoryResolver.WindowDescriptor? = {
                         guard isITermApplication else {
                             return nil
                         }
-                        return ITermWindowInventoryResolver.resolveWindowDescriptor(
+                        if let wn = windowNumber,
+                           let cached = moveEverythingITermDescriptorByWindowNumber[wn],
+                           iTermWindowInventory.contains(where: { $0.id == cached.id }) {
+                            return cached
+                        }
+                        let resolved = ITermWindowInventoryResolver.resolveWindowDescriptor(
                             from: iTermWindowInventory,
                             titleCandidates: [title ?? ""],
                             frame: rawFrame,
@@ -2482,8 +3403,11 @@ extension WindowManagerEngine {
                                 "inventory pid=\(app.processIdentifier) keyCandidate=\(CFHash(window)) " +
                                 "title=\(title ?? "") rawFrame=\(rawFrame.map { NSStringFromRect(NSRectFromCGRect($0)) } ?? "nil")"
                         )
+                        if let resolved, let wn = windowNumber {
+                            moveEverythingITermDescriptorByWindowNumber[wn] = resolved
+                        }
+                        return resolved
                     }()
-                    let windowNumber = copyIntAttribute(from: window, attribute: "AXWindowNumber")
                     let iTermWindowID = resolvedITermWindow.map { String($0.id) }
                     let key: String
                     if let windowNumber {
@@ -2491,8 +3415,6 @@ extension WindowManagerEngine {
                     } else if let iTermWindowID, !iTermWindowID.isEmpty {
                         key = "\(app.processIdentifier)-iterm-\(iTermWindowID)"
                     } else {
-                        // AXWindowNumber is not available for every app; use CFHash(window) as a
-                        // stable fallback identifier across repeated AX queries.
                         key = "\(app.processIdentifier)-ax-\(CFHash(window))"
                     }
 
@@ -2711,6 +3633,331 @@ extension WindowManagerEngine {
                 .filter { $0.value > now }
             return Set(moveEverythingHiddenWindowVisibilitySuppressionByKey.keys)
         }
+        func suppressMoveEverythingPendingHideVisibleWindow(
+            forKey key: String,
+            duration: TimeInterval = 1.2
+        ) {
+            let clampedDuration = max(duration, 0)
+            if clampedDuration == 0 {
+                moveEverythingPendingHideVisibleSuppressionByKey.removeValue(forKey: key)
+                return
+            }
+            moveEverythingPendingHideVisibleSuppressionByKey[key] = Date().addingTimeInterval(clampedDuration)
+        }
+        func clearMoveEverythingPendingHideVisibleSuppression(forKey key: String) {
+            moveEverythingPendingHideVisibleSuppressionByKey.removeValue(forKey: key)
+        }
+        func activeMoveEverythingPendingHideVisibleWindowKeys() -> Set<String> {
+            let now = Date()
+            moveEverythingPendingHideVisibleSuppressionByKey = moveEverythingPendingHideVisibleSuppressionByKey
+                .filter { $0.value > now }
+            return Set(moveEverythingPendingHideVisibleSuppressionByKey.keys)
+        }
+        func dedupeMoveEverythingWindowSnapshotsByKey(
+            _ snapshots: [MoveEverythingWindowSnapshot]
+        ) -> [MoveEverythingWindowSnapshot] {
+            var seenKeys: Set<String> = []
+            var deduped: [MoveEverythingWindowSnapshot] = []
+            for snapshot in snapshots {
+                guard seenKeys.insert(snapshot.key).inserted else {
+                    continue
+                }
+                deduped.append(snapshot)
+            }
+            return deduped
+        }
+        func moveEverythingFramesApproximatelyEqual(
+            _ lhs: CGRect,
+            _ rhs: CGRect,
+            tolerance: CGFloat
+        ) -> Bool {
+            abs(lhs.minX - rhs.minX) <= tolerance &&
+                abs(lhs.minY - rhs.minY) <= tolerance &&
+                abs(lhs.width - rhs.width) <= tolerance &&
+                abs(lhs.height - rhs.height) <= tolerance
+        }
+        func moveEverythingPositionsApproximatelyEqual(
+            _ lhs: CGRect,
+            _ rhs: CGRect,
+            tolerance: CGFloat
+        ) -> Bool {
+            abs(lhs.minX - rhs.minX) <= tolerance &&
+                abs(lhs.minY - rhs.minY) <= tolerance
+        }
+        func resolvedMoveEverythingRetileUndoCapturedFrame(
+            for managedWindow: MoveEverythingManagedWindow,
+            previousFrame: CGRect,
+            targetFrame: CGRect
+        ) -> CGRect {
+            let deadline = Date().addingTimeInterval(moveEverythingRetileUndoCaptureTimeout)
+            var latestFrame = currentWindowRect(for: managedWindow.window) ?? targetFrame
+
+            while Date() < deadline {
+                if let currentFrame = currentWindowRect(for: managedWindow.window) {
+                    latestFrame = currentFrame
+                    let movedAwayFromPrevious = !moveEverythingPositionsApproximatelyEqual(
+                        currentFrame,
+                        previousFrame,
+                        tolerance: 2
+                    )
+                    let nearTarget = moveEverythingPositionsApproximatelyEqual(
+                        currentFrame,
+                        targetFrame,
+                        tolerance: moveEverythingRetileUndoPositionTolerance
+                    )
+                    if movedAwayFromPrevious || nearTarget {
+                        break
+                    }
+                }
+                _ = RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.01))
+            }
+
+            return latestFrame
+        }
+        func confirmedMoveEverythingRetileUndoRestore(
+            _ managedWindow: MoveEverythingManagedWindow,
+            targetFrame: CGRect
+        ) -> Bool {
+            if waitForMoveEverythingWindowPosition(
+                managedWindow,
+                targetFrame: targetFrame,
+                timeout: moveEverythingRetileUndoRestoreTimeout
+            ) {
+                return true
+            }
+
+            guard setMoveEverythingWindowFrame(managedWindow, cocoaRect: targetFrame) else {
+                return false
+            }
+            return waitForMoveEverythingWindowPosition(
+                managedWindow,
+                targetFrame: targetFrame,
+                timeout: moveEverythingRetileUndoRestoreTimeout
+            )
+        }
+        func confirmedMoveEverythingSavedPositionRestore(
+            _ managedWindow: MoveEverythingManagedWindow,
+            targetFrame: CGRect
+        ) -> Bool {
+            if waitForMoveEverythingWindowPosition(
+                managedWindow,
+                targetFrame: targetFrame,
+                timeout: moveEverythingSavedPositionRestoreTimeout
+            ) {
+                return true
+            }
+
+            guard setMoveEverythingWindowFrame(managedWindow, cocoaRect: targetFrame) else {
+                return false
+            }
+            return waitForMoveEverythingWindowPosition(
+                managedWindow,
+                targetFrame: targetFrame,
+                timeout: moveEverythingSavedPositionRestoreTimeout
+            )
+        }
+        func waitForMoveEverythingWindowPosition(
+            _ managedWindow: MoveEverythingManagedWindow,
+            targetFrame: CGRect,
+            timeout: TimeInterval
+        ) -> Bool {
+            let deadline = Date().addingTimeInterval(max(0, timeout))
+
+            repeat {
+                if let currentFrame = currentWindowRect(for: managedWindow.window),
+                   moveEverythingPositionsApproximatelyEqual(
+                    currentFrame,
+                    targetFrame,
+                    tolerance: moveEverythingRetileUndoPositionTolerance
+                   ) {
+                    return true
+                }
+                _ = RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.02))
+            } while Date() < deadline
+
+            if let currentFrame = currentWindowRect(for: managedWindow.window) {
+                return moveEverythingPositionsApproximatelyEqual(
+                    currentFrame,
+                    targetFrame,
+                    tolerance: moveEverythingRetileUndoPositionTolerance
+                )
+            }
+            return false
+        }
+        func captureMoveEverythingSavedWindowPositions(
+            from windows: [MoveEverythingManagedWindow]
+        ) -> (snapshot: MoveEverythingSavedWindowPositionsSnapshot?, skippedCount: Int) {
+            var savedWindows: [MoveEverythingSavedWindowPosition] = []
+            var skippedCount = 0
+
+            for (captureOrder, managedWindow) in windows.enumerated() {
+                guard let frame = currentWindowRect(for: managedWindow.window) else {
+                    skippedCount += 1
+                    WindowListDebugLogger.log(
+                        "saved-positions",
+                        "capture-skip key=\(managedWindow.key) reason=no-current-frame"
+                    )
+                    continue
+                }
+                savedWindows.append(
+                    MoveEverythingSavedWindowPosition(
+                        pid: managedWindow.pid,
+                        appName: managedWindow.appName,
+                        title: moveEverythingWindowTitle(for: managedWindow),
+                        windowNumber: managedWindow.windowNumber,
+                        iTermWindowID: managedWindow.iTermWindowID,
+                        frame: moveEverythingSnapshotFrame(from: frame),
+                        captureOrder: captureOrder
+                    )
+                )
+            }
+
+            guard !savedWindows.isEmpty else {
+                return (nil, skippedCount)
+            }
+
+            return (
+                MoveEverythingSavedWindowPositionsSnapshot(
+                    createdAt: Date(),
+                    windows: savedWindows
+                ),
+                skippedCount
+            )
+        }
+        func moveEverythingSavedWindowPositionsSnapshot(
+            from windows: [MoveEverythingManagedWindow],
+            statesByWindowKey: [String: MoveEverythingWindowState]
+        ) -> MoveEverythingSavedWindowPositionsSnapshot? {
+            var savedWindows: [MoveEverythingSavedWindowPosition] = []
+
+            for (captureOrder, managedWindow) in windows.enumerated() {
+                guard let frame = statesByWindowKey[managedWindow.key]?.originalFrame,
+                      !frame.isNull,
+                      !frame.isEmpty,
+                      frame.width > 0,
+                      frame.height > 0 else {
+                    continue
+                }
+                savedWindows.append(
+                    MoveEverythingSavedWindowPosition(
+                        pid: managedWindow.pid,
+                        appName: managedWindow.appName,
+                        title: moveEverythingWindowTitle(for: managedWindow),
+                        windowNumber: managedWindow.windowNumber,
+                        iTermWindowID: managedWindow.iTermWindowID,
+                        frame: moveEverythingSnapshotFrame(from: frame),
+                        captureOrder: captureOrder
+                    )
+                )
+            }
+
+            guard !savedWindows.isEmpty else {
+                return nil
+            }
+
+            return MoveEverythingSavedWindowPositionsSnapshot(
+                createdAt: Date(),
+                windows: savedWindows
+            )
+        }
+        func matchedMoveEverythingSavedWindowPositions(
+            _ snapshot: MoveEverythingSavedWindowPositionsSnapshot,
+            to currentWindows: [MoveEverythingManagedWindow]
+        ) -> [MoveEverythingSavedWindowPositionMatch] {
+            let snapshotByPID = Dictionary(grouping: snapshot.windows, by: \.pid)
+            let currentByPID = Dictionary(grouping: currentWindows, by: \.pid)
+            var matches: [MoveEverythingSavedWindowPositionMatch] = []
+
+            for pid in snapshotByPID.keys.sorted() {
+                guard let savedWindows = snapshotByPID[pid],
+                      let candidateWindows = currentByPID[pid],
+                      !candidateWindows.isEmpty else {
+                    continue
+                }
+                matches.append(
+                    contentsOf: matchMoveEverythingSavedWindowPositions(
+                        savedWindows,
+                        to: candidateWindows
+                    )
+                )
+            }
+
+            return matches
+        }
+        func matchMoveEverythingSavedWindowPositions(
+            _ savedWindows: [MoveEverythingSavedWindowPosition],
+            to currentWindows: [MoveEverythingManagedWindow]
+        ) -> [MoveEverythingSavedWindowPositionMatch] {
+            var remainingSaved = savedWindows.sorted { left, right in
+                left.captureOrder < right.captureOrder
+            }
+            var remainingCurrent = currentWindows
+            var matches: [MoveEverythingSavedWindowPositionMatch] = []
+
+            func matchPass(
+                _ predicate: (MoveEverythingSavedWindowPosition, MoveEverythingManagedWindow) -> Bool
+            ) {
+                var unmatchedSaved: [MoveEverythingSavedWindowPosition] = []
+                for savedWindow in remainingSaved {
+                    if let currentIndex = remainingCurrent.firstIndex(where: { predicate(savedWindow, $0) }) {
+                        matches.append(
+                            MoveEverythingSavedWindowPositionMatch(
+                                saved: savedWindow,
+                                managedWindow: remainingCurrent.remove(at: currentIndex)
+                            )
+                        )
+                    } else {
+                        unmatchedSaved.append(savedWindow)
+                    }
+                }
+                remainingSaved = unmatchedSaved
+            }
+
+            matchPass { savedWindow, managedWindow in
+                guard let savedID = normalizedMoveEverythingSavedWindowIdentity(savedWindow.iTermWindowID),
+                      let currentID = normalizedMoveEverythingSavedWindowIdentity(managedWindow.iTermWindowID) else {
+                    return false
+                }
+                return savedID == currentID
+            }
+            matchPass { savedWindow, managedWindow in
+                guard let savedWindowNumber = savedWindow.windowNumber,
+                      let currentWindowNumber = managedWindow.windowNumber else {
+                    return false
+                }
+                return savedWindowNumber == currentWindowNumber
+            }
+            matchPass { savedWindow, managedWindow in
+                let savedTitle = normalizedMoveEverythingSavedWindowTitle(savedWindow.title)
+                guard !savedTitle.isEmpty else {
+                    return false
+                }
+                return savedTitle == normalizedMoveEverythingSavedWindowTitle(managedWindow.title)
+            }
+
+            for (savedWindow, managedWindow) in zip(remainingSaved, remainingCurrent) {
+                matches.append(
+                    MoveEverythingSavedWindowPositionMatch(
+                        saved: savedWindow,
+                        managedWindow: managedWindow
+                    )
+                )
+            }
+            return matches
+        }
+        func normalizedMoveEverythingSavedWindowIdentity(_ value: String?) -> String? {
+            guard let normalized = value?
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+                  !normalized.isEmpty else {
+                return nil
+            }
+            return normalized.lowercased()
+        }
+        func normalizedMoveEverythingSavedWindowTitle(_ value: String?) -> String {
+            value?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased() ?? ""
+        }
         func hiddenCoreGraphicsFallbackCandidates(
             from infoList: [[String: Any]],
             visibleWindowNumbers: Set<Int>
@@ -2797,6 +4044,33 @@ extension WindowManagerEngine {
             return normalizedAppName.contains("iterm") ||
                 normalizedBundleIdentifier == "com.googlecode.iterm2"
         }
+        func resolvedAXWindowNumber(for window: AXUIElement) -> Int? {
+            var windowID: UInt32 = 0
+            if _AXUIElementGetWindow(window, &windowID) == .success, windowID != 0 {
+                return Int(windowID)
+            }
+            return copyIntAttribute(from: window, attribute: "AXWindowNumber")
+        }
+        /// Match an AX window to its CG window number by PID + frame.
+        func resolveCGWindowNumber(
+            forPID pid: pid_t,
+            frame: CGRect,
+            in infoList: [[String: Any]]
+        ) -> Int? {
+            for info in infoList {
+                guard let ownerPID = info[kCGWindowOwnerPID as String] as? pid_t,
+                      ownerPID == pid,
+                      let bounds = info[kCGWindowBounds as String] as? [String: Any],
+                      let x = bounds["X"] as? CGFloat, let y = bounds["Y"] as? CGFloat,
+                      let w = bounds["Width"] as? CGFloat, let h = bounds["Height"] as? CGFloat,
+                      let wn = info[kCGWindowNumber as String] as? Int else { continue }
+                if abs(x - frame.origin.x) <= 2 && abs(y - frame.origin.y) <= 2 &&
+                   abs(w - frame.size.width) <= 2 && abs(h - frame.size.height) <= 2 {
+                    return wn
+                }
+            }
+            return nil
+        }
         func shouldManipulateMoveEverythingWindowOnHover(
             _ managedWindow: MoveEverythingManagedWindow
         ) -> Bool {
@@ -2834,6 +4108,17 @@ extension WindowManagerEngine {
                     continue
                 }
 
+                if seenKeys.insert(managed.key).inserted {
+                    ordered.append(managed)
+                }
+            }
+
+            // Add visible windows whose CG layer is not 0 (e.g. hover-elevated
+            // windows at level 8).  The layer-0 loop above skips them, but the
+            // AX-based visibility check already confirmed they belong in the
+            // visible set — dropping them here causes them to vanish from the
+            // window list until the next background refresh restores their level.
+            for (_, managed) in windowsByNumber {
                 if seenKeys.insert(managed.key).inserted {
                     ordered.append(managed)
                 }
@@ -3126,7 +4411,17 @@ extension WindowManagerEngine {
         func revealMoveEverythingHiddenWindow(_ managedWindow: MoveEverythingManagedWindow, targetFrame: CGRect?) -> Bool {
             if let app = NSRunningApplication(processIdentifier: managedWindow.pid) {
                 _ = app.unhide()
-                app.activate(options: [.activateIgnoringOtherApps])
+            }
+
+            func waitForUnminimized(timeout: TimeInterval) -> Bool {
+                let deadline = Date().addingTimeInterval(max(0, timeout))
+                while Date() < deadline {
+                    _ = RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.01))
+                    if !isWindowMinimized(managedWindow.window) {
+                        return true
+                    }
+                }
+                return !isWindowMinimized(managedWindow.window)
             }
 
             applyAXMessagingTimeout(to: managedWindow.window)
@@ -3140,8 +4435,7 @@ extension WindowManagerEngine {
                 _ = setMoveEverythingWindowFrame(managedWindow, cocoaRect: targetFrame)
             }
 
-            _ = focusMoveEverythingWindow(managedWindow)
-            return !isWindowMinimized(managedWindow.window)
+            return waitForUnminimized(timeout: targetFrame == nil ? 0.08 : 0.14)
         }
         func defaultMoveEverythingCenterRect() -> CGRect? {
             guard let screen = NSScreen.main ?? sortedScreens().first else {
@@ -3267,6 +4561,14 @@ extension WindowManagerEngine {
                 y: rect.origin.y,
                 width: rect.size.width,
                 height: rect.size.height
+            )
+        }
+        func moveEverythingCGRect(from snapshot: MoveEverythingWindowFrameSnapshot) -> CGRect {
+            CGRect(
+                x: snapshot.x,
+                y: snapshot.y,
+                width: snapshot.width,
+                height: snapshot.height
             )
         }
         func moveEverythingWindowTitle(for managedWindow: MoveEverythingManagedWindow) -> String {

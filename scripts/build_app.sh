@@ -119,7 +119,7 @@ cat > "${APP_DIR}/Contents/Info.plist" <<PLIST
   <key>LSMinimumSystemVersion</key>
   <string>${MIN_SYSTEM_VERSION_XML}</string>
   <key>LSUIElement</key>
-  <true/>
+  <${VIBEGRID_LSUIELEMENT:-true}/>
   <key>NSHumanReadableCopyright</key>
   <string>${COPYRIGHT_TEXT_XML}</string>
   <key>NSPrincipalClass</key>

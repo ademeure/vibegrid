@@ -49,7 +49,13 @@ extension WindowManagerEngine {
             return
         }
 
-        guard let overlayFrame = currentWindowRect(for: managedWindow.window) else {
+        // Use fast timeout for hover overlays to avoid stalling the main thread
+        // when the target app is slow to respond to AX queries.
+        let isHover = overlayPresentation == .moveEverythingHover
+        guard let overlayFrame = currentWindowRect(
+            for: managedWindow.window,
+            timeout: isHover ? axFocusMessagingTimeout : nil
+        ) else {
             hideMoveEverythingOverlayVisualOnly()
             return
         }
@@ -196,7 +202,9 @@ extension WindowManagerEngine {
             return
         }
 
-        guard let frame = currentWindowRect(for: managedWindow.window) else {
+        // Use fast timeout for sync polling — this fires every 20ms and must not
+        // stall the main thread if the target app is slow to respond.
+        guard let frame = currentWindowRect(for: managedWindow.window, timeout: axFocusMessagingTimeout) else {
             hideMoveEverythingOverlayVisualOnly()
             return
         }

@@ -7,6 +7,7 @@ protocol WindowManagerEngineProtocol: AnyObject {
     var onMoveEverythingInventoryRefreshed: (() -> Void)? { get set }
     var onMoveEverythingNameWindowRequested: ((String) -> Void)? { get set }
     var onMoveEverythingQuickViewRequested: (() -> Void)? { get set }
+    var onMoveEverythingSavedWindowPositionsHistoryChanged: (([MoveEverythingSavedWindowPositionsSnapshot]) -> Void)? { get set }
     var isMoveEverythingActive: Bool { get }
     var moveEverythingHoveredWindowKey: String? { get }
 
@@ -22,11 +23,21 @@ protocol WindowManagerEngineProtocol: AnyObject {
     func closeMoveEverythingWindow(withKey key: String) -> Bool
     func hideMoveEverythingWindow(withKey key: String) -> Bool
     func showHiddenMoveEverythingWindow(withKey key: String) -> Bool
+    func showAllHiddenMoveEverythingWindows() -> Bool
+    func saveCurrentMoveEverythingWindowPositions() -> MoveEverythingSavedWindowPositionsSnapshot?
+    func restorePreviousMoveEverythingSavedWindowPositions() -> Bool
+    func restoreNextMoveEverythingSavedWindowPositions() -> Bool
+    func seedMoveEverythingSavedWindowPositions(_ snapshots: [MoveEverythingSavedWindowPositionsSnapshot])
+    func moveEverythingSavedPositionsPreviousAvailable() -> Bool
+    func moveEverythingSavedPositionsNextAvailable() -> Bool
     func focusMoveEverythingWindow(withKey key: String, movePointerToTopMiddle: Bool) -> Bool
     func centerMoveEverythingWindow(withKey key: String) -> Bool
     func maximizeMoveEverythingWindow(withKey key: String) -> Bool
     func retileVisibleMoveEverythingWindows() -> Bool
     func miniRetileVisibleMoveEverythingWindows() -> Bool
+    func hybridRetileVisibleMoveEverythingWindows() -> Bool
+    func undoLastMoveEverythingRetile() -> Bool
+    func moveEverythingUndoRetileAvailable() -> Bool
     func moveEverythingLastDirectActionError() -> String?
     func setMoveEverythingShowOverlays(_ enabled: Bool)
     func setMoveEverythingMoveToBottom(_ enabled: Bool)

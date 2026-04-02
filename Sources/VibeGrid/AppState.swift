@@ -1,6 +1,7 @@
 #if os(macOS)
 import AppKit
 import Foundation
+import ITermActivityKit
 import ServiceManagement
 import UniformTypeIdentifiers
 import CryptoKit
@@ -38,6 +39,7 @@ final class AppState {
     private static let startupAccessibilityKnownGrantedMarkerKey = "VibeGridStartupAccessibilityKnownGranted"
     private static let startupAccessibilityKnownFingerprintMarkerKey = "VibeGridStartupAccessibilityKnownFingerprint"
     private let configStore = ConfigStore()
+    private let windowPositionSaveStore = WindowPositionSaveStore()
     private let windowListActivityConfigSync = WindowListActivityConfigSync()
     private var moveEverythingITermWindowOverridesByID: [String: WindowListActivityConfigSync.ITermWindowOverride] = [:]
     private var moveEverythingITermWindowOverridesByNumber: [Int: WindowListActivityConfigSync.ITermWindowOverride] = [:]
@@ -52,13 +54,24 @@ final class AppState {
     private var windowEditorSavedFrame: NSRect?
     private var windowEditorWasVisible = false
     private var windowEditorCursorPosition: NSPoint?
+    private var windowEditorRestorePending = false
     private var quickViewActive = false
     private var quickViewSavedFrame: NSRect?
     private var quickViewWasVisible = false
+    private let iTermActivityWorkerClient = ITermActivityWorkerClient()
     private(set) var iTermActivityCache: [String: String] = [:]  // snapshot key → "active"/"idle"
     private(set) var iTermBadgeTextCache: [String: String] = [:]  // snapshot key → badge text
     private(set) var iTermSessionNameCache: [String: String] = [:]  // snapshot key → session/tmux name
+    private(set) var iTermLastLineCache: [String: String] = [:]  // snapshot key → last non-empty screen line
+    private var iTermRuntimeWindowIDBySnapshotKey: [String: String] = [:]  // snapshot key → pty-... runtime id
     private var iTermActivityPollInFlight = false
+    private var iTermActivityPollStartedAt: Date?
+    private var iTermActivityPollLastCompletedAt: Date?
+    private var iTermActivityPollGeneration = 0
+
+    private let iTermActivityPollTimeout: TimeInterval = 1.5
+    private let iTermActivityPollStaleAfter: TimeInterval = 3.0
+    private let iTermActivityPollMinInterval: TimeInterval = 0.25
 
     private(set) var config: AppConfig
     private var cachedConfigYAML: String?
@@ -75,6 +88,12 @@ final class AppState {
         )
         ITermWindowInventoryResolver.ensurePythonVenv(debugContext: "startup")
         windowManager = Self.makeWindowManager(initialConfig: initialConfig)
+        windowManager.seedMoveEverythingSavedWindowPositions(windowPositionSaveStore.loadSnapshots())
+        windowManager.onMoveEverythingSavedWindowPositionsHistoryChanged = { [windowPositionSaveStore] snapshots in
+            DispatchQueue.global(qos: .utility).async {
+                _ = windowPositionSaveStore.saveSnapshots(snapshots)
+            }
+        }
         windowManager.isMoveEverythingAlwaysOnTopEnabledProvider = { [weak self] in
             self?.moveEverythingAlwaysOnTop ?? false
         }
@@ -125,6 +144,7 @@ final class AppState {
                 self.windowEditorCursorPosition = cursor
                 self.windowEditorWasVisible = self.controlCenter?.window?.isVisible ?? false
                 self.windowEditorSavedFrame = self.controlCenter?.window?.frame
+                self.windowEditorRestorePending = true
                 // Show at cursor with a sensible initial compact size; JS will send exact dimensions
                 self.controlCenter?.placeWindowNearCursor(at: cursor, contentSize: NSSize(width: 580, height: 500))
                 self.controlCenter?.showWindow(nil)
@@ -178,21 +198,30 @@ final class AppState {
     }
 
     func handleWindowEditorOpened(cardWidth: Int, cardHeight: Int) {
-        guard let cursor = windowEditorCursorPosition else { return }
+        guard windowEditorRestorePending,
+              let cursor = windowEditorCursorPosition else { return }
         // Add modal overlay padding (20px each side)
         let contentSize = NSSize(width: CGFloat(cardWidth) + 40, height: CGFloat(cardHeight) + 40)
         controlCenter?.placeWindowNearCursor(at: cursor, contentSize: contentSize)
     }
 
     func handleWindowEditorClosed() {
+        defer {
+            windowEditorSavedFrame = nil
+            windowEditorWasVisible = false
+            windowEditorCursorPosition = nil
+            windowEditorRestorePending = false
+        }
+
+        guard windowEditorRestorePending else {
+            return
+        }
+
         if !windowEditorWasVisible {
             controlCenter?.window?.orderOut(nil)
         } else if let saved = windowEditorSavedFrame {
             controlCenter?.window?.setFrame(saved, display: false, animate: false)
         }
-        windowEditorSavedFrame = nil
-        windowEditorWasVisible = false
-        windowEditorCursorPosition = nil
     }
 
     func toggleQuickView() {
@@ -523,6 +552,26 @@ final class AppState {
     }
 
     @discardableResult
+    func showAllHiddenMoveEverythingWindows() -> Bool {
+        windowManager.showAllHiddenMoveEverythingWindows()
+    }
+
+    @discardableResult
+    func saveCurrentMoveEverythingWindowPositions() -> Bool {
+        windowManager.saveCurrentMoveEverythingWindowPositions() != nil
+    }
+
+    @discardableResult
+    func restorePreviousMoveEverythingSavedWindowPositions() -> Bool {
+        windowManager.restorePreviousMoveEverythingSavedWindowPositions()
+    }
+
+    @discardableResult
+    func restoreNextMoveEverythingSavedWindowPositions() -> Bool {
+        windowManager.restoreNextMoveEverythingSavedWindowPositions()
+    }
+
+    @discardableResult
     func focusMoveEverythingWindow(
         withKey key: String,
         movePointerToTopMiddle: Bool
@@ -803,6 +852,20 @@ final class AppState {
         windowManager.miniRetileVisibleMoveEverythingWindows()
     }
 
+    @discardableResult
+    func hybridRetileVisibleMoveEverythingWindows() -> Bool {
+        windowManager.hybridRetileVisibleMoveEverythingWindows()
+    }
+
+    @discardableResult
+    func undoLastMoveEverythingRetile() -> Bool {
+        windowManager.undoLastMoveEverythingRetile()
+    }
+
+    func moveEverythingUndoRetileAvailable() -> Bool {
+        windowManager.moveEverythingUndoRetileAvailable()
+    }
+
     func moveEverythingLastDirectActionError() -> String? {
         windowManager.moveEverythingLastDirectActionError()
     }
@@ -992,187 +1055,288 @@ final class AppState {
         )
     }
 
-    // MARK: - iTerm activity (TTY mtime polling)
+    private func iTermActivityTitleCandidates(for snapshot: MoveEverythingWindowSnapshot) -> [String] {
+        [
+            iTermBadgeTextCache[snapshot.key] ?? "",
+            iTermSessionNameCache[snapshot.key] ?? "",
+            snapshot.iTermWindowName ?? "",
+            snapshot.title,
+        ]
+        .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+        .filter { !$0.isEmpty }
+    }
 
-    /// Kick off a background Python API poll to check TTY mtimes for each iTerm
-    /// window. Results are stored in `iTermActivityCache` keyed by snapshot key,
-    /// matched via (x, width, height) which is identical across coordinate systems.
+    private func matchITermActivityEntryIndex(
+        for snapshot: MoveEverythingWindowSnapshot,
+        unmatchedEntries: [(offset: Int, element: ITermWindowActivityDetector.PollEntry)],
+        desktopHeight: CGFloat
+    ) -> Int? {
+        guard let frame = snapshot.frame else {
+            return nil
+        }
+
+        if let cachedRuntimeWindowID = iTermRuntimeWindowIDBySnapshotKey[snapshot.key],
+           let cachedMatchIndex = unmatchedEntries.firstIndex(where: {
+               $0.element.windowID == cachedRuntimeWindowID
+           }) {
+            return cachedMatchIndex
+        }
+
+        if let iTermWindowID = snapshot.iTermWindowID?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !iTermWindowID.isEmpty,
+           let stableMatchIndex = unmatchedEntries.firstIndex(where: {
+               $0.element.windowID == iTermWindowID
+           }) {
+            return stableMatchIndex
+        }
+
+        let cocoaY = desktopHeight - frame.y - frame.height
+        if let strictFrameMatchIndex = unmatchedEntries.firstIndex(where: {
+            abs($0.element.x - frame.x) <= 4 &&
+            abs($0.element.y - cocoaY) <= 4 &&
+            abs($0.element.width - frame.width) <= 4 &&
+            abs($0.element.height - frame.height) <= 4
+        }) {
+            return strictFrameMatchIndex
+        }
+
+        let titleCandidates = iTermActivityTitleCandidates(for: snapshot)
+        guard !titleCandidates.isEmpty else {
+            return nil
+        }
+
+        let exactRawTitles = Set(
+            titleCandidates
+                .map { $0.lowercased() }
+                .filter { !$0.isEmpty }
+        )
+        let normalizedTitles = Set(
+            titleCandidates
+                .map(ITermWindowInventoryResolver.normalizedTitle)
+                .filter { !$0.isEmpty }
+        )
+
+        let titleMatches = unmatchedEntries.filter { candidate in
+            let entry = candidate.element
+            let rawFields = [
+                entry.badgeText.trimmingCharacters(in: .whitespacesAndNewlines),
+                entry.sessionName.trimmingCharacters(in: .whitespacesAndNewlines),
+                entry.presentationName.trimmingCharacters(in: .whitespacesAndNewlines),
+            ]
+            let exactRawFields = Set(rawFields.map { $0.lowercased() }.filter { !$0.isEmpty })
+            if !exactRawTitles.isDisjoint(with: exactRawFields) {
+                return true
+            }
+
+            let normalizedFields = Set(
+                rawFields
+                    .map(ITermWindowInventoryResolver.normalizedTitle)
+                    .filter { !$0.isEmpty }
+            )
+            if !normalizedTitles.isDisjoint(with: normalizedFields) {
+                return true
+            }
+
+            return normalizedFields.contains { field in
+                normalizedTitles.contains { title in
+                    field.contains(title) || title.contains(field)
+                }
+            }
+        }
+
+        guard !titleMatches.isEmpty else {
+            return nil
+        }
+        if titleMatches.count == 1 {
+            return titleMatches[0].offset
+        }
+
+        return titleMatches.min(by: { lhs, rhs in
+            activityFrameDistance(lhs.element, frame: frame, desktopHeight: desktopHeight) <
+                activityFrameDistance(rhs.element, frame: frame, desktopHeight: desktopHeight)
+        })?.offset
+    }
+
+    private func activityFrameDistance(
+        _ entry: ITermWindowActivityDetector.PollEntry,
+        frame: MoveEverythingWindowFrameSnapshot,
+        desktopHeight: CGFloat
+    ) -> Double {
+        let cocoaY = Double(desktopHeight) - frame.y - frame.height
+        return abs(entry.x - frame.x) +
+            abs(entry.y - cocoaY) +
+            abs(entry.width - frame.width) +
+            abs(entry.height - frame.height)
+    }
+
+    // MARK: - iTerm activity (screen-delta polling)
+
+    /// Kick off a background iTerm poll. A dedicated detector owns the
+    /// semantic-screen heuristics and stabilizes "active vs idle" per iTerm
+    /// window before the results are mapped back onto Window List snapshot keys.
     func refreshITermActivity(cachedInventory: MoveEverythingWindowInventory? = nil) {
-        guard !iTermActivityPollInFlight else { return }
-        let pythonURL = ITermWindowInventoryResolver.pythonURL()
+        let now = Date()
+        if let lastCompleted = iTermActivityPollLastCompletedAt,
+           now.timeIntervalSince(lastCompleted) < iTermActivityPollMinInterval {
+            return
+        }
+        if iTermActivityPollInFlight {
+            if let startedAt = iTermActivityPollStartedAt,
+               now.timeIntervalSince(startedAt) >= iTermActivityPollStaleAfter {
+                WindowListDebugLogger.log(
+                    "iterm-activity",
+                    String(
+                        format: "stale poll detected after %.2fs; resetting in-flight state",
+                        now.timeIntervalSince(startedAt)
+                    )
+                )
+                iTermActivityPollInFlight = false
+                iTermActivityPollStartedAt = nil
+                iTermActivityPollGeneration += 1
+            } else {
+                return
+            }
+        }
+        let pythonURL = ITermWindowActivityDetector.defaultPythonURL()
         guard FileManager.default.isExecutableFile(atPath: pythonURL.path) else {
             WindowListDebugLogger.log("iterm-activity", "python not found at \(pythonURL.path)")
             return
         }
 
         iTermActivityPollInFlight = true
-        let timeout = config.settings.moveEverythingITermRecentActivityTimeout
+        iTermActivityPollStartedAt = now
+        iTermActivityPollGeneration += 1
+        let pollGeneration = iTermActivityPollGeneration
         let currentInventory = cachedInventory ?? moveEverythingWindowInventory()
+        let maxPolledNonEmptyLines = 60
+        let iTermSnapshotCount = (currentInventory.visible + currentInventory.hidden).reduce(into: 0) { count, snapshot in
+            if snapshot.appName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased().contains("iterm") {
+                count += 1
+            }
+        }
+
+        WindowListDebugLogger.log(
+            "iterm-activity",
+            "poll start generation=\(pollGeneration) inventoryITermWindows=\(iTermSnapshotCount)"
+        )
 
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            let activityEntries = Self.pollITermTTYActivity(
+            let pollResult = self?.iTermActivityWorkerClient.poll(
                 pythonURL: pythonURL,
-                timeout: timeout
+                timeout: self?.iTermActivityPollTimeout ?? 1.5,
+                maxPolledNonEmptyLines: maxPolledNonEmptyLines
+            ) ?? ITermWindowActivityDetector.PollResult(
+                entries: [],
+                activitiesByWindowID: [:],
+                rawOutput: "",
+                stderrText: "worker unavailable",
+                terminationStatus: -1,
+                parseSucceeded: false
             )
             DispatchQueue.main.async { [weak self] in
                 guard let self else { return }
+                guard pollGeneration == self.iTermActivityPollGeneration else {
+                    WindowListDebugLogger.log(
+                        "iterm-activity",
+                        "discarding stale poll result generation=\(pollGeneration) current=\(self.iTermActivityPollGeneration)"
+                    )
+                    return
+                }
                 self.iTermActivityPollInFlight = false
+                self.iTermActivityPollStartedAt = nil
+                self.iTermActivityPollLastCompletedAt = Date()
 
+                let pollFailed = pollResult.timedOut || pollResult.terminationStatus != 0 || !pollResult.parseSucceeded
+                let pollReturnedNoEntriesForITerm = iTermSnapshotCount > 0 && pollResult.entries.isEmpty
+                if pollFailed || pollReturnedNoEntriesForITerm {
+                    WindowListDebugLogger.log(
+                        "iterm-activity",
+                        "poll failed generation=\(pollGeneration) timedOut=\(pollResult.timedOut) " +
+                            "status=\(pollResult.terminationStatus) parse=\(pollResult.parseSucceeded) " +
+                            "entries=\(pollResult.entries.count) stderr=\(pollResult.stderrText)"
+                    )
+                    return
+                }
+
+                let activityEntries = pollResult.entries
+                let activitiesByWindowID = pollResult.activitiesByWindowID
                 var newCache: [String: String] = [:]
                 var newBadgeCache: [String: String] = [:]
                 var newSessionNameCache: [String: String] = [:]
+                var newLastLineCache: [String: String] = [:]
+                var newRuntimeWindowIDBySnapshotKey: [String: String] = [:]
                 let desktopHeight = NSScreen.screens.reduce(CGRect.null) { $0.union($1.frame) }.height
+                var unmatchedEntries = Array(activityEntries.enumerated())
 
                 for snapshot in currentInventory.visible + currentInventory.hidden {
                     let appName = snapshot.appName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-                    guard appName.contains("iterm"), let sf = snapshot.frame else { continue }
-                    let cocoaY = desktopHeight - sf.y - sf.height
-                    let matched = activityEntries.first { entry in
-                        abs(entry.x - sf.x) <= 4 &&
-                        abs(entry.y - cocoaY) <= 4 &&
-                        abs(entry.width - sf.width) <= 4 &&
-                        abs(entry.height - sf.height) <= 4
-                    }
-                    if let matched {
-                        newCache[snapshot.key] = matched.active ? "active" : "idle"
-                        if !matched.badgeText.isEmpty {
-                            newBadgeCache[snapshot.key] = matched.badgeText
+                    guard appName.contains("iterm"), snapshot.frame != nil else { continue }
+                    let matchedEntryIndex = self.matchITermActivityEntryIndex(
+                        for: snapshot,
+                        unmatchedEntries: unmatchedEntries,
+                        desktopHeight: desktopHeight
+                    )
+                    if let matchedEntryIndex {
+                        let matched = unmatchedEntries.remove(at: matchedEntryIndex).element
+                        let activity = activitiesByWindowID[matched.windowID]
+                        newRuntimeWindowIDBySnapshotKey[snapshot.key] = matched.windowID
+                        newCache[snapshot.key] = activity?.status.rawValue ?? "idle"
+                        if let badgeText = activity?.badgeText, !badgeText.isEmpty {
+                            newBadgeCache[snapshot.key] = badgeText
                         }
-                        if !matched.sessionName.isEmpty {
-                            newSessionNameCache[snapshot.key] = matched.sessionName
+                        if let sessionName = activity?.sessionName, !sessionName.isEmpty {
+                            newSessionNameCache[snapshot.key] = sessionName
+                        }
+                        if let lastLine = activity?.lastLine, !lastLine.isEmpty {
+                            newLastLineCache[snapshot.key] = lastLine
+                        }
+                        if let activity {
+                            WindowListDebugLogger.log(
+                                "iterm-activity",
+                                "key=\(snapshot.key) windowID=\(matched.windowID) " +
+                                    "status=\(activity.status.rawValue) profile=\(activity.profileID) " +
+                                    "reason=\(activity.reason) " +
+                                    "semanticLines=\(activity.semanticLineCount)" +
+                                    (activity.detail.isEmpty ? "" : " detail=\(activity.detail)")
+                            )
                         }
                     } else {
-                        newCache[snapshot.key] = self.iTermActivityCache[snapshot.key] ?? "idle"
+                        newCache[snapshot.key] = "idle"
                         if let existingBadge = self.iTermBadgeTextCache[snapshot.key] {
                             newBadgeCache[snapshot.key] = existingBadge
                         }
                         if let existingName = self.iTermSessionNameCache[snapshot.key] {
                             newSessionNameCache[snapshot.key] = existingName
                         }
+                        if let existingLastLine = self.iTermLastLineCache[snapshot.key] {
+                            newLastLineCache[snapshot.key] = existingLastLine
+                        }
+                        WindowListDebugLogger.log(
+                            "iterm-activity",
+                            "key=\(snapshot.key) unmatched runtime window; forcing idle"
+                        )
                     }
                 }
                 self.iTermActivityCache = newCache
                 self.iTermBadgeTextCache = newBadgeCache
                 self.iTermSessionNameCache = newSessionNameCache
+                self.iTermLastLineCache = newLastLineCache
+                self.iTermRuntimeWindowIDBySnapshotKey = newRuntimeWindowIDBySnapshotKey
                 WindowListDebugLogger.log(
                     "iterm-activity",
-                    "poll done: sessions=\(newSessionNameCache) activity=\(newCache.filter { $0.value == "active" }.keys.sorted())"
+                    "poll done generation=\(pollGeneration): matched=\(newCache.keys.sorted()) " +
+                        "activity=\(newCache.filter { $0.value == "active" }.keys.sorted())"
                 )
                 // Trigger a UI refresh so the updated cache is rendered
                 self.controlCenter?.refresh()
+
+                // Schedule the next poll after the minimum interval so activity
+                // detection runs at a steady cadence independent of the UI timer.
+                let interval = self.iTermActivityPollMinInterval
+                DispatchQueue.main.asyncAfter(deadline: .now() + interval) { [weak self] in
+                    self?.refreshITermActivity()
+                }
             }
-        }
-    }
-
-    private struct ITermActivityEntry {
-        let active: Bool
-        let x: Double
-        let y: Double
-        let width: Double
-        let height: Double
-        let badgeText: String
-        let sessionName: String
-    }
-
-    private static func pollITermTTYActivity(
-        pythonURL: URL,
-        timeout: Double
-    ) -> [ITermActivityEntry] {
-        let process = Process()
-        process.executableURL = pythonURL
-        process.arguments = [
-            "-c",
-            """
-            import iterm2, os, time, json
-
-            async def main(connection):
-                app = await iterm2.async_get_app(connection)
-                now = time.time()
-                timeout = \(timeout)
-                result = []
-                for window in app.windows:
-                    min_age = 999999.0
-                    badge = ""
-                    for tab in window.tabs:
-                        for session in tab.sessions:
-                            try:
-                                tty = await session.async_get_variable("tty")
-                                if tty:
-                                    age = now - os.stat(tty).st_mtime
-                                    if age < min_age:
-                                        min_age = age
-                            except Exception:
-                                pass
-                    # Read rendered badge text from the current tab's current session
-                    try:
-                        cur = window.current_tab.current_session
-                        bt = await cur.async_get_variable("badge")
-                        if isinstance(bt, str) and bt.strip():
-                            badge = bt.strip()
-                    except Exception:
-                        pass
-                    f = window.frame
-                    # Extract a descriptive name from the current session
-                    session_name = ""
-                    try:
-                        cur = window.current_tab.current_session
-                        cmd = await cur.async_get_variable("commandLine") or ""
-                        pname = await cur.async_get_variable("presentationName") or ""
-                        # For tmux-over-ssh: parse session name from command line
-                        import re
-                        m = re.search(r'tmux\\s+(?:attach|a|new|new-session)\\s+.*?-t\\s+\\W*(\\w[\\w-]*)', cmd)
-                        if m:
-                            session_name = m.group(1)
-                        elif pname.strip() and pname.strip() not in ("-zsh", "zsh", "bash", "-bash", "fish", "login"):
-                            session_name = pname.strip()
-                    except Exception:
-                        pass
-                    result.append({
-                        "a": min_age < timeout,
-                        "x": f.origin.x,
-                        "y": f.origin.y,
-                        "w": f.size.width,
-                        "h": f.size.height,
-                        "b": badge,
-                        "n": session_name,
-                    })
-                print(json.dumps(result))
-
-            iterm2.run_until_complete(main, retry=False)
-            """
-        ]
-
-        let outputPipe = Pipe()
-        process.standardOutput = outputPipe
-        process.standardError = FileHandle.nullDevice
-
-        do {
-            try process.run()
-        } catch {
-            return []
-        }
-
-        process.waitUntilExit()
-        guard process.terminationStatus == 0 else {
-            return []
-        }
-
-        let outputData = outputPipe.fileHandleForReading.readDataToEndOfFile()
-        guard let outputText = String(data: outputData, encoding: .utf8),
-              let data = outputText.data(using: .utf8),
-              let entries = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
-            return []
-        }
-
-        return entries.compactMap { entry -> ITermActivityEntry? in
-            let active = entry["a"] as? Bool ?? false
-            let x = (entry["x"] as? NSNumber)?.doubleValue ?? 0
-            let y = (entry["y"] as? NSNumber)?.doubleValue ?? 0
-            let w = (entry["w"] as? NSNumber)?.doubleValue ?? 0
-            let h = (entry["h"] as? NSNumber)?.doubleValue ?? 0
-            let badge = (entry["b"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            let sessionName = (entry["n"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            return ITermActivityEntry(active: active, x: x, y: y, width: w, height: h, badgeText: badge, sessionName: sessionName)
         }
     }
 

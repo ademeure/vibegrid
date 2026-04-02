@@ -565,6 +565,12 @@ input[type="number"] {
   color: #5a735f;
 }
 
+.move-window-bulk-actions {
+  display: flex;
+  justify-content: center;
+  margin-top: 8px;
+}
+
 .move-window-row {
   display: flex;
   align-items: center;
@@ -798,6 +804,12 @@ input[type="number"] {
   background: linear-gradient(130deg, #3a6a9e, #2a4f78);
   color: #e0ecf6;
   border-color: #1e3a5c;
+}
+
+.move-window-actions .btn.tiny[data-me-window-action="show"] {
+  background: linear-gradient(130deg, #9155e7, #6a33c7);
+  color: #f7f1ff;
+  border-color: #5525a6;
 }
 
 .move-window-actions .btn.tiny.badge {
@@ -1851,6 +1863,12 @@ html[data-theme="dark"] {
   background: linear-gradient(130deg, #3a6a9e, #2a4f78);
   color: #d8e8f4;
   border-color: #1e3a5c;
+}
+
+[data-theme="dark"] .move-window-actions .btn.tiny[data-me-window-action="show"] {
+  background: linear-gradient(130deg, #8653d8, #5e30b1);
+  color: #f3eaff;
+  border-color: #4b258a;
 }
 
 [data-theme="dark"] .move-window-actions .btn.tiny.badge {
