@@ -2516,10 +2516,6 @@ function resolveMoveEverythingWindowActivityStatus(windowItem) {
   return "unknown";
 }
 
-function resolveStableActivityStatus(windowItem, hovered) {
-  void hovered;
-  return resolveMoveEverythingWindowActivityStatus(windowItem);
-}
 
 function resolveMoveEverythingDisplayedWindowTitle(windowItem) {
   const key = String(windowItem?.key || "").trim();
@@ -2998,7 +2994,7 @@ function buildMoveEverythingWindowRow(windowItem, options = {}) {
   const { hovered = false, focused = false, hidden = false } = options;
   const isControlCenterRow = Boolean(windowItem.isControlCenter);
   const compactActions = moveEverythingActionCompactModeActive();
-  const activityStatus = resolveStableActivityStatus(windowItem, hovered);
+  const activityStatus = resolveMoveEverythingWindowActivityStatus(windowItem);
   const settings = state.config?.settings || {};
   const row = document.createElement("div");
   row.className = `move-window-row${hovered ? " hovered" : ""}${focused ? " focused-window" : ""}${hidden ? " hidden-window" : ""}`;
@@ -3049,7 +3045,7 @@ function buildMoveEverythingWindowRow(windowItem, options = {}) {
     state.moveEverythingCustomITermWindowTitlesByKey[windowKey] ||
     state.moveEverythingCustomWindowTitlesByKey[windowKey]
   );
-  if (!hovered && activityColorizeEnabled && (!activityColorizeNamedOnly || windowIsNamed) && (activityStatus === "active" || activityStatus === "idle")) {
+  if (activityColorizeEnabled && (!activityColorizeNamedOnly || windowIsNamed) && (activityStatus === "active" || activityStatus === "idle")) {
     const baseColor = activityStatus === "active"
       ? settings.moveEverythingITermRecentActivityActiveColor
       : settings.moveEverythingITermRecentActivityIdleColor;

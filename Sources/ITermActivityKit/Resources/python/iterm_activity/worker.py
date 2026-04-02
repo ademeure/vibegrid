@@ -7,7 +7,7 @@ import traceback
 
 import iterm2
 
-from .collector import collect_window_snapshots
+from .collector import CachedWindowMetadata, collect_window_snapshots
 from .detector import Detector
 
 
@@ -23,10 +23,13 @@ async def _read_stdin_line() -> bytes:
 async def _handle_poll(
     connection,
     detector: Detector,
+    metadata_cache: CachedWindowMetadata,
     request_id: object,
     max_polled_non_empty_lines: int,
 ) -> None:
-    entries = await collect_window_snapshots(connection, max_polled_non_empty_lines)
+    entries = await collect_window_snapshots(
+        connection, max_polled_non_empty_lines, metadata_cache
+    )
     activities = detector.resolve(entries)
     _write_response(
         {
@@ -43,6 +46,7 @@ async def _handle_poll(
 
 async def _worker_main(connection) -> None:
     detector = Detector()
+    metadata_cache = CachedWindowMetadata(ttl=1.0)
 
     while True:
         raw_line = await _read_stdin_line()
@@ -64,7 +68,9 @@ async def _worker_main(connection) -> None:
                 continue
 
             max_polled_non_empty_lines = int(request.get("max_polled_non_empty_lines", 60) or 60)
-            await _handle_poll(connection, detector, request_id, max_polled_non_empty_lines)
+            await _handle_poll(
+                connection, detector, metadata_cache, request_id, max_polled_non_empty_lines
+            )
         except Exception:
             _write_response(
                 {

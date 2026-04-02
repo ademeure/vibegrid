@@ -66,10 +66,12 @@ final class AppState {
     private var iTermRuntimeWindowIDBySnapshotKey: [String: String] = [:]  // snapshot key → pty-... runtime id
     private var iTermActivityPollInFlight = false
     private var iTermActivityPollStartedAt: Date?
+    private var iTermActivityPollLastCompletedAt: Date?
     private var iTermActivityPollGeneration = 0
 
     private let iTermActivityPollTimeout: TimeInterval = 1.5
     private let iTermActivityPollStaleAfter: TimeInterval = 3.0
+    private let iTermActivityPollMinInterval: TimeInterval = 0.25
 
     private(set) var config: AppConfig
     private var cachedConfigYAML: String?
@@ -1174,6 +1176,10 @@ final class AppState {
     /// window before the results are mapped back onto Window List snapshot keys.
     func refreshITermActivity(cachedInventory: MoveEverythingWindowInventory? = nil) {
         let now = Date()
+        if let lastCompleted = iTermActivityPollLastCompletedAt,
+           now.timeIntervalSince(lastCompleted) < iTermActivityPollMinInterval {
+            return
+        }
         if iTermActivityPollInFlight {
             if let startedAt = iTermActivityPollStartedAt,
                now.timeIntervalSince(startedAt) >= iTermActivityPollStaleAfter {
@@ -1238,6 +1244,7 @@ final class AppState {
                 }
                 self.iTermActivityPollInFlight = false
                 self.iTermActivityPollStartedAt = nil
+                self.iTermActivityPollLastCompletedAt = Date()
 
                 let pollFailed = pollResult.timedOut || pollResult.terminationStatus != 0 || !pollResult.parseSucceeded
                 let pollReturnedNoEntriesForITerm = iTermSnapshotCount > 0 && pollResult.entries.isEmpty
@@ -1322,6 +1329,13 @@ final class AppState {
                 )
                 // Trigger a UI refresh so the updated cache is rendered
                 self.controlCenter?.refresh()
+
+                // Schedule the next poll after the minimum interval so activity
+                // detection runs at a steady cadence independent of the UI timer.
+                let interval = self.iTermActivityPollMinInterval
+                DispatchQueue.main.asyncAfter(deadline: .now() + interval) { [weak self] in
+                    self?.refreshITermActivity()
+                }
             }
         }
     }
