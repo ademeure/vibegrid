@@ -7,6 +7,11 @@ from typing import Optional
 from .models import PollEntry, ResolvedActivity
 from .profiles import ResolvedProfile, resolved_profile_for_entry
 
+# HACK: When "thinking with X effort" is visible, iTerm may not re-render
+# for extended periods (the model is thinking, no output). Use a longer
+# hold to avoid the detector seeing no changes and reporting idle.
+THINKING_HOLD_SECONDS = 15.0
+
 
 @dataclass(frozen=True)
 class RuleMatch:
@@ -97,10 +102,17 @@ class Detector:
             ):
                 next_state.meaningful_change_streak = 0
                 detail = self._summarize_semantic_line(recent_active_rule_match.line)
+                # HACK: "thinking with X effort" can stall iTerm rendering for
+                # extended periods, so use a longer hold to avoid false idle.
+                hold_seconds = (
+                    THINKING_HOLD_SECONDS
+                    if recent_active_rule_match.id == "thinking-effort"
+                    else profile.activity_tuning.active_rule_hold_seconds
+                )
                 next_state.active_hold = ActiveHold(
                     reason=f"rule:{recent_active_rule_match.id}",
                     detail=detail,
-                    expires_at=now + profile.activity_tuning.active_rule_hold_seconds,
+                    expires_at=now + hold_seconds,
                 )
                 status = "active"
                 reason = next_state.active_hold.reason

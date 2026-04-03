@@ -152,6 +152,11 @@ GENERIC_ACTIVE_RULES = [
 
 CLAUDE_ACTIVE_RULES = [
     contains_rule("compacting-conversation-spinner", ["compacting conversation"]),
+    # HACK: "thinking with X effort" lines indicate the model is actively
+    # thinking but iTerm may not re-render for extended periods, causing the
+    # detector to see no screen changes and incorrectly report idle.
+    # Uses a longer hold (15s) — see THINKING_HOLD_SECONDS in detector.py.
+    regex_rule("thinking-effort", r"thinking with \w+ effort"),
 ]
 
 CODEX_ACTIVE_RULES = [

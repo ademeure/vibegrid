@@ -86,6 +86,9 @@ final class AppState {
     init() {
         let initialConfig = configStore.loadOrCreate()
         config = initialConfig
+        let loadedOverrides = windowListActivityConfigSync.loadOverrides()
+        moveEverythingITermWindowOverridesByID = loadedOverrides.byID
+        moveEverythingITermWindowOverridesByNumber = loadedOverrides.byNumber
         windowListActivityConfigSync.sync(
             settings: initialConfig.settings,
             iTermWindowOverridesByID: moveEverythingITermWindowOverridesByID,

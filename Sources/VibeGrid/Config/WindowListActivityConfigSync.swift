@@ -15,6 +15,49 @@ struct WindowListActivityConfigSync {
         self.fileManager = fileManager
     }
 
+    struct LoadedOverrides {
+        let byID: [String: ITermWindowOverride]
+        let byNumber: [Int: ITermWindowOverride]
+    }
+
+    func loadOverrides() -> LoadedOverrides {
+        let url = Self.configURL(fileManager: fileManager)
+        guard let data = try? Data(contentsOf: url),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return LoadedOverrides(byID: [:], byNumber: [:])
+        }
+
+        var byID: [String: ITermWindowOverride] = [:]
+        if let idOverrides = json["windowOverridesByID"] as? [String: [String: Any]] {
+            for (key, dict) in idOverrides {
+                if let override = decodeOverride(dict) {
+                    byID[key] = override
+                }
+            }
+        }
+
+        var byNumber: [Int: ITermWindowOverride] = [:]
+        if let numOverrides = json["windowOverridesByNumber"] as? [String: [String: Any]] {
+            for (key, dict) in numOverrides {
+                if let num = Int(key), let override = decodeOverride(dict) {
+                    byNumber[num] = override
+                }
+            }
+        }
+
+        return LoadedOverrides(byID: byID, byNumber: byNumber)
+    }
+
+    private func decodeOverride(_ dict: [String: Any]) -> ITermWindowOverride? {
+        ITermWindowOverride(
+            title: (dict["title"] as? String) ?? "",
+            badgeText: (dict["badgeText"] as? String) ?? "",
+            badgeColor: (dict["badgeColor"] as? String) ?? "",
+            badgeOpacity: (dict["badgeOpacity"] as? Int) ?? 60,
+            badgeSize: (dict["badgeSize"] as? Int) ?? 55
+        )
+    }
+
     func sync(
         settings: Settings,
         iTermWindowOverridesByID: [String: ITermWindowOverride] = [:],
