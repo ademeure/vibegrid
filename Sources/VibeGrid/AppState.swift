@@ -1397,8 +1397,10 @@ final class AppState {
 
         var trackedWindows: [ITermActivityOverlayController.TrackedWindow] = []
         for snapshot in inventory.visible + inventory.hidden {
-            guard let profileID = iTermActivityProfileCache[snapshot.key],
-                  profileID.hasPrefix("claude-code") || profileID.hasPrefix("codex"),
+            let profileID = iTermActivityProfileCache[snapshot.key] ?? ""
+            let isClaudeOrCodex = profileID.hasPrefix("claude-code") || profileID.hasPrefix("codex")
+            let isNamed = hasITermNameOverride(for: snapshot)
+            guard isClaudeOrCodex || isNamed,
                   let frameSnapshot = snapshot.frame else {
                 continue
             }
@@ -1424,6 +1426,21 @@ final class AppState {
             ))
         }
         iTermActivityOverlayController.update(windows: trackedWindows)
+    }
+
+    /// Returns true if the snapshot has a VibeGrid name override (user renamed it).
+    private func hasITermNameOverride(for snapshot: MoveEverythingWindowSnapshot) -> Bool {
+        if let runtimeID = iTermRuntimeWindowIDBySnapshotKey[snapshot.key],
+           let override = moveEverythingITermWindowOverridesByID[runtimeID],
+           !override.title.isEmpty {
+            return true
+        }
+        if let windowNumber = snapshot.windowNumber,
+           let override = moveEverythingITermWindowOverridesByNumber[windowNumber],
+           !override.title.isEmpty {
+            return true
+        }
+        return false
     }
 
     /// Checks for recent user input directed at iTerm. Returns the focused

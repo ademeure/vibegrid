@@ -2,34 +2,39 @@
 import AppKit
 import Foundation
 
-// CGS private API for ordering overlay windows relative to iTerm windows.
 @_silgen_name("CGSMainConnectionID")
 private func _CGSMainConnectionID() -> Int32
 
 @_silgen_name("CGSOrderWindow")
 private func _CGSOrderWindow(_ connection: Int32, _ windowID: UInt32, _ ordering: Int32, _ relativeToWindow: UInt32) -> Int32
 
+@_silgen_name("CGSGetWindowLevel")
+private func _CGSGetWindowLevel(_ connection: Int32, _ windowID: UInt32, _ level: UnsafeMutablePointer<Int32>) -> Int32
+
+@_silgen_name("CGSSetWindowLevel")
+private func _CGSSetWindowLevel(_ connection: Int32, _ windowID: UInt32, _ level: Int32) -> Int32
+
 private let kCGSOrderAbove: Int32 = 1
 
 /// Manages a pool of transparent overlay windows that show activity status
 /// (green = active, red = idle) on top of iTerm windows running Claude Code or Codex.
-/// Each overlay is z-ordered just above its target iTerm window so that any other
-/// window naturally sits on top.
 final class ITermActivityOverlayController {
     private static let moveGracePeriod: TimeInterval = 0.7
+    private static let activeHoldDuration: TimeInterval = 7.0
 
     struct TrackedWindow {
         let key: String
-        let frame: CGRect  // Cocoa coordinates (bottom-left origin)
+        let frame: CGRect
         let isActive: Bool
-        let hasRecentUserInput: Bool  // user typed into this window within 10s
-        let windowNumber: Int?  // macOS window number of the target iTerm window
-        let overlayOpacity: Double  // 0..1, border opacity (fill is ~23% of this)
+        let hasRecentUserInput: Bool
+        let windowNumber: Int?
+        let overlayOpacity: Double
     }
 
     private var overlaysByKey: [String: PlacementPreviewOverlayController] = [:]
     private var lastMovedAt: [String: Date] = [:]
     private var previousFrames: [String: CGRect] = [:]
+    private var lastActiveAt: [String: Date] = [:]
 
     func update(windows: [TrackedWindow]) {
         let now = Date()
@@ -46,13 +51,20 @@ final class ITermActivityOverlayController {
         for key in previousFrames.keys where !activeKeys.contains(key) {
             previousFrames.removeValue(forKey: key)
         }
+        for key in lastActiveAt.keys where !activeKeys.contains(key) {
+            lastActiveAt.removeValue(forKey: key)
+        }
 
-        // Track frame changes
+        // Track frame changes and active timestamps
         for window in windows {
             if let prev = previousFrames[window.key], !prev.equalTo(window.frame) {
                 lastMovedAt[window.key] = now
             }
             previousFrames[window.key] = window.frame
+
+            if window.isActive {
+                lastActiveAt[window.key] = now
+            }
         }
 
         // Show/update overlays
@@ -67,7 +79,11 @@ final class ITermActivityOverlayController {
             let overlay = overlaysByKey[window.key] ?? PlacementPreviewOverlayController()
             overlaysByKey[window.key] = overlay
 
-            let baseColor: NSColor = window.isActive ? .systemGreen : .systemRed
+            // Active if currently active OR was active within the hold duration
+            let isEffectivelyActive = window.isActive ||
+                (lastActiveAt[window.key].map { now.timeIntervalSince($0) < Self.activeHoldDuration } ?? false)
+
+            let baseColor: NSColor = isEffectivelyActive ? .systemGreen : .systemRed
             let borderAlpha = CGFloat(window.overlayOpacity)
             let fillAlpha = CGFloat(window.overlayOpacity * 0.23)
             overlay.applyFrameAndColors(
@@ -76,12 +92,13 @@ final class ITermActivityOverlayController {
                 fillColor: baseColor.withAlphaComponent(fillAlpha)
             )
 
-            // CGS-order above the target iTerm window. We do this every cycle
-            // because focusing the iTerm window raises it above the overlay.
-            // Unlike orderFrontRegardless, CGSOrderWindow only positions
-            // relative to the target — it won't push above unrelated windows.
+            // Match the overlay's window level to the target's level + 1,
+            // so it stays above the target even when hover-elevated.
             if let targetWindowNumber = window.windowNumber,
                let overlayWindowNumber = overlay.nsWindowNumber {
+                var targetLevel: Int32 = 0
+                _ = _CGSGetWindowLevel(conn, UInt32(targetWindowNumber), &targetLevel)
+                _ = _CGSSetWindowLevel(conn, UInt32(overlayWindowNumber), targetLevel + 1)
                 _ = _CGSOrderWindow(
                     conn,
                     UInt32(overlayWindowNumber),
@@ -99,15 +116,14 @@ final class ITermActivityOverlayController {
         overlaysByKey.removeAll()
         lastMovedAt.removeAll()
         previousFrames.removeAll()
+        lastActiveAt.removeAll()
     }
 
     private func isSuppressed(window: TrackedWindow, now: Date) -> Bool {
-        // Suppress if user recently typed into this window
         if window.hasRecentUserInput {
             return true
         }
 
-        // Grace period after window moved
         if let movedAt = lastMovedAt[window.key],
            now.timeIntervalSince(movedAt) < Self.moveGracePeriod {
             return true
