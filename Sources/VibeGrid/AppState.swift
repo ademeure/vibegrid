@@ -1419,7 +1419,8 @@ final class AppState {
                 frame: cocoaFrame,
                 isActive: isActive,
                 hasRecentUserInput: hasRecentKeystroke || hasRecentMouseInput,
-                windowNumber: snapshot.windowNumber
+                windowNumber: snapshot.windowNumber,
+                overlayOpacity: config.settings.moveEverythingITermActivityOverlayOpacity
             ))
         }
         iTermActivityOverlayController.update(windows: trackedWindows)

@@ -224,6 +224,7 @@ struct Settings: Codable {
     var moveEverythingITermRecentActivityBadgeEnabled: Bool
     var moveEverythingITermRecentActivityColorize: Bool
     var moveEverythingITermRecentActivityColorizeNamedOnly: Bool
+    var moveEverythingITermActivityOverlayOpacity: Double
     var moveEverythingActiveWindowHighlightColorize: Bool
     var moveEverythingActiveWindowHighlightColor: String
     var moveEverythingITermRecentActivityActiveColor: String
@@ -276,6 +277,7 @@ struct Settings: Codable {
             moveEverythingITermRecentActivityBadgeEnabled: false,
             moveEverythingITermRecentActivityColorize: true,
             moveEverythingITermRecentActivityColorizeNamedOnly: false,
+            moveEverythingITermActivityOverlayOpacity: 0.14,
             moveEverythingActiveWindowHighlightColorize: true,
             moveEverythingActiveWindowHighlightColor: "#4D88D4",
             moveEverythingITermRecentActivityActiveColor: "#2F8F4E",
@@ -329,6 +331,7 @@ struct Settings: Codable {
         moveEverythingITermRecentActivityBadgeEnabled: Bool = false,
         moveEverythingITermRecentActivityColorize: Bool = true,
         moveEverythingITermRecentActivityColorizeNamedOnly: Bool = false,
+        moveEverythingITermActivityOverlayOpacity: Double = 0.14,
         moveEverythingActiveWindowHighlightColorize: Bool = true,
         moveEverythingActiveWindowHighlightColor: String = "#4D88D4",
         moveEverythingITermRecentActivityActiveColor: String = "#2F8F4E",
@@ -379,6 +382,7 @@ struct Settings: Codable {
         self.moveEverythingITermRecentActivityBadgeEnabled = moveEverythingITermRecentActivityBadgeEnabled
         self.moveEverythingITermRecentActivityColorize = moveEverythingITermRecentActivityColorize
         self.moveEverythingITermRecentActivityColorizeNamedOnly = moveEverythingITermRecentActivityColorizeNamedOnly
+        self.moveEverythingITermActivityOverlayOpacity = moveEverythingITermActivityOverlayOpacity
         self.moveEverythingActiveWindowHighlightColorize = moveEverythingActiveWindowHighlightColorize
         self.moveEverythingActiveWindowHighlightColor = moveEverythingActiveWindowHighlightColor
         self.moveEverythingITermRecentActivityActiveColor = moveEverythingITermRecentActivityActiveColor
@@ -432,6 +436,7 @@ struct Settings: Codable {
         case moveEverythingITermRecentActivityBadgeEnabled
         case moveEverythingITermRecentActivityColorize
         case moveEverythingITermRecentActivityColorizeNamedOnly
+        case moveEverythingITermActivityOverlayOpacity
         case moveEverythingActiveWindowHighlightColorize
         case moveEverythingActiveWindowHighlightColor
         case moveEverythingITermRecentActivityActiveColor
@@ -511,6 +516,10 @@ struct Settings: Codable {
             Bool.self,
             forKey: .moveEverythingITermRecentActivityColorizeNamedOnly
         ) ?? false
+        moveEverythingITermActivityOverlayOpacity = try container.decodeIfPresent(
+            Double.self,
+            forKey: .moveEverythingITermActivityOverlayOpacity
+        ) ?? 0.14
         moveEverythingActiveWindowHighlightColorize = try container.decodeIfPresent(
             Bool.self,
             forKey: .moveEverythingActiveWindowHighlightColorize
@@ -612,6 +621,7 @@ struct Settings: Codable {
         )
         try container.encode(moveEverythingITermRecentActivityColorize, forKey: .moveEverythingITermRecentActivityColorize)
         try container.encode(moveEverythingITermRecentActivityColorizeNamedOnly, forKey: .moveEverythingITermRecentActivityColorizeNamedOnly)
+        try container.encode(moveEverythingITermActivityOverlayOpacity, forKey: .moveEverythingITermActivityOverlayOpacity)
         try container.encode(
             moveEverythingActiveWindowHighlightColorize,
             forKey: .moveEverythingActiveWindowHighlightColorize
@@ -908,6 +918,13 @@ extension AppConfig {
         copy.settings.moveEverythingITermRecentActivityBuffer = min(
             max(copy.settings.moveEverythingITermRecentActivityBuffer, 0),
             300
+        )
+        if !copy.settings.moveEverythingITermActivityOverlayOpacity.isFinite {
+            copy.settings.moveEverythingITermActivityOverlayOpacity = 0.14
+        }
+        copy.settings.moveEverythingITermActivityOverlayOpacity = min(
+            max(copy.settings.moveEverythingITermActivityOverlayOpacity, 0),
+            1
         )
         copy.settings.moveEverythingITermRecentActivityActiveText = copy.settings.moveEverythingITermRecentActivityActiveText
             .trimmingCharacters(in: .whitespacesAndNewlines)

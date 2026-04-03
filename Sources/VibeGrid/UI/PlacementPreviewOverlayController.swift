@@ -33,9 +33,9 @@ final class PlacementPreviewOverlayController {
             case .moveEverythingHoverOriginal:
                 return NSColor.systemGreen.withAlphaComponent(0.34)
             case .activityActive:
-                return NSColor.systemGreen.withAlphaComponent(0.135)
+                return NSColor.systemGreen.withAlphaComponent(0.14)
             case .activityIdle:
-                return NSColor.systemRed.withAlphaComponent(0.135)
+                return NSColor.systemRed.withAlphaComponent(0.14)
             }
         }
 
@@ -144,6 +144,31 @@ final class PlacementPreviewOverlayController {
             return true
         }
         return false
+    }
+
+    /// Update frame with custom colors, without affecting z-order.
+    func applyFrameAndColors(frame: CGRect, borderColor: NSColor, fillColor: NSColor) {
+        guard frame.width > 0, frame.height > 0 else {
+            hide()
+            return
+        }
+
+        prepare()
+        guard let overlayWindow = window else {
+            return
+        }
+
+        hideWorkItem?.cancel()
+        hideWorkItem = nil
+        overlayWindow.level = .normal
+        let view = overlayWindow.contentView as? PlacementPreviewOverlayView
+        view?.layer?.borderColor = borderColor.cgColor
+        view?.layer?.backgroundColor = fillColor.cgColor
+        overlayWindow.setFrame(frame.integral, display: true)
+        if !isOrderedIn {
+            overlayWindow.orderFrontRegardless()
+            isOrderedIn = true
+        }
     }
 
     func hide() {

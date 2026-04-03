@@ -22,8 +22,9 @@ final class ITermActivityOverlayController {
         let key: String
         let frame: CGRect  // Cocoa coordinates (bottom-left origin)
         let isActive: Bool
-        let hasRecentUserInput: Bool  // user typed into this window within 15s
+        let hasRecentUserInput: Bool  // user typed into this window within 10s
         let windowNumber: Int?  // macOS window number of the target iTerm window
+        let overlayOpacity: Double  // 0..1, border opacity (fill is ~23% of this)
     }
 
     private var overlaysByKey: [String: PlacementPreviewOverlayController] = [:]
@@ -65,11 +66,15 @@ final class ITermActivityOverlayController {
 
             let overlay = overlaysByKey[window.key] ?? PlacementPreviewOverlayController()
             overlaysByKey[window.key] = overlay
-            let style: PlacementPreviewOverlayController.Style = window.isActive
-                ? .activityActive
-                : .activityIdle
 
-            let justOrderedIn = overlay.applyFrameAndStyle(frame: window.frame, style: style)
+            let baseColor: NSColor = window.isActive ? .systemGreen : .systemRed
+            let borderAlpha = CGFloat(window.overlayOpacity)
+            let fillAlpha = CGFloat(window.overlayOpacity * 0.23)
+            overlay.applyFrameAndColors(
+                frame: window.frame,
+                borderColor: baseColor.withAlphaComponent(borderAlpha),
+                fillColor: baseColor.withAlphaComponent(fillAlpha)
+            )
 
             // CGS-order above the target iTerm window. We do this every cycle
             // because focusing the iTerm window raises it above the overlay.

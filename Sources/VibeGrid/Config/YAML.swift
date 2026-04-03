@@ -312,6 +312,12 @@ struct YAMLConfigCodec {
                             lineNumber: line.number,
                             field: "moveEverythingITermRecentActivityColorizeNamedOnly"
                         )
+                    case "moveEverythingITermActivityOverlayOpacity":
+                        config.settings.moveEverythingITermActivityOverlayOpacity = try parseDouble(
+                            effectiveValue,
+                            lineNumber: line.number,
+                            field: "moveEverythingITermActivityOverlayOpacity"
+                        )
                     case "moveEverythingActiveWindowHighlightColorize":
                         config.settings.moveEverythingActiveWindowHighlightColorize = try parseBoolean(
                             effectiveValue,
@@ -606,6 +612,7 @@ struct YAMLConfigCodec {
         lines.append("  moveEverythingITermRecentActivityBadgeEnabled: \(normalized.settings.moveEverythingITermRecentActivityBadgeEnabled ? "true" : "false")")
         lines.append("  moveEverythingITermRecentActivityColorize: \(normalized.settings.moveEverythingITermRecentActivityColorize ? "true" : "false")")
         lines.append("  moveEverythingITermRecentActivityColorizeNamedOnly: \(normalized.settings.moveEverythingITermRecentActivityColorizeNamedOnly ? "true" : "false")")
+        lines.append("  moveEverythingITermActivityOverlayOpacity: \(normalized.settings.moveEverythingITermActivityOverlayOpacity)")
         lines.append("  moveEverythingActiveWindowHighlightColorize: \(normalized.settings.moveEverythingActiveWindowHighlightColorize ? "true" : "false")")
         lines.append("  moveEverythingActiveWindowHighlightColor: \(encodeScalar(normalized.settings.moveEverythingActiveWindowHighlightColor))")
         lines.append("  moveEverythingITermRecentActivityActiveColor: \(encodeScalar(normalized.settings.moveEverythingITermRecentActivityActiveColor))")
