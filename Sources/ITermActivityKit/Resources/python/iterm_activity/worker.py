@@ -20,6 +20,31 @@ async def _read_stdin_line() -> bytes:
     return await asyncio.to_thread(sys.stdin.buffer.readline)
 
 
+async def _handle_set_name(
+    connection,
+    request_id: object,
+    request: dict,
+) -> None:
+    window_id = request.get("window_id", "")
+    name = request.get("name", "")
+    if not window_id:
+        _write_response({"id": request_id, "ok": False, "error": "missing window_id"})
+        return
+
+    app = await iterm2.async_get_app(connection)
+    for window in app.windows:
+        if str(window.window_id) == window_id:
+            try:
+                await window.async_set_title(name)
+                session = window.current_tab.current_session
+                await session.async_set_name(name)
+                _write_response({"id": request_id, "ok": True})
+            except Exception:
+                _write_response({"id": request_id, "ok": False, "error": traceback.format_exc()})
+            return
+    _write_response({"id": request_id, "ok": False, "error": f"window {window_id} not found"})
+
+
 async def _handle_poll(
     connection,
     detector: Detector,
@@ -62,6 +87,10 @@ async def _worker_main(connection) -> None:
             if op == "shutdown":
                 _write_response({"id": request_id, "ok": True, "shutdown": True})
                 return
+
+            if op == "set_name":
+                await _handle_set_name(connection, request_id, request)
+                continue
 
             if op != "poll":
                 _write_response({"id": request_id, "ok": False, "error": f"unknown op: {op}"})

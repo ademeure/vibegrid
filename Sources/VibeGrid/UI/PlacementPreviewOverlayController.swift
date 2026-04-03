@@ -13,6 +13,8 @@ final class PlacementPreviewOverlayController {
         case moveEverythingHoverSelectionBlend
         case moveEverythingHoverBottom
         case moveEverythingHoverOriginal
+        case activityActive
+        case activityIdle
 
         var borderColor: NSColor {
             switch self {
@@ -30,6 +32,10 @@ final class PlacementPreviewOverlayController {
                 return NSColor.systemPurple.withAlphaComponent(0.095)
             case .moveEverythingHoverOriginal:
                 return NSColor.systemGreen.withAlphaComponent(0.34)
+            case .activityActive:
+                return NSColor.systemGreen.withAlphaComponent(0.135)
+            case .activityIdle:
+                return NSColor.systemRed.withAlphaComponent(0.135)
             }
         }
 
@@ -49,12 +55,21 @@ final class PlacementPreviewOverlayController {
                 return NSColor.systemPurple.withAlphaComponent(0.016)
             case .moveEverythingHoverOriginal:
                 return NSColor.systemGreen.withAlphaComponent(0.09)
+            case .activityActive:
+                return NSColor.systemGreen.withAlphaComponent(0.032)
+            case .activityIdle:
+                return NSColor.systemRed.withAlphaComponent(0.032)
             }
         }
     }
 
     private var window: NSWindow?
     private var hideWorkItem: DispatchWorkItem?
+    private var isOrderedIn = false
+
+    var nsWindowNumber: Int? {
+        window?.windowNumber
+    }
 
     func prepare() {
         if window == nil {
@@ -103,10 +118,39 @@ final class PlacementPreviewOverlayController {
         overlayWindow.orderFrontRegardless()
     }
 
+    /// Update frame and style without affecting z-order. The caller positions
+    /// via CGS after this returns. Returns true if the window was just ordered
+    /// in for the first time (caller should CGS-position it).
+    func applyFrameAndStyle(frame: CGRect, style: Style) -> Bool {
+        guard frame.width > 0, frame.height > 0 else {
+            hide()
+            return false
+        }
+
+        prepare()
+        guard let overlayWindow = window else {
+            return false
+        }
+
+        hideWorkItem?.cancel()
+        hideWorkItem = nil
+        applyWindowLevel(style: style, on: overlayWindow)
+        (overlayWindow.contentView as? PlacementPreviewOverlayView)?.apply(style: style)
+        overlayWindow.setFrame(frame.integral, display: true)
+        if !isOrderedIn {
+            // Order in once to make visible; after this, CGS handles z-position.
+            overlayWindow.orderFrontRegardless()
+            isOrderedIn = true
+            return true
+        }
+        return false
+    }
+
     func hide() {
         hideWorkItem?.cancel()
         hideWorkItem = nil
         window?.orderOut(nil)
+        isOrderedIn = false
     }
 
     private func scheduleHide(after seconds: TimeInterval = PlacementPreviewOverlayController.previewDuration) {
@@ -145,6 +189,8 @@ final class PlacementPreviewOverlayController {
         case .moveEverything, .moveEverythingSelection, .moveEverythingHover,
              .moveEverythingHoverSelectionBlend, .moveEverythingHoverBottom, .moveEverythingHoverOriginal:
             window.level = .floating
+        case .activityActive, .activityIdle:
+            window.level = .normal
         }
     }
 }

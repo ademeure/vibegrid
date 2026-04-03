@@ -33,6 +33,22 @@ public final class ITermActivityWorkerClient {
         }
     }
 
+    public func setWindowName(
+        pythonURL: URL,
+        windowID: String,
+        name: String,
+        timeout: Double = 2.0
+    ) -> Bool {
+        stateQueue.sync {
+            setWindowNameLocked(
+                pythonURL: pythonURL,
+                windowID: windowID,
+                name: name,
+                timeout: timeout
+            )
+        }
+    }
+
     public func invalidate() {
         stateQueue.sync {
             invalidateLocked(sendShutdown: true)
@@ -149,6 +165,40 @@ public final class ITermActivityWorkerClient {
             terminationStatus: safeTerminationStatusLocked(fallback: 0),
             parseSucceeded: true
         )
+    }
+
+    private func setWindowNameLocked(
+        pythonURL: URL,
+        windowID: String,
+        name: String,
+        timeout: Double
+    ) -> Bool {
+        do {
+            try ensureWorkerRunningLocked(pythonURL: pythonURL)
+        } catch {
+            return false
+        }
+
+        let requestID = nextRequestID
+        nextRequestID += 1
+        let request: [String: Any] = [
+            "id": requestID,
+            "op": "set_name",
+            "window_id": windowID,
+            "name": name,
+        ]
+
+        do {
+            try writeJSONLineLocked(request)
+        } catch {
+            return false
+        }
+
+        guard let responseLine = readLineLocked(timeout: timeout),
+              let responseObject = try? JSONSerialization.jsonObject(with: responseLine) as? [String: Any] else {
+            return false
+        }
+        return responseObject["ok"] as? Bool ?? false
     }
 
     private func ensureWorkerRunningLocked(pythonURL: URL) throws {

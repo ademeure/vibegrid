@@ -163,6 +163,25 @@ INTERACTIVE_PROMPT_RULES = [
 ]
 
 
+_CLAUDE_CODE_VERSION_FOOTER_RE = re.compile(r"current:\s*\d+\.\d+\.\d+\s*·\s*latest:\s*\d+\.\d+\.\d+")
+
+
+def _lines_match_claude_code(normalized_lines: list[str]) -> bool:
+    """Detect Claude Code from visible screen content (e.g. inside tmux)."""
+    for line in normalized_lines:
+        if (
+            "quillnook" in line
+            or "/buddy" in line
+            or "compacting conversation" in line
+            or "conversation compacted" in line
+            or "bypass permissions on" in line
+            or "esc to interrupt" in line
+            or _CLAUDE_CODE_VERSION_FOOTER_RE.search(line) is not None
+        ):
+            return True
+    return False
+
+
 DEFAULT_BASE_PROFILE = ProfileDefinition(
     id="default",
     kind="base",
@@ -181,13 +200,7 @@ CLAUDE_CODE_BASE_PROFILE = ProfileDefinition(
         or "(claude)" in entry.session_name.lower()
         or "claude code" in entry.presentation_name.lower()
         or command_line_contains_command(entry.command_line.lower(), "claude")
-        or any(
-            "quillnook" in line
-            or "/buddy" in line
-            or "compactingconversation" in line
-            or "conversationcompacted" in line
-            for line in normalized_lines
-        )
+        or _lines_match_claude_code(normalized_lines)
     ),
     chrome_rules=GENERIC_CHROME_RULES + CLAUDE_CHROME_RULES,
     active_rules=CLAUDE_ACTIVE_RULES + GENERIC_ACTIVE_RULES,

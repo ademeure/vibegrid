@@ -63,7 +63,12 @@ final class AppState {
     private(set) var iTermBadgeTextCache: [String: String] = [:]  // snapshot key → badge text
     private(set) var iTermSessionNameCache: [String: String] = [:]  // snapshot key → session/tmux name
     private(set) var iTermLastLineCache: [String: String] = [:]  // snapshot key → last non-empty screen line
+    private(set) var iTermActivityProfileCache: [String: String] = [:]  // snapshot key → profile id (e.g. "claude-code", "codex")
     private var iTermRuntimeWindowIDBySnapshotKey: [String: String] = [:]  // snapshot key → pty-... runtime id
+    private let iTermActivityOverlayController = ITermActivityOverlayController()
+    private var iTermInputTimestamps: [Int: Date] = [:]  // windowNumber → last interaction time
+    private var lastGlobalInputAt: Date = .distantPast
+    private var globalInputMonitor: Any?
     private var iTermActivityPollInFlight = false
     private var iTermActivityPollStartedAt: Date?
     private var iTermActivityPollLastCompletedAt: Date?
@@ -161,6 +166,13 @@ final class AppState {
                 guard let self else { return }
                 self.toggleQuickView()
             }
+        }
+        // Track any global input for activity overlay suppression.
+        globalInputMonitor = NSEvent.addGlobalMonitorForEvents(matching: [
+            .keyDown, .keyUp, .flagsChanged, .scrollWheel,
+            .leftMouseDown, .leftMouseUp, .rightMouseDown,
+        ]) { [weak self] _ in
+            self?.lastGlobalInputAt = Date()
         }
     }
 
@@ -839,6 +851,23 @@ final class AppState {
             )
         }
 
+        // Set iTerm window title and session name via the Python API so the
+        // title sticks (especially with "Apps may change title" disabled).
+        if titleProvided, !mergedTitle.isEmpty, let resolvedITermWindowID, !resolvedITermWindowID.isEmpty {
+            let pythonURL = ITermWindowInventoryResolver.pythonURL()
+            DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+                let ok = self?.iTermActivityWorkerClient.setWindowName(
+                    pythonURL: pythonURL,
+                    windowID: resolvedITermWindowID,
+                    name: mergedTitle
+                ) ?? false
+                WindowListDebugLogger.log(
+                    "rename",
+                    "set_name via Python API windowID=\(resolvedITermWindowID) title=\(mergedTitle) ok=\(ok)"
+                )
+            }
+        }
+
         return true
     }
 
@@ -1264,6 +1293,7 @@ final class AppState {
                 var newBadgeCache: [String: String] = [:]
                 var newSessionNameCache: [String: String] = [:]
                 var newLastLineCache: [String: String] = [:]
+                var newProfileCache: [String: String] = [:]
                 var newRuntimeWindowIDBySnapshotKey: [String: String] = [:]
                 let desktopHeight = NSScreen.screens.reduce(CGRect.null) { $0.union($1.frame) }.height
                 var unmatchedEntries = Array(activityEntries.enumerated())
@@ -1289,6 +1319,9 @@ final class AppState {
                         }
                         if let lastLine = activity?.lastLine, !lastLine.isEmpty {
                             newLastLineCache[snapshot.key] = lastLine
+                        }
+                        if let profileID = activity?.profileID, !profileID.isEmpty {
+                            newProfileCache[snapshot.key] = profileID
                         }
                         if let activity {
                             WindowListDebugLogger.log(
@@ -1321,12 +1354,17 @@ final class AppState {
                 self.iTermBadgeTextCache = newBadgeCache
                 self.iTermSessionNameCache = newSessionNameCache
                 self.iTermLastLineCache = newLastLineCache
+                self.iTermActivityProfileCache = newProfileCache
                 self.iTermRuntimeWindowIDBySnapshotKey = newRuntimeWindowIDBySnapshotKey
                 WindowListDebugLogger.log(
                     "iterm-activity",
                     "poll done generation=\(pollGeneration): matched=\(newCache.keys.sorted()) " +
                         "activity=\(newCache.filter { $0.value == "active" }.keys.sorted())"
                 )
+
+                // Update activity overlays for claude-code/codex windows
+                self.refreshITermActivityOverlays(inventory: currentInventory)
+
                 // Trigger a UI refresh so the updated cache is rendered
                 self.controlCenter?.refresh()
 
@@ -1338,6 +1376,89 @@ final class AppState {
                 }
             }
         }
+    }
+
+    private func refreshITermActivityOverlays(inventory: MoveEverythingWindowInventory) {
+        let now = Date()
+        let inputCutoff = now.addingTimeInterval(-10)
+        // Prune old input timestamps
+        iTermInputTimestamps = iTermInputTimestamps.filter { $0.value > inputCutoff }
+
+        // Check if user recently interacted (key/click/scroll) with a focused iTerm window
+        let focusedWindowNumber = recordRecentITermInteractions()
+
+        // Clear input timestamps for windows that are no longer focused —
+        // overlay should reappear quickly after switching away.
+        if let focusedWindowNumber {
+            for wn in iTermInputTimestamps.keys where wn != focusedWindowNumber {
+                iTermInputTimestamps.removeValue(forKey: wn)
+            }
+        }
+
+        var trackedWindows: [ITermActivityOverlayController.TrackedWindow] = []
+        for snapshot in inventory.visible + inventory.hidden {
+            guard let profileID = iTermActivityProfileCache[snapshot.key],
+                  profileID.hasPrefix("claude-code") || profileID.hasPrefix("codex"),
+                  let frameSnapshot = snapshot.frame else {
+                continue
+            }
+            let topLeftFrame = CGRect(
+                x: frameSnapshot.x,
+                y: frameSnapshot.y,
+                width: frameSnapshot.width,
+                height: frameSnapshot.height
+            )
+            guard let cocoaFrame = moveEverythingRuntimeRect(fromTopLeftRect: topLeftFrame) else {
+                continue
+            }
+            let isActive = iTermActivityCache[snapshot.key] == "active"
+            let hasRecentKeystroke = snapshot.windowNumber.flatMap { iTermInputTimestamps[$0] }.map { $0 > inputCutoff } ?? false
+            let hasRecentMouseInput = snapshot.windowNumber.flatMap { iTermInputTimestamps[$0] }.map { $0 > inputCutoff } ?? false
+            trackedWindows.append(ITermActivityOverlayController.TrackedWindow(
+                key: snapshot.key,
+                frame: cocoaFrame,
+                isActive: isActive,
+                hasRecentUserInput: hasRecentKeystroke || hasRecentMouseInput,
+                windowNumber: snapshot.windowNumber
+            ))
+        }
+        iTermActivityOverlayController.update(windows: trackedWindows)
+    }
+
+    /// Checks for recent user input directed at iTerm. Returns the focused
+    /// iTerm window number (if iTerm is frontmost), or nil otherwise.
+    @discardableResult
+    private func recordRecentITermInteractions() -> Int? {
+        guard let frontApp = NSWorkspace.shared.frontmostApplication,
+              frontApp.localizedName?.lowercased().contains("iterm") == true else {
+            return nil
+        }
+
+        let frontPID = frontApp.processIdentifier
+        guard let infoList = CGWindowListCopyWindowInfo(
+            [.optionOnScreenOnly, .excludeDesktopElements],
+            kCGNullWindowID
+        ) as? [[String: Any]],
+              let frontInfo = infoList.first(where: {
+                  ($0[kCGWindowLayer as String] as? Int) == 0 &&
+                  ($0[kCGWindowOwnerPID as String] as? pid_t) == frontPID
+              }),
+              let windowNumber = frontInfo[kCGWindowNumber as String] as? Int else {
+            return nil
+        }
+
+        let threshold: Double = 0.35
+        let clickAge = CGEventSource.secondsSinceLastEventType(.hidSystemState, eventType: .leftMouseDown)
+        let keyAge = CGEventSource.secondsSinceLastEventType(.hidSystemState, eventType: .keyDown)
+        let scrollAge = CGEventSource.secondsSinceLastEventType(.hidSystemState, eventType: .scrollWheel)
+        let hasRecentHIDInput = clickAge < threshold || keyAge < threshold || scrollAge < threshold
+        let hasRecentGlobalInput = lastGlobalInputAt.timeIntervalSinceNow > -threshold
+
+        if hasRecentHIDInput || hasRecentGlobalInput {
+            iTermInputTimestamps[windowNumber] = Date()
+        }
+
+        return windowNumber
     }
 
     private var isRunningInAppSandbox: Bool {
