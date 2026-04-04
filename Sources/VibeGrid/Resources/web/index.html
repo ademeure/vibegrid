@@ -84,6 +84,16 @@
                 <input id="controlCenterOnly" type="checkbox" />
                 Control center only (always focus and move only the control center)
               </label>
+
+              <div class="toggle-line retile-designation">
+                <label for="useForRetiling">Use for retiling:</label>
+                <select id="useForRetiling">
+                  <option value="no">No</option>
+                  <option value="iterm">iTerm</option>
+                  <option value="non-iterm">non-iTerm</option>
+                </select>
+                <span id="useForRetilingError" class="retile-error hidden"></span>
+              </div>
             </div>
 
             <div class="sequence-header">
@@ -123,8 +133,8 @@
                   <button id="moveEverythingHybridRetileBtn" class="btn tiny move-everything-bulk-btn" type="button">
                     Hybrid
                   </button>
-                  <button id="moveEverythingITermOnlyRetileBtn" class="btn tiny move-everything-bulk-btn" type="button">
-                    iTerm Only
+                  <button id="moveEverythingITermRetileBtn" class="btn tiny move-everything-bulk-btn" type="button">
+                    iTerm
                   </button>
                   <button id="moveEverythingUndoRetileBtn" class="btn tiny move-everything-bulk-btn" type="button">
                     Undo

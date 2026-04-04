@@ -890,6 +890,39 @@ extension WindowManagerEngine {
                 )
             }
         }
+        func iTermRetileVisibleMoveEverythingWindows() -> Bool {
+            return performRetileVisibleMoveEverythingWindows(successVerb: "iTerm retiled") {
+                managedWindows,
+                fullAvailableFrame,
+                _,
+                gap in
+                let iTermWindows = managedWindows.filter(moveEverythingManagedWindowLooksLikeITerm)
+                let nonITermWindows = managedWindows.filter { !moveEverythingManagedWindowLooksLikeITerm($0) }
+                guard !iTermWindows.isEmpty else { return nil }
+
+                let iTermTargets: [String: CGRect]?
+                if let seq = retileSequence(for: "iterm") {
+                    iTermTargets = moveEverythingRetileUsingSequence(
+                        seq, for: iTermWindows, availableFrame: fullAvailableFrame, gap: gap
+                    )
+                } else {
+                    iTermTargets = moveEverythingRetileTargetFramesByKey(
+                        for: iTermWindows,
+                        availableFrame: fullAvailableFrame,
+                        aspectRatio: 1,
+                        gap: gap
+                    )
+                }
+                guard var result = iTermTargets else { return nil }
+                // Keep non-iTerm windows at their current positions
+                for w in nonITermWindows {
+                    if let frame = currentWindowRect(for: w.window) {
+                        result[w.key] = frame
+                    }
+                }
+                return result
+            }
+        }
         func hybridRetileVisibleMoveEverythingWindows() -> Bool {
             let widthPercent = min(max(config.settings.moveEverythingMiniRetileWidthPercent, 5), 100)
             let baseMiniWidthFraction = CGFloat(widthPercent / 100)
@@ -901,7 +934,15 @@ extension WindowManagerEngine {
                 let iTermWindows = managedWindows.filter(moveEverythingManagedWindowLooksLikeITerm)
                 let nonITermWindows = managedWindows.filter { !moveEverythingManagedWindowLooksLikeITerm($0) }
 
+                let iTermSeq = retileSequence(for: "iterm")
+                let nonITermSeq = retileSequence(for: "non-iterm")
+
                 if iTermWindows.isEmpty {
+                    if let nonITermSeq {
+                        return moveEverythingRetileUsingSequence(
+                            nonITermSeq, for: nonITermWindows, availableFrame: fullAvailableFrame, gap: gap
+                        )
+                    }
                     let miniFrame = moveEverythingRetileSlice(
                         within: fullAvailableFrame,
                         widthFraction: baseMiniWidthFraction,
@@ -915,6 +956,11 @@ extension WindowManagerEngine {
                     )
                 }
                 if nonITermWindows.isEmpty {
+                    if let iTermSeq {
+                        return moveEverythingRetileUsingSequence(
+                            iTermSeq, for: iTermWindows, availableFrame: fullAvailableFrame, gap: gap
+                        )
+                    }
                     return moveEverythingRetileTargetFramesByKey(
                         for: iTermWindows,
                         availableFrame: fullAvailableFrame,
@@ -923,34 +969,84 @@ extension WindowManagerEngine {
                     )
                 }
 
-                let miniWidthFraction = min(max(baseMiniWidthFraction, 0.05), 0.95)
-                let miniFrame = moveEverythingRetileSlice(
-                    within: fullAvailableFrame,
-                    widthFraction: miniWidthFraction,
-                    controlCenterIsOnRight: controlCenterIsOnRight
-                )
-                let remainingFrame = moveEverythingRetileRemainingSlice(
-                    within: fullAvailableFrame,
-                    widthFraction: miniWidthFraction,
-                    controlCenterIsOnRight: controlCenterIsOnRight
-                )
-                guard let nonITermTargets = moveEverythingRetileTargetFramesByKey(
-                    for: nonITermWindows,
-                    availableFrame: miniFrame,
-                    aspectRatio: 1,
-                    gap: gap
-                ),
-                let iTermTargets = moveEverythingRetileTargetFramesByKey(
-                    for: iTermWindows,
-                    availableFrame: remainingFrame,
-                    aspectRatio: 1,
-                    gap: gap
-                ) else {
-                    return nil
+                // Both types present — use sequences if available, else grid
+                let iTermTargets: [String: CGRect]?
+                if let iTermSeq {
+                    iTermTargets = moveEverythingRetileUsingSequence(
+                        iTermSeq, for: iTermWindows, availableFrame: fullAvailableFrame, gap: gap
+                    )
+                } else {
+                    let miniWidthFraction = min(max(baseMiniWidthFraction, 0.05), 0.95)
+                    let remainingFrame = moveEverythingRetileRemainingSlice(
+                        within: fullAvailableFrame,
+                        widthFraction: miniWidthFraction,
+                        controlCenterIsOnRight: controlCenterIsOnRight
+                    )
+                    iTermTargets = moveEverythingRetileTargetFramesByKey(
+                        for: iTermWindows,
+                        availableFrame: remainingFrame,
+                        aspectRatio: 1,
+                        gap: gap
+                    )
                 }
 
+                let nonITermTargets: [String: CGRect]?
+                if let nonITermSeq {
+                    nonITermTargets = moveEverythingRetileUsingSequence(
+                        nonITermSeq, for: nonITermWindows, availableFrame: fullAvailableFrame, gap: gap
+                    )
+                } else {
+                    let miniWidthFraction = min(max(baseMiniWidthFraction, 0.05), 0.95)
+                    let miniFrame = moveEverythingRetileSlice(
+                        within: fullAvailableFrame,
+                        widthFraction: miniWidthFraction,
+                        controlCenterIsOnRight: controlCenterIsOnRight
+                    )
+                    nonITermTargets = moveEverythingRetileTargetFramesByKey(
+                        for: nonITermWindows,
+                        availableFrame: miniFrame,
+                        aspectRatio: 1,
+                        gap: gap
+                    )
+                }
+
+                guard let iTermTargets, let nonITermTargets else { return nil }
                 return nonITermTargets.merging(iTermTargets) { current, _ in current }
             }
+        }
+
+        // MARK: - Sequence-based retile helpers
+
+        func retileSequence(for kind: String) -> ShortcutConfig? {
+            config.shortcuts.first { $0.useForRetiling == kind && !$0.placements.isEmpty }
+        }
+
+        func moveEverythingRetileUsingSequence(
+            _ sequence: ShortcutConfig,
+            for windows: [MoveEverythingManagedWindow],
+            availableFrame: CGRect,
+            gap: CGFloat
+        ) -> [String: CGRect]? {
+            guard !windows.isEmpty, !sequence.placements.isEmpty else { return nil }
+            let defaultCols = config.settings.defaultGridColumns
+            let defaultRows = config.settings.defaultGridRows
+
+            // Find the screen for available frame
+            guard let screen = NSScreen.screens.first(where: {
+                $0.visibleFrame.intersects(availableFrame)
+            }) ?? NSScreen.main else { return nil }
+
+            var result = [String: CGRect]()
+            for (index, window) in windows.enumerated() {
+                let step = sequence.placements[index % sequence.placements.count]
+                guard let normalizedRect = step.normalizedRect(
+                    defaultColumns: defaultCols,
+                    defaultRows: defaultRows
+                ) else { continue }
+                let targetRect = makeTargetRect(normalizedRect: normalizedRect, on: screen, excludeControlCenter: true)
+                result[window.key] = targetRect
+            }
+            return result.isEmpty ? nil : result
         }
         func performRetileVisibleMoveEverythingWindows(
             successVerb: String,

@@ -734,6 +734,9 @@ struct YAMLConfigCodec {
             lines.append("    enabled: \(shortcut.enabled ? "true" : "false")")
             lines.append("    cycleDisplaysOnWrap: \(shortcut.cycleDisplaysOnWrap ? "true" : "false")")
             lines.append("    controlCenterOnly: \(shortcut.controlCenterOnly ? "true" : "false")")
+            if shortcut.useForRetiling != "no" {
+                lines.append("    useForRetiling: \(encodeScalar(shortcut.useForRetiling))")
+            }
             lines.append("    hotkey:")
             lines.append("      key: \(encodeScalar(shortcut.hotkey.key.lowercased()))")
             lines.append("      modifiers:")
@@ -929,8 +932,10 @@ struct YAMLConfigCodec {
             shortcut.cycleDisplaysOnWrap = try parseRequiredBoolean(value, lineNumber: lineNumber, field: "shortcut.cycleDisplaysOnWrap")
         case "controlCenterOnly":
             shortcut.controlCenterOnly = try parseRequiredBoolean(value, lineNumber: lineNumber, field: "shortcut.controlCenterOnly")
+        case "useForRetiling":
+            shortcut.useForRetiling = parseScalar(try requiredValue(value, lineNumber: lineNumber, field: "shortcut.useForRetiling"))
         default:
-            throw ConfigParseError.invalidLine(lineNumber, "Unknown shortcut key: \(key)")
+            break
         }
         storage = shortcut
     }

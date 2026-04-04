@@ -776,6 +776,7 @@ struct ShortcutConfig: Codable, Identifiable {
     var hotkey: Hotkey
     var cycleDisplaysOnWrap: Bool
     var controlCenterOnly: Bool
+    var useForRetiling: String
     var placements: [PlacementStep]
 
     init(
@@ -785,6 +786,7 @@ struct ShortcutConfig: Codable, Identifiable {
         hotkey: Hotkey,
         cycleDisplaysOnWrap: Bool = false,
         controlCenterOnly: Bool = false,
+        useForRetiling: String = "no",
         placements: [PlacementStep]
     ) {
         self.id = id
@@ -793,17 +795,14 @@ struct ShortcutConfig: Codable, Identifiable {
         self.hotkey = hotkey
         self.cycleDisplaysOnWrap = cycleDisplaysOnWrap
         self.controlCenterOnly = controlCenterOnly
+        self.useForRetiling = useForRetiling
         self.placements = placements
     }
 
     enum CodingKeys: String, CodingKey {
-        case id
-        case name
-        case enabled
-        case hotkey
-        case cycleDisplaysOnWrap
-        case controlCenterOnly
-        case placements
+        case id, name, enabled, hotkey
+        case cycleDisplaysOnWrap, controlCenterOnly
+        case useForRetiling, placements
     }
 
     init(from decoder: Decoder) throws {
@@ -814,6 +813,7 @@ struct ShortcutConfig: Codable, Identifiable {
         hotkey = try container.decode(Hotkey.self, forKey: .hotkey)
         cycleDisplaysOnWrap = try container.decodeIfPresent(Bool.self, forKey: .cycleDisplaysOnWrap) ?? false
         controlCenterOnly = try container.decodeIfPresent(Bool.self, forKey: .controlCenterOnly) ?? false
+        useForRetiling = try container.decodeIfPresent(String.self, forKey: .useForRetiling) ?? "no"
         placements = try container.decode([PlacementStep].self, forKey: .placements)
     }
 
@@ -825,6 +825,7 @@ struct ShortcutConfig: Codable, Identifiable {
         try container.encode(hotkey, forKey: .hotkey)
         try container.encode(cycleDisplaysOnWrap, forKey: .cycleDisplaysOnWrap)
         try container.encode(controlCenterOnly, forKey: .controlCenterOnly)
+        try container.encode(useForRetiling, forKey: .useForRetiling)
         try container.encode(placements, forKey: .placements)
     }
 }

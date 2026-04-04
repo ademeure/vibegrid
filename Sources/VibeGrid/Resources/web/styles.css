@@ -1330,12 +1330,35 @@ body.narrow-mode.narrow-sequences .narrow-mode-toggle {
 }
 body.narrow-mode.narrow-sequences .layout {
   grid-template-columns: 1fr;
-  grid-template-rows: auto minmax(0, 0.6fr) minmax(0, 1fr) minmax(0, 1.4fr);
+  grid-template-rows: auto minmax(0, 0.35fr) minmax(0, 0.85fr) minmax(0, 1.8fr);
   min-height: 0;
 }
 /* Hide the toggle's container in windows mode (narrow-mode without narrow-sequences) */
 body.narrow-mode:not(.narrow-sequences) .narrow-mode-toggle {
   grid-column: 1;
+}
+
+.retile-designation {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.retile-designation select {
+  background: var(--surface-hover, rgba(255,255,255,0.06));
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 12px;
+}
+.retile-error {
+  color: #e55;
+  font-size: 11px;
+}
+.retile-badge {
+  font-size: 10px;
+  color: var(--accent);
+  opacity: 0.8;
 }
 
 .settings-tabs {

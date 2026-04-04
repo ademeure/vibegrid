@@ -914,6 +914,11 @@ final class AppState {
     }
 
     @discardableResult
+    func iTermRetileVisibleMoveEverythingWindows() -> Bool {
+        windowManager.iTermRetileVisibleMoveEverythingWindows()
+    }
+
+    @discardableResult
     func hybridRetileVisibleMoveEverythingWindows() -> Bool {
         windowManager.hybridRetileVisibleMoveEverythingWindows()
     }

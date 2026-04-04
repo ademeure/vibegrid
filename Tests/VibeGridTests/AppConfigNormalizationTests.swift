@@ -384,16 +384,15 @@ shortcuts: []
     #expect(!reencoded.contains("moveEverythingSplitITermTabHotkey"))
     #expect(!reencoded.contains("moveEverythingStartStopHotkey"))
 
-    let invalidYaml = """
+    // Unknown settings keys are silently ignored for forward compatibility
+    let unknownSettingsYaml = """
 version: 1
 settings:
   defaultGridColumnsTypo: 12
 shortcuts: []
 """
-
-    #expect(throws: ConfigParseError.self) {
-        try YAMLConfigCodec.decode(invalidYaml)
-    }
+    let decodedUnknown = try YAMLConfigCodec.decode(unknownSettingsYaml)
+    #expect(decodedUnknown.settings.defaultGridColumns == Settings.default.defaultGridColumns)
 }
 
 @Test func yamlDecodeParsesMoveEverythingHotkeyStrings() throws {

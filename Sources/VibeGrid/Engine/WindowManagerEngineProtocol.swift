@@ -35,6 +35,7 @@ protocol WindowManagerEngineProtocol: AnyObject {
     func maximizeMoveEverythingWindow(withKey key: String) -> Bool
     func retileVisibleMoveEverythingWindows() -> Bool
     func miniRetileVisibleMoveEverythingWindows() -> Bool
+    func iTermRetileVisibleMoveEverythingWindows() -> Bool
     func hybridRetileVisibleMoveEverythingWindows() -> Bool
     func undoLastMoveEverythingRetile() -> Bool
     func moveEverythingUndoRetileAvailable() -> Bool

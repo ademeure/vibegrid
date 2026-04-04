@@ -178,6 +178,7 @@ const ids = {
   moveEverythingRetileBtn: document.getElementById("moveEverythingRetileBtn"),
   moveEverythingMiniRetileBtn: document.getElementById("moveEverythingMiniRetileBtn"),
   moveEverythingHybridRetileBtn: document.getElementById("moveEverythingHybridRetileBtn"),
+  moveEverythingITermRetileBtn: document.getElementById("moveEverythingITermRetileBtn"),
   moveEverythingUndoRetileBtn: document.getElementById("moveEverythingUndoRetileBtn"),
   moveEverythingAlwaysOnTop: document.getElementById("moveEverythingAlwaysOnTop"),
   moveEverythingAlwaysOnTopLabel: document.getElementById("moveEverythingAlwaysOnTopLabel"),
@@ -1549,6 +1550,10 @@ function hybridRetileVisibleMoveEverythingWindows() {
   sendToNative("moveEverythingHybridRetileVisibleWindows");
 }
 
+function iTermRetileVisibleMoveEverythingWindows() {
+  sendToNative("moveEverythingITermRetileVisibleWindows");
+}
+
 function undoLastMoveEverythingRetile() {
   sendToNative("moveEverythingUndoRetile");
 }
@@ -1981,7 +1986,10 @@ function renderShortcutList() {
     const shortcutScopeLabel = shortcut.controlCenterOnly
       ? "control center only"
       : `${shortcut.placements.length} step${shortcut.placements.length === 1 ? "" : "s"}`;
-    subtitle.textContent = `${formatHotkey(shortcut.hotkey)} • ${shortcutScopeLabel}${stateLabel}`;
+    const retileLabel = shortcut.useForRetiling && shortcut.useForRetiling !== "no"
+      ? ` • retile: ${shortcut.useForRetiling}`
+      : "";
+    subtitle.textContent = `${formatHotkey(shortcut.hotkey)} • ${shortcutScopeLabel}${retileLabel}${stateLabel}`;
 
     left.appendChild(title);
     left.appendChild(subtitle);
@@ -2035,6 +2043,11 @@ function renderShortcutEditor() {
   ids.toggleShortcutEnabledBtn.classList.toggle("ghost", shortcut.enabled);
   ids.cycleDisplaysOnWrap.checked = Boolean(shortcut.cycleDisplaysOnWrap);
   ids.controlCenterOnly.checked = Boolean(shortcut.controlCenterOnly);
+  const useForRetilingSelect = document.getElementById("useForRetiling");
+  if (useForRetilingSelect) {
+    useForRetilingSelect.value = shortcut.useForRetiling || "no";
+  }
+  renderUseForRetilingError();
   ids.settingGridCols.value = clampInt(state.config.settings.defaultGridColumns, 1, 24);
   ids.settingGridRows.value = clampInt(state.config.settings.defaultGridRows, 1, 20);
   ids.settingGap.value = clampInt(state.config.settings.gap, 0, 80);
@@ -4611,6 +4624,48 @@ function updateControlCenterOnly(value) {
   renderShortcutList();
 }
 
+function updateUseForRetiling(value) {
+  const shortcut = selectedShortcut();
+  if (!shortcut) return;
+  shortcut.useForRetiling = value;
+  markDirty();
+  renderShortcutList();
+  renderUseForRetilingError();
+}
+
+function retileDesignationErrors() {
+  const errors = [];
+  const iTermShortcuts = state.config.shortcuts.filter(s => s.useForRetiling === "iterm");
+  const nonITermShortcuts = state.config.shortcuts.filter(s => s.useForRetiling === "non-iterm");
+  if (iTermShortcuts.length > 1) {
+    errors.push({ kind: "iterm", ids: iTermShortcuts.map(s => s.id), message: "Multiple shortcuts set as iTerm retile sequence" });
+  }
+  if (nonITermShortcuts.length > 1) {
+    errors.push({ kind: "non-iterm", ids: nonITermShortcuts.map(s => s.id), message: "Multiple shortcuts set as non-iTerm retile sequence" });
+  }
+  return errors;
+}
+
+function renderUseForRetilingError() {
+  const el = document.getElementById("useForRetilingError");
+  if (!el) return;
+  const shortcut = selectedShortcut();
+  if (!shortcut || shortcut.useForRetiling === "no") {
+    el.classList.add("hidden");
+    el.textContent = "";
+    return;
+  }
+  const errors = retileDesignationErrors();
+  const relevant = errors.find(e => e.ids.includes(shortcut.id));
+  if (relevant) {
+    el.textContent = relevant.message;
+    el.classList.remove("hidden");
+  } else {
+    el.classList.add("hidden");
+    el.textContent = "";
+  }
+}
+
 function updateSettings() {
   const previousSettings = { ...state.config.settings };
 
@@ -6146,6 +6201,7 @@ function wireEvents() {
   on(ids.moveEverythingRetileBtn, "click", retileVisibleMoveEverythingWindows);
   on(ids.moveEverythingMiniRetileBtn, "click", miniRetileVisibleMoveEverythingWindows);
   on(ids.moveEverythingHybridRetileBtn, "click", hybridRetileVisibleMoveEverythingWindows);
+  on(ids.moveEverythingITermRetileBtn, "click", iTermRetileVisibleMoveEverythingWindows);
   on(ids.moveEverythingUndoRetileBtn, "click", undoLastMoveEverythingRetile);
   on(ids.moveEverythingSaveDefaultsBtn, "click", saveCurrentMoveEverythingAsDefaults);
   on(ids.moveEverythingResetDefaultsBtn, "click", resetMoveEverythingDefaults);
@@ -6354,6 +6410,7 @@ function wireEvents() {
   ids.displayTarget.addEventListener("change", (event) => updateDisplayTarget(event.target.value));
   ids.cycleDisplaysOnWrap.addEventListener("change", (event) => updateCycleDisplaysOnWrap(event.target.checked));
   ids.controlCenterOnly.addEventListener("change", (event) => updateControlCenterOnly(event.target.checked));
+  document.getElementById("useForRetiling").addEventListener("change", (event) => updateUseForRetiling(event.target.value));
   ids.settingGridCols.addEventListener("input", updateSettings);
   ids.settingGridRows.addEventListener("input", updateSettings);
   ids.settingGap.addEventListener("input", updateSettings);
