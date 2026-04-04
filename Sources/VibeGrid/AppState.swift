@@ -99,6 +99,8 @@ final class AppState {
 
     init() {
         let initialConfig = configStore.loadOrCreate()
+        // Re-save to update YAML format (adds documentation comments)
+        configStore.save(initialConfig.normalized())
         config = initialConfig
         let loadedOverrides = windowListActivityConfigSync.loadOverrides()
         moveEverythingITermWindowOverridesByID = loadedOverrides.byID
