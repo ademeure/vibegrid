@@ -212,33 +212,26 @@ final class ControlCenterWindowController: NSWindowController, NSWindowDelegate,
         window.setFrame(NSRect(origin: NSPoint(x: x, y: y), size: frameSize), display: false, animate: false)
     }
 
-    func shrinkQuickViewToFitContent(maxHeight: CGFloat) {
-        // Delay to let the web view render the window list, then retry a few times
-        // as items may still be loading
-        shrinkQuickViewAttempt(maxHeight: maxHeight, attempts: 5, previousHeight: 0)
-    }
-
-    private func shrinkQuickViewAttempt(maxHeight: CGFloat, attempts: Int, previousHeight: CGFloat) {
-        guard attempts > 0 else { return }
-        // Measure the workspace content + header, not the full page
-        let script = """
-            (function() {
-                var ws = document.getElementById('moveEverythingWorkspace');
-                var header = document.querySelector('header');
-                if (!ws) return document.body.scrollHeight;
-                var h = ws.scrollHeight;
-                if (header) h += header.offsetHeight;
-                return h + 16;
-            })()
-            """
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
+    func fitQuickViewToContent(maxHeight: CGFloat) {
+        // Wait for the web view to render the window list, then resize once
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
             guard let self else { return }
+            let script = """
+                (function() {
+                    var ws = document.getElementById('moveEverythingWorkspace');
+                    var header = document.querySelector('header');
+                    if (!ws) return document.body.scrollHeight;
+                    var h = ws.scrollHeight;
+                    if (header) h += header.offsetHeight;
+                    return h + 24;
+                })()
+                """
             self.webView.evaluateJavaScript(script) { [weak self] value, _ in
                 guard let self, let window = self.window,
                       let contentHeight = (value as? NSNumber)?.doubleValue else { return }
-                let idealHeight = min(CGFloat(contentHeight), maxHeight)
+                let idealHeight = max(min(CGFloat(contentHeight), maxHeight), 200)
                 let frame = window.frame
-                if idealHeight < frame.height {
+                if abs(idealHeight - frame.height) > 10 {
                     let newFrame = NSRect(
                         x: frame.origin.x,
                         y: frame.origin.y + (frame.height - idealHeight),
@@ -246,10 +239,6 @@ final class ControlCenterWindowController: NSWindowController, NSWindowDelegate,
                         height: idealHeight
                     )
                     window.setFrame(newFrame, display: true, animate: false)
-                }
-                // Retry if content is still loading (height changed)
-                if CGFloat(contentHeight) != previousHeight && attempts > 1 {
-                    self.shrinkQuickViewAttempt(maxHeight: maxHeight, attempts: attempts - 1, previousHeight: CGFloat(contentHeight))
                 }
             }
         }
