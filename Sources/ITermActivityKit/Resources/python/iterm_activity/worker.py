@@ -92,19 +92,22 @@ async def _handle_poll(
                             await profile.async_set_background_color(dark_color)
                     elif cmd_op == "set_tab_color":
                         enabled = bool(cmd.get("enabled", True))
+                        dark_color = iterm2.Color(int(cmd.get("r", 0)), int(cmd.get("g", 0)), int(cmd.get("b", 0)))
                         use_separate = getattr(profile, 'use_separate_colors_for_light_and_dark_mode', None)
                         if use_separate:
                             await profile.async_set_use_tab_color_dark(enabled)
+                            await profile.async_set_use_tab_color_light(enabled)
                             if enabled:
-                                await profile.async_set_tab_color_dark(
-                                    iterm2.Color(int(cmd.get("r", 0)), int(cmd.get("g", 0)), int(cmd.get("b", 0)))
-                                )
+                                await profile.async_set_tab_color_dark(dark_color)
+                                if "r_light" in cmd:
+                                    light_color = iterm2.Color(int(cmd["r_light"]), int(cmd["g_light"]), int(cmd["b_light"]))
+                                else:
+                                    light_color = dark_color
+                                await profile.async_set_tab_color_light(light_color)
                         else:
                             await profile.async_set_use_tab_color(enabled)
                             if enabled:
-                                await profile.async_set_tab_color(
-                                    iterm2.Color(int(cmd.get("r", 0)), int(cmd.get("g", 0)), int(cmd.get("b", 0)))
-                                )
+                                await profile.async_set_tab_color(dark_color)
                     else:
                         command_results.append({"op": cmd_op, "ok": False, "error": f"unknown cmd op: {cmd_op}"})
                         continue

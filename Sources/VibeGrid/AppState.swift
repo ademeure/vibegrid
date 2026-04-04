@@ -1570,12 +1570,17 @@ final class AppState {
                     ])
                 } else {
                     let tintDark = isActive ? activeRGBDark : idleRGBDark
-                    pendingITermColorCommands.append([
+                    let tintLight = isActive ? activeRGBLight : idleRGBLight
+                    var cmd: [String: Any] = [
                         "op": "set_tab_color",
                         "window_id": windowID,
                         "r": tintDark.r, "g": tintDark.g, "b": tintDark.b,
                         "enabled": true,
-                    ])
+                    ]
+                    cmd["r_light"] = tintLight.r
+                    cmd["g_light"] = tintLight.g
+                    cmd["b_light"] = tintLight.b
+                    pendingITermColorCommands.append(cmd)
                 }
                 iTermCurrentTabColorStatus[windowID] = statusKey
             }
