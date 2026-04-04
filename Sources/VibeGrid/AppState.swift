@@ -66,6 +66,15 @@ final class AppState {
     private(set) var iTermActivityProfileCache: [String: String] = [:]  // snapshot key → profile id (e.g. "claude-code", "codex")
     private var iTermRuntimeWindowIDBySnapshotKey: [String: String] = [:]  // snapshot key → pty-... runtime id
     private let iTermActivityOverlayController = ITermActivityOverlayController()
+    private struct OriginalBackground {
+        let dark: (r: Int, g: Int, b: Int)
+        let light: (r: Int, g: Int, b: Int)
+        let useSeparateColors: Bool
+    }
+    private var iTermOriginalBackgroundByWindowID: [String: OriginalBackground] = [:]
+    private var iTermCurrentBgTintStatus: [String: String] = [:]  // windowID → "active"/"idle"/""
+    private var iTermCurrentTabColorStatus: [String: String] = [:]  // windowID → "active"/"idle"/""
+    private var pendingITermColorCommands: [[String: Any]] = []
     private var iTermInputTimestamps: [Int: Date] = [:]  // windowNumber → last interaction time
     private var lastGlobalInputAt: Date = .distantPast
     private var globalInputMonitor: Any?
@@ -297,6 +306,9 @@ final class AppState {
         config = normalized
         cachedConfigYAML = nil
         cachedConfigJSONObject = nil
+        // Force iTerm tints to re-apply with new colors on next poll cycle
+        iTermCurrentBgTintStatus.removeAll()
+        iTermCurrentTabColorStatus.removeAll()
         windowListActivityConfigSync.sync(
             settings: normalized.settings,
             iTermWindowOverridesByID: moveEverythingITermWindowOverridesByID,
@@ -858,11 +870,12 @@ final class AppState {
         // title sticks (especially with "Apps may change title" disabled).
         if titleProvided, !mergedTitle.isEmpty, let resolvedITermWindowID, !resolvedITermWindowID.isEmpty {
             let pythonURL = ITermWindowInventoryResolver.pythonURL()
+            let iTermTitle = config.settings.moveEverythingITermTitleAllCaps ? mergedTitle.uppercased() : mergedTitle
             DispatchQueue.global(qos: .userInitiated).async { [weak self] in
                 let ok = self?.iTermActivityWorkerClient.setWindowName(
                     pythonURL: pythonURL,
                     windowID: resolvedITermWindowID,
-                    name: mergedTitle
+                    name: iTermTitle
                 ) ?? false
                 WindowListDebugLogger.log(
                     "rename",
@@ -980,6 +993,19 @@ final class AppState {
 
     func terminateApp() {
         placementPreviewOverlay.hide()
+        // Best-effort restore of iTerm colors on shutdown
+        queueRestoreAllITermColors()
+        if !pendingITermColorCommands.isEmpty {
+            let commands = pendingITermColorCommands
+            pendingITermColorCommands = []
+            let pythonURL = ITermWindowInventoryResolver.pythonURL()
+            _ = iTermActivityWorkerClient.poll(
+                pythonURL: pythonURL,
+                timeout: 2.0,
+                maxPolledNonEmptyLines: 1,
+                commands: commands
+            )
+        }
         NSApplication.shared.terminate(nil)
     }
 
@@ -1252,11 +1278,16 @@ final class AppState {
             "poll start generation=\(pollGeneration) inventoryITermWindows=\(iTermSnapshotCount)"
         )
 
+        let colorCommands = pendingITermColorCommands
+        pendingITermColorCommands = []
+        let pollTimeout = colorCommands.isEmpty ? iTermActivityPollTimeout : iTermActivityPollTimeout + Double(colorCommands.count) * 1.5
+
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             let pollResult = self?.iTermActivityWorkerClient.poll(
                 pythonURL: pythonURL,
-                timeout: self?.iTermActivityPollTimeout ?? 1.5,
-                maxPolledNonEmptyLines: maxPolledNonEmptyLines
+                timeout: pollTimeout,
+                maxPolledNonEmptyLines: maxPolledNonEmptyLines,
+                commands: colorCommands
             ) ?? ITermWindowActivityDetector.PollResult(
                 entries: [],
                 activitiesByWindowID: [:],
@@ -1314,6 +1345,15 @@ final class AppState {
                         let activity = activitiesByWindowID[matched.windowID]
                         newRuntimeWindowIDBySnapshotKey[snapshot.key] = matched.windowID
                         newCache[snapshot.key] = activity?.status.rawValue ?? "idle"
+                        // Cache original background on first encounter only.
+                        // Once captured, never overwrite — the session bg may be tinted.
+                        if self.iTermOriginalBackgroundByWindowID[matched.windowID] == nil {
+                            self.iTermOriginalBackgroundByWindowID[matched.windowID] = OriginalBackground(
+                                dark: (r: matched.backgroundColorR, g: matched.backgroundColorG, b: matched.backgroundColorB),
+                                light: (r: matched.backgroundColorLightR, g: matched.backgroundColorLightG, b: matched.backgroundColorLightB),
+                                useSeparateColors: matched.useSeparateColors
+                            )
+                        }
                         if let badgeText = activity?.badgeText, !badgeText.isEmpty {
                             newBadgeCache[snapshot.key] = badgeText
                         }
@@ -1367,6 +1407,9 @@ final class AppState {
 
                 // Update activity overlays for claude-code/codex windows
                 self.refreshITermActivityOverlays(inventory: currentInventory)
+
+                // Update iTerm background tint and tab color indicators
+                self.refreshITermActivityIndicators(inventory: currentInventory)
 
                 // Trigger a UI refresh so the updated cache is rendered
                 self.controlCenter?.refresh()
@@ -1444,6 +1487,169 @@ final class AppState {
             return true
         }
         return false
+    }
+
+    /// Drives iTerm background-tint and tab-color indicators via the Python API.
+    /// Called on each poll cycle. Queues commands for the next poll round-trip.
+    /// Restores original colors when the user is actively interacting (same
+    /// suppression logic as the overlay: recent user input hides the indicator).
+    private func refreshITermActivityIndicators(inventory: MoveEverythingWindowInventory) {
+        let bgTintEnabled = config.settings.moveEverythingITermActivityBackgroundTintEnabled
+        let tabColorEnabled = config.settings.moveEverythingITermActivityTabColorEnabled
+
+        guard bgTintEnabled || tabColorEnabled else {
+            if !iTermCurrentBgTintStatus.isEmpty || !iTermCurrentTabColorStatus.isEmpty {
+                queueRestoreAllITermColors()
+            }
+            return
+        }
+
+        let activeRGBDark = Self.parseHexColor(config.settings.moveEverythingITermRecentActivityActiveColor) ?? (r: 47, g: 143, b: 78)
+        let idleRGBDark = Self.parseHexColor(config.settings.moveEverythingITermRecentActivityIdleColor) ?? (r: 186, g: 77, b: 77)
+        let activeRGBLight = Self.parseHexColor(config.settings.moveEverythingITermRecentActivityActiveColorLight) ?? (r: 26, g: 117, b: 53)
+        let idleRGBLight = Self.parseHexColor(config.settings.moveEverythingITermRecentActivityIdleColorLight) ?? (r: 160, g: 48, b: 48)
+        let colorizeNamedOnly = config.settings.moveEverythingITermRecentActivityColorizeNamedOnly
+        let inputCutoff = Date().addingTimeInterval(-15)
+
+        var activeWindowIDs = Set<String>()
+
+        for snapshot in inventory.visible + inventory.hidden {
+            let profileID = iTermActivityProfileCache[snapshot.key] ?? ""
+            let isClaudeOrCodex = profileID.hasPrefix("claude-code") || profileID.hasPrefix("codex")
+            let isNamed = hasITermNameOverride(for: snapshot)
+            guard (isClaudeOrCodex || isNamed) && (!colorizeNamedOnly || isNamed),
+                  let windowID = iTermRuntimeWindowIDBySnapshotKey[snapshot.key] else {
+                continue
+            }
+            activeWindowIDs.insert(windowID)
+
+            // Suppress tint when user is actively interacting with this iTerm window
+            let hasRecentInput = snapshot.windowNumber
+                .flatMap { iTermInputTimestamps[$0] }
+                .map { $0 > inputCutoff } ?? false
+
+            let isActive = iTermActivityCache[snapshot.key] == "active"
+            let statusKey = hasRecentInput ? "suppressed" : (isActive ? "active" : "idle")
+
+            if bgTintEnabled && iTermCurrentBgTintStatus[windowID] != statusKey {
+                if let original = iTermOriginalBackgroundByWindowID[windowID] {
+                    if statusKey == "suppressed" {
+                        pendingITermColorCommands.append(
+                            Self.buildBgColorCommand(windowID: windowID, original: original, tintDark: nil, tintLight: nil)
+                        )
+                    } else {
+                        let tintDark = isActive ? activeRGBDark : idleRGBDark
+                        let tintLight = isActive ? activeRGBLight : idleRGBLight
+                        pendingITermColorCommands.append(
+                            Self.buildBgColorCommand(windowID: windowID, original: original, tintDark: tintDark, tintLight: tintLight)
+                        )
+                    }
+                }
+                iTermCurrentBgTintStatus[windowID] = statusKey
+            }
+
+            if tabColorEnabled && iTermCurrentTabColorStatus[windowID] != statusKey {
+                if statusKey == "suppressed" {
+                    pendingITermColorCommands.append([
+                        "op": "set_tab_color",
+                        "window_id": windowID,
+                        "r": 0, "g": 0, "b": 0,
+                        "enabled": false,
+                    ])
+                } else {
+                    let tintDark = isActive ? activeRGBDark : idleRGBDark
+                    pendingITermColorCommands.append([
+                        "op": "set_tab_color",
+                        "window_id": windowID,
+                        "r": tintDark.r, "g": tintDark.g, "b": tintDark.b,
+                        "enabled": true,
+                    ])
+                }
+                iTermCurrentTabColorStatus[windowID] = statusKey
+            }
+        }
+
+        // Clean up state for windows no longer tracked
+        for windowID in iTermCurrentBgTintStatus.keys where !activeWindowIDs.contains(windowID) {
+            if let original = iTermOriginalBackgroundByWindowID[windowID] {
+                pendingITermColorCommands.append(
+                    Self.buildBgColorCommand(windowID: windowID, original: original, tintDark: nil, tintLight: nil)
+                )
+            }
+            iTermOriginalBackgroundByWindowID.removeValue(forKey: windowID)
+        }
+        for windowID in iTermCurrentTabColorStatus.keys where !activeWindowIDs.contains(windowID) {
+            pendingITermColorCommands.append([
+                "op": "set_tab_color",
+                "window_id": windowID,
+                "r": 0, "g": 0, "b": 0,
+                "enabled": false,
+            ])
+        }
+        iTermCurrentBgTintStatus = iTermCurrentBgTintStatus.filter { activeWindowIDs.contains($0.key) }
+        iTermCurrentTabColorStatus = iTermCurrentTabColorStatus.filter { activeWindowIDs.contains($0.key) }
+    }
+
+    /// Queues restore commands for all iTerm windows. Called when indicators are disabled.
+    private func queueRestoreAllITermColors() {
+        for (windowID, original) in iTermOriginalBackgroundByWindowID {
+            pendingITermColorCommands.append(
+                Self.buildBgColorCommand(windowID: windowID, original: original, tintDark: nil, tintLight: nil)
+            )
+        }
+        for windowID in iTermCurrentTabColorStatus.keys {
+            pendingITermColorCommands.append([
+                "op": "set_tab_color",
+                "window_id": windowID,
+                "r": 0, "g": 0, "b": 0,
+                "enabled": false,
+            ])
+        }
+        iTermOriginalBackgroundByWindowID.removeAll()
+        iTermCurrentBgTintStatus.removeAll()
+        iTermCurrentTabColorStatus.removeAll()
+    }
+
+    /// Build a set_background_color command dict. If tintDark/tintLight are nil, restores the original.
+    private static func buildBgColorCommand(
+        windowID: String,
+        original: OriginalBackground,
+        tintDark: (r: Int, g: Int, b: Int)?,
+        tintLight: (r: Int, g: Int, b: Int)?
+    ) -> [String: Any] {
+        let alpha = 0.25
+        func blend(_ orig: (r: Int, g: Int, b: Int), _ tint: (r: Int, g: Int, b: Int)) -> (r: Int, g: Int, b: Int) {
+            (
+                r: min(max(Int(Double(orig.r) * (1 - alpha) + Double(tint.r) * alpha), 0), 255),
+                g: min(max(Int(Double(orig.g) * (1 - alpha) + Double(tint.g) * alpha), 0), 255),
+                b: min(max(Int(Double(orig.b) * (1 - alpha) + Double(tint.b) * alpha), 0), 255)
+            )
+        }
+        let dark = tintDark.map { blend(original.dark, $0) } ?? original.dark
+        let light = tintLight.map { blend(original.light, $0) } ?? original.light
+        var cmd: [String: Any] = [
+            "op": "set_background_color",
+            "window_id": windowID,
+            "r": dark.r, "g": dark.g, "b": dark.b,
+        ]
+        if original.useSeparateColors {
+            cmd["r_light"] = light.r
+            cmd["g_light"] = light.g
+            cmd["b_light"] = light.b
+        }
+        return cmd
+    }
+
+    /// Parse "#RRGGBB" hex string to RGB tuple.
+    private static func parseHexColor(_ hex: String) -> (r: Int, g: Int, b: Int)? {
+        var h = hex.trimmingCharacters(in: .whitespacesAndNewlines)
+        if h.hasPrefix("#") { h = String(h.dropFirst()) }
+        guard h.count == 6, let value = UInt32(h, radix: 16) else { return nil }
+        return (
+            r: Int((value >> 16) & 0xFF),
+            g: Int((value >> 8) & 0xFF),
+            b: Int(value & 0xFF)
+        )
     }
 
     /// Checks for recent user input directed at iTerm. Returns the focused

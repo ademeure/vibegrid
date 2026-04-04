@@ -227,12 +227,14 @@ class Detector:
         return "\n".join(self.semantic_body_lines(non_empty_lines_from_bottom))
 
     def normalized_semantic_line(self, raw_line: str) -> str:
-        without_controls = "".join(
-            char
+        # Replace control characters with spaces (not strip) so that NUL bytes
+        # used as padding in iTerm screen captures don't merge adjacent words.
+        replaced = "".join(
+            char if (char in ("\t", "\n") or not (ord(char) < 0x20 or 0x7F <= ord(char) <= 0x9F))
+            else " "
             for char in raw_line
-            if char in ("\t", "\n") or not (ord(char) < 0x20 or 0x7F <= ord(char) <= 0x9F)
         )
-        without_non_breaking_spaces = without_controls.replace("\u00A0", " ")
+        without_non_breaking_spaces = replaced.replace("\u00A0", " ")
         return " ".join(without_non_breaking_spaces.strip().split())
 
     def is_chrome_line(self, raw_line: str) -> bool:

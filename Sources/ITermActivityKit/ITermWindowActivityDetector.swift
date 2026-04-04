@@ -22,6 +22,13 @@ public enum ITermWindowActivityDetector {
         public let commandLine: String
         public let lastLine: String
         public let nonEmptyLinesFromBottom: [String]
+        public let backgroundColorR: Int
+        public let backgroundColorG: Int
+        public let backgroundColorB: Int
+        public let backgroundColorLightR: Int
+        public let backgroundColorLightG: Int
+        public let backgroundColorLightB: Int
+        public let useSeparateColors: Bool
 
         public init(
             windowID: String,
@@ -35,7 +42,14 @@ public enum ITermWindowActivityDetector {
             presentationName: String,
             commandLine: String,
             lastLine: String,
-            nonEmptyLinesFromBottom: [String]
+            nonEmptyLinesFromBottom: [String],
+            backgroundColorR: Int = 0,
+            backgroundColorG: Int = 0,
+            backgroundColorB: Int = 0,
+            backgroundColorLightR: Int = 0,
+            backgroundColorLightG: Int = 0,
+            backgroundColorLightB: Int = 0,
+            useSeparateColors: Bool = false
         ) {
             self.windowID = windowID
             self.ttyActive = ttyActive
@@ -49,6 +63,13 @@ public enum ITermWindowActivityDetector {
             self.commandLine = commandLine
             self.lastLine = lastLine
             self.nonEmptyLinesFromBottom = nonEmptyLinesFromBottom
+            self.backgroundColorR = backgroundColorR
+            self.backgroundColorG = backgroundColorG
+            self.backgroundColorB = backgroundColorB
+            self.backgroundColorLightR = backgroundColorLightR
+            self.backgroundColorLightG = backgroundColorLightG
+            self.backgroundColorLightB = backgroundColorLightB
+            self.useSeparateColors = useSeparateColors
         }
     }
 

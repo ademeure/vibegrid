@@ -22,13 +22,15 @@ public final class ITermActivityWorkerClient {
     public func poll(
         pythonURL: URL,
         timeout: Double,
-        maxPolledNonEmptyLines: Int
+        maxPolledNonEmptyLines: Int,
+        commands: [[String: Any]] = []
     ) -> ITermWindowActivityDetector.PollResult {
         stateQueue.sync {
             pollLocked(
                 pythonURL: pythonURL,
                 timeout: timeout,
-                maxPolledNonEmptyLines: maxPolledNonEmptyLines
+                maxPolledNonEmptyLines: maxPolledNonEmptyLines,
+                commands: commands
             )
         }
     }
@@ -49,6 +51,58 @@ public final class ITermActivityWorkerClient {
         }
     }
 
+    public func setBackgroundColor(
+        pythonURL: URL,
+        windowID: String,
+        r: Int,
+        g: Int,
+        b: Int,
+        timeout: Double = 2.0
+    ) -> Bool {
+        stateQueue.sync {
+            setBackgroundColorLocked(
+                pythonURL: pythonURL,
+                windowID: windowID,
+                r: r, g: g, b: b,
+                timeout: timeout
+            )
+        }
+    }
+
+    public func setTabColor(
+        pythonURL: URL,
+        windowID: String,
+        r: Int,
+        g: Int,
+        b: Int,
+        enabled: Bool,
+        timeout: Double = 2.0
+    ) -> Bool {
+        stateQueue.sync {
+            setTabColorLocked(
+                pythonURL: pythonURL,
+                windowID: windowID,
+                r: r, g: g, b: b,
+                enabled: enabled,
+                timeout: timeout
+            )
+        }
+    }
+
+    public func getBackgroundColor(
+        pythonURL: URL,
+        windowID: String,
+        timeout: Double = 2.0
+    ) -> (r: Int, g: Int, b: Int)? {
+        stateQueue.sync {
+            getBackgroundColorLocked(
+                pythonURL: pythonURL,
+                windowID: windowID,
+                timeout: timeout
+            )
+        }
+    }
+
     public func invalidate() {
         stateQueue.sync {
             invalidateLocked(sendShutdown: true)
@@ -58,7 +112,8 @@ public final class ITermActivityWorkerClient {
     private func pollLocked(
         pythonURL: URL,
         timeout: Double,
-        maxPolledNonEmptyLines: Int
+        maxPolledNonEmptyLines: Int,
+        commands: [[String: Any]] = []
     ) -> ITermWindowActivityDetector.PollResult {
         do {
             try ensureWorkerRunningLocked(pythonURL: pythonURL)
@@ -77,11 +132,14 @@ public final class ITermActivityWorkerClient {
         let requestID = nextRequestID
         nextRequestID += 1
 
-        let request: [String: Any] = [
+        var request: [String: Any] = [
             "id": requestID,
             "op": "poll",
             "max_polled_non_empty_lines": maxPolledNonEmptyLines,
         ]
+        if !commands.isEmpty {
+            request["commands"] = commands
+        }
 
         do {
             try writeJSONLineLocked(request)
@@ -199,6 +257,116 @@ public final class ITermActivityWorkerClient {
             return false
         }
         return responseObject["ok"] as? Bool ?? false
+    }
+
+    private func setBackgroundColorLocked(
+        pythonURL: URL,
+        windowID: String,
+        r: Int,
+        g: Int,
+        b: Int,
+        timeout: Double
+    ) -> Bool {
+        do {
+            try ensureWorkerRunningLocked(pythonURL: pythonURL)
+        } catch {
+            return false
+        }
+
+        let requestID = nextRequestID
+        nextRequestID += 1
+        let request: [String: Any] = [
+            "id": requestID,
+            "op": "set_background_color",
+            "window_id": windowID,
+            "r": r, "g": g, "b": b,
+        ]
+
+        do {
+            try writeJSONLineLocked(request)
+        } catch {
+            return false
+        }
+
+        guard let responseLine = readLineLocked(timeout: timeout),
+              let responseObject = try? JSONSerialization.jsonObject(with: responseLine) as? [String: Any] else {
+            return false
+        }
+        return responseObject["ok"] as? Bool ?? false
+    }
+
+    private func setTabColorLocked(
+        pythonURL: URL,
+        windowID: String,
+        r: Int,
+        g: Int,
+        b: Int,
+        enabled: Bool,
+        timeout: Double
+    ) -> Bool {
+        do {
+            try ensureWorkerRunningLocked(pythonURL: pythonURL)
+        } catch {
+            return false
+        }
+
+        let requestID = nextRequestID
+        nextRequestID += 1
+        let request: [String: Any] = [
+            "id": requestID,
+            "op": "set_tab_color",
+            "window_id": windowID,
+            "r": r, "g": g, "b": b,
+            "enabled": enabled,
+        ]
+
+        do {
+            try writeJSONLineLocked(request)
+        } catch {
+            return false
+        }
+
+        guard let responseLine = readLineLocked(timeout: timeout),
+              let responseObject = try? JSONSerialization.jsonObject(with: responseLine) as? [String: Any] else {
+            return false
+        }
+        return responseObject["ok"] as? Bool ?? false
+    }
+
+    private func getBackgroundColorLocked(
+        pythonURL: URL,
+        windowID: String,
+        timeout: Double
+    ) -> (r: Int, g: Int, b: Int)? {
+        do {
+            try ensureWorkerRunningLocked(pythonURL: pythonURL)
+        } catch {
+            return nil
+        }
+
+        let requestID = nextRequestID
+        nextRequestID += 1
+        let request: [String: Any] = [
+            "id": requestID,
+            "op": "get_background_color",
+            "window_id": windowID,
+        ]
+
+        do {
+            try writeJSONLineLocked(request)
+        } catch {
+            return nil
+        }
+
+        guard let responseLine = readLineLocked(timeout: timeout),
+              let responseObject = try? JSONSerialization.jsonObject(with: responseLine) as? [String: Any],
+              responseObject["ok"] as? Bool == true,
+              let r = (responseObject["r"] as? NSNumber)?.intValue,
+              let g = (responseObject["g"] as? NSNumber)?.intValue,
+              let b = (responseObject["b"] as? NSNumber)?.intValue else {
+            return nil
+        }
+        return (r: r, g: g, b: b)
     }
 
     private func ensureWorkerRunningLocked(pythonURL: URL) throws {
@@ -378,7 +546,14 @@ public final class ITermActivityWorkerClient {
                 .trimmingCharacters(in: .whitespacesAndNewlines) ?? "",
             nonEmptyLinesFromBottom: (value["non_empty_lines_from_bottom"] as? [String] ?? [])
                 .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-                .filter { !$0.isEmpty }
+                .filter { !$0.isEmpty },
+            backgroundColorR: (value["background_color_r"] as? NSNumber)?.intValue ?? 0,
+            backgroundColorG: (value["background_color_g"] as? NSNumber)?.intValue ?? 0,
+            backgroundColorB: (value["background_color_b"] as? NSNumber)?.intValue ?? 0,
+            backgroundColorLightR: (value["background_color_light_r"] as? NSNumber)?.intValue ?? 0,
+            backgroundColorLightG: (value["background_color_light_g"] as? NSNumber)?.intValue ?? 0,
+            backgroundColorLightB: (value["background_color_light_b"] as? NSNumber)?.intValue ?? 0,
+            useSeparateColors: value["use_separate_colors"] as? Bool ?? false
         )
     }
 

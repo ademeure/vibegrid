@@ -49,6 +49,7 @@ const state = {
   massRecordingOrder: null,
   massRecordingIndex: -1,
   settingsModalOpen: false,
+  colorsModalOpen: false,
   moveEverythingModalOpen: false,
   moveEverythingWindowEditor: null,
   recordingMoveEverythingField: null,
@@ -190,6 +191,9 @@ const ids = {
   confirmCancelBtn: document.getElementById("confirmCancelBtn"),
   confirmOkBtn: document.getElementById("confirmOkBtn"),
   settingsModal: document.getElementById("settingsModal"),
+  colorsModal: document.getElementById("colorsModal"),
+  colorsBtn: document.getElementById("colorsBtn"),
+  colorsCloseBtn: document.getElementById("colorsCloseBtn"),
   settingsExitBtn: document.getElementById("settingsExitBtn"),
   settingsRestoreDefaultsBtn: document.getElementById("settingsRestoreDefaultsBtn"),
   settingsCloseBtn: document.getElementById("settingsCloseBtn"),
@@ -209,10 +213,16 @@ const ids = {
   moveEverythingITermRecentActivityBadgeEnabledSetting: document.getElementById("moveEverythingITermRecentActivityBadgeEnabledSetting"),
   moveEverythingITermBadgeFromTitleSetting: document.getElementById("moveEverythingITermBadgeFromTitleSetting"),
   moveEverythingITermTitleFromBadgeSetting: document.getElementById("moveEverythingITermTitleFromBadgeSetting"),
+  moveEverythingITermTitleAllCapsSetting: document.getElementById("moveEverythingITermTitleAllCapsSetting"),
   moveEverythingITermRecentActivityColorizeSetting: document.getElementById("moveEverythingITermRecentActivityColorizeSetting"),
   moveEverythingITermRecentActivityColorizeNamedOnlySetting: document.getElementById("moveEverythingITermRecentActivityColorizeNamedOnlySetting"),
+  moveEverythingITermActivityOverlayOpacitySetting: document.getElementById("moveEverythingITermActivityOverlayOpacitySetting"),
+  moveEverythingITermActivityBackgroundTintEnabledSetting: document.getElementById("moveEverythingITermActivityBackgroundTintEnabledSetting"),
+  moveEverythingITermActivityTabColorEnabledSetting: document.getElementById("moveEverythingITermActivityTabColorEnabledSetting"),
   moveEverythingITermRecentActivityActiveColorSetting: document.getElementById("moveEverythingITermRecentActivityActiveColorSetting"),
   moveEverythingITermRecentActivityIdleColorSetting: document.getElementById("moveEverythingITermRecentActivityIdleColorSetting"),
+  moveEverythingITermRecentActivityActiveColorLightSetting: document.getElementById("moveEverythingITermRecentActivityActiveColorLightSetting"),
+  moveEverythingITermRecentActivityIdleColorLightSetting: document.getElementById("moveEverythingITermRecentActivityIdleColorLightSetting"),
   moveEverythingITermBadgeTopMarginSetting: document.getElementById("moveEverythingITermBadgeTopMarginSetting"),
   moveEverythingITermBadgeRightMarginSetting: document.getElementById("moveEverythingITermBadgeRightMarginSetting"),
   moveEverythingActiveWindowHighlightColorizeSetting: document.getElementById("moveEverythingActiveWindowHighlightColorizeSetting"),
@@ -290,6 +300,8 @@ const narrowModeWidthThresholdPx = 960;
 const moveEverythingActionCompactWidthThresholdPx = 1140;
 const defaultMoveEverythingITermRecentActivityActiveColor = "#2F8F4E";
 const defaultMoveEverythingITermRecentActivityIdleColor = "#BA4D4D";
+const defaultMoveEverythingITermRecentActivityActiveColorLight = "#1A7535";
+const defaultMoveEverythingITermRecentActivityIdleColorLight = "#A03030";
 const defaultMoveEverythingActiveWindowHighlightColor = "#4D88D4";
 const defaultMoveEverythingITermBadgeTopMargin = 6;
 const defaultMoveEverythingITermBadgeRightMargin = 8;
@@ -912,26 +924,11 @@ function renderMoveEverythingModal() {
     if (ids.moveEverythingITermTitleFromBadgeSetting && ids.moveEverythingITermTitleFromBadgeSetting.parentElement) {
       ids.moveEverythingITermTitleFromBadgeSetting.parentElement.style.display = "none";
     }
-    if (ids.moveEverythingITermRecentActivityColorizeSetting && ids.moveEverythingITermRecentActivityColorizeSetting.parentElement) {
-      ids.moveEverythingITermRecentActivityColorizeSetting.parentElement.style.display = "none";
-    }
-    if (ids.moveEverythingITermRecentActivityColorizeNamedOnlySetting && ids.moveEverythingITermRecentActivityColorizeNamedOnlySetting.parentElement) {
-      ids.moveEverythingITermRecentActivityColorizeNamedOnlySetting.parentElement.style.display = "none";
-    }
-    if (ids.moveEverythingITermRecentActivityActiveColorSetting && ids.moveEverythingITermRecentActivityActiveColorSetting.parentElement) {
-      ids.moveEverythingITermRecentActivityActiveColorSetting.parentElement.style.display = "none";
-    }
-    if (ids.moveEverythingITermRecentActivityIdleColorSetting && ids.moveEverythingITermRecentActivityIdleColorSetting.parentElement) {
-      ids.moveEverythingITermRecentActivityIdleColorSetting.parentElement.style.display = "none";
-    }
     if (ids.moveEverythingITermBadgeTopMarginSetting && ids.moveEverythingITermBadgeTopMarginSetting.parentElement) {
       ids.moveEverythingITermBadgeTopMarginSetting.parentElement.style.display = "none";
     }
     if (ids.moveEverythingITermBadgeRightMarginSetting && ids.moveEverythingITermBadgeRightMarginSetting.parentElement) {
       ids.moveEverythingITermBadgeRightMarginSetting.parentElement.style.display = "none";
-    }
-    if (ids.moveEverythingITermRecentActivityHint) {
-      ids.moveEverythingITermRecentActivityHint.style.display = "none";
     }
   } else {
     ids.moveEverythingStartAlwaysOnTopSetting.checked = Boolean(
@@ -972,20 +969,11 @@ function renderMoveEverythingModal() {
     if (ids.moveEverythingITermRecentActivityColorizeNamedOnlySetting && ids.moveEverythingITermRecentActivityColorizeNamedOnlySetting.parentElement) {
       ids.moveEverythingITermRecentActivityColorizeNamedOnlySetting.parentElement.style.display = "";
     }
-    if (ids.moveEverythingITermRecentActivityActiveColorSetting && ids.moveEverythingITermRecentActivityActiveColorSetting.parentElement) {
-      ids.moveEverythingITermRecentActivityActiveColorSetting.parentElement.style.display = "";
-    }
-    if (ids.moveEverythingITermRecentActivityIdleColorSetting && ids.moveEverythingITermRecentActivityIdleColorSetting.parentElement) {
-      ids.moveEverythingITermRecentActivityIdleColorSetting.parentElement.style.display = "";
-    }
     if (ids.moveEverythingITermBadgeTopMarginSetting && ids.moveEverythingITermBadgeTopMarginSetting.parentElement) {
       ids.moveEverythingITermBadgeTopMarginSetting.parentElement.style.display = "";
     }
     if (ids.moveEverythingITermBadgeRightMarginSetting && ids.moveEverythingITermBadgeRightMarginSetting.parentElement) {
       ids.moveEverythingITermBadgeRightMarginSetting.parentElement.style.display = "";
-    }
-    if (ids.moveEverythingITermRecentActivityHint) {
-      ids.moveEverythingITermRecentActivityHint.style.display = "";
     }
   }
   ids.moveEverythingCloseHideOutsideMode.checked = Boolean(
@@ -1039,6 +1027,11 @@ function renderMoveEverythingModal() {
       settings.moveEverythingITermBadgeFromTitle
     );
   }
+  if (ids.moveEverythingITermTitleAllCapsSetting) {
+    ids.moveEverythingITermTitleAllCapsSetting.checked = Boolean(
+      settings.moveEverythingITermTitleAllCaps
+    );
+  }
   if (ids.moveEverythingITermTitleFromBadgeSetting) {
     ids.moveEverythingITermTitleFromBadgeSetting.checked = Boolean(
       settings.moveEverythingITermTitleFromBadge
@@ -1052,6 +1045,22 @@ function renderMoveEverythingModal() {
   if (ids.moveEverythingITermRecentActivityColorizeNamedOnlySetting) {
     ids.moveEverythingITermRecentActivityColorizeNamedOnlySetting.checked = Boolean(
       settings.moveEverythingITermRecentActivityColorizeNamedOnly
+    );
+  }
+  if (ids.moveEverythingITermActivityOverlayOpacitySetting) {
+    ids.moveEverythingITermActivityOverlayOpacitySetting.value = clampNumber(
+      Number(settings.moveEverythingITermActivityOverlayOpacity ?? 0.14),
+      0, 1
+    );
+  }
+  if (ids.moveEverythingITermActivityBackgroundTintEnabledSetting) {
+    ids.moveEverythingITermActivityBackgroundTintEnabledSetting.checked = Boolean(
+      settings.moveEverythingITermActivityBackgroundTintEnabled
+    );
+  }
+  if (ids.moveEverythingITermActivityTabColorEnabledSetting) {
+    ids.moveEverythingITermActivityTabColorEnabledSetting.checked = Boolean(
+      settings.moveEverythingITermActivityTabColorEnabled
     );
   }
   if (ids.moveEverythingActiveWindowHighlightColorizeSetting) {
@@ -1075,6 +1084,18 @@ function renderMoveEverythingModal() {
     ids.moveEverythingITermRecentActivityIdleColorSetting.value = normalizeHexColor(
       settings.moveEverythingITermRecentActivityIdleColor,
       defaultMoveEverythingITermRecentActivityIdleColor
+    );
+  }
+  if (ids.moveEverythingITermRecentActivityActiveColorLightSetting) {
+    ids.moveEverythingITermRecentActivityActiveColorLightSetting.value = normalizeHexColor(
+      settings.moveEverythingITermRecentActivityActiveColorLight,
+      defaultMoveEverythingITermRecentActivityActiveColorLight
+    );
+  }
+  if (ids.moveEverythingITermRecentActivityIdleColorLightSetting) {
+    ids.moveEverythingITermRecentActivityIdleColorLightSetting.value = normalizeHexColor(
+      settings.moveEverythingITermRecentActivityIdleColorLight,
+      defaultMoveEverythingITermRecentActivityIdleColorLight
     );
   }
   if (ids.moveEverythingITermBadgeTopMarginSetting) {
@@ -1773,6 +1794,11 @@ function updateMoveEverythingSettings() {
       ids.moveEverythingITermBadgeFromTitleSetting.checked
     );
   }
+  if (ids.moveEverythingITermTitleAllCapsSetting) {
+    settings.moveEverythingITermTitleAllCaps = Boolean(
+      ids.moveEverythingITermTitleAllCapsSetting.checked
+    );
+  }
   if (ids.moveEverythingITermTitleFromBadgeSetting) {
     settings.moveEverythingITermTitleFromBadge = Boolean(
       ids.moveEverythingITermTitleFromBadgeSetting.checked
@@ -1786,6 +1812,22 @@ function updateMoveEverythingSettings() {
   if (ids.moveEverythingITermRecentActivityColorizeNamedOnlySetting) {
     settings.moveEverythingITermRecentActivityColorizeNamedOnly = Boolean(
       ids.moveEverythingITermRecentActivityColorizeNamedOnlySetting.checked
+    );
+  }
+  if (ids.moveEverythingITermActivityOverlayOpacitySetting) {
+    settings.moveEverythingITermActivityOverlayOpacity = clampNumber(
+      Number(ids.moveEverythingITermActivityOverlayOpacitySetting.value),
+      0, 1
+    );
+  }
+  if (ids.moveEverythingITermActivityBackgroundTintEnabledSetting) {
+    settings.moveEverythingITermActivityBackgroundTintEnabled = Boolean(
+      ids.moveEverythingITermActivityBackgroundTintEnabledSetting.checked
+    );
+  }
+  if (ids.moveEverythingITermActivityTabColorEnabledSetting) {
+    settings.moveEverythingITermActivityTabColorEnabled = Boolean(
+      ids.moveEverythingITermActivityTabColorEnabledSetting.checked
     );
   }
   if (ids.moveEverythingActiveWindowHighlightColorizeSetting) {
@@ -1809,6 +1851,18 @@ function updateMoveEverythingSettings() {
     settings.moveEverythingITermRecentActivityIdleColor = normalizeHexColor(
       ids.moveEverythingITermRecentActivityIdleColorSetting.value,
       defaultMoveEverythingITermRecentActivityIdleColor
+    );
+  }
+  if (ids.moveEverythingITermRecentActivityActiveColorLightSetting) {
+    settings.moveEverythingITermRecentActivityActiveColorLight = normalizeHexColor(
+      ids.moveEverythingITermRecentActivityActiveColorLightSetting.value,
+      defaultMoveEverythingITermRecentActivityActiveColorLight
+    );
+  }
+  if (ids.moveEverythingITermRecentActivityIdleColorLightSetting) {
+    settings.moveEverythingITermRecentActivityIdleColorLight = normalizeHexColor(
+      ids.moveEverythingITermRecentActivityIdleColorLightSetting.value,
+      defaultMoveEverythingITermRecentActivityIdleColorLight
     );
   }
   if (ids.moveEverythingITermBadgeTopMarginSetting) {
@@ -3449,6 +3503,23 @@ function closeSettingsModal() {
   state.settingsModalOpen = false;
   state.settingControlCenterScaleDraft = null;
   renderSettingsModal();
+}
+
+function openColorsModal() {
+  state.colorsModalOpen = true;
+  renderColorsModal();
+}
+
+function closeColorsModal() {
+  state.colorsModalOpen = false;
+  renderColorsModal();
+}
+
+function renderColorsModal() {
+  if (!ids.colorsModal) return;
+  ids.colorsModal.classList.toggle("hidden", !state.colorsModalOpen);
+  if (!state.colorsModalOpen || !state.config?.settings) return;
+  renderMoveEverythingSettings();
 }
 
 async function restoreDefaultSettingsFromModal() {
@@ -5393,6 +5464,10 @@ function normalizeSettings(settings) {
       source.moveEverythingITermBadgeFromTitle ??
         defaults.moveEverythingITermBadgeFromTitle
     ),
+    moveEverythingITermTitleAllCaps: Boolean(
+      source.moveEverythingITermTitleAllCaps ??
+        defaults.moveEverythingITermTitleAllCaps
+    ),
     moveEverythingITermTitleFromBadge: Boolean(
       source.moveEverythingITermTitleFromBadge ??
         defaults.moveEverythingITermTitleFromBadge
@@ -5404,6 +5479,21 @@ function normalizeSettings(settings) {
     moveEverythingITermRecentActivityColorizeNamedOnly: Boolean(
       source.moveEverythingITermRecentActivityColorizeNamedOnly ??
         defaults.moveEverythingITermRecentActivityColorizeNamedOnly
+    ),
+    moveEverythingITermActivityOverlayOpacity: clampNumber(
+      Number(
+        source.moveEverythingITermActivityOverlayOpacity ??
+          defaults.moveEverythingITermActivityOverlayOpacity
+      ),
+      0, 1
+    ),
+    moveEverythingITermActivityBackgroundTintEnabled: Boolean(
+      source.moveEverythingITermActivityBackgroundTintEnabled ??
+        defaults.moveEverythingITermActivityBackgroundTintEnabled
+    ),
+    moveEverythingITermActivityTabColorEnabled: Boolean(
+      source.moveEverythingITermActivityTabColorEnabled ??
+        defaults.moveEverythingITermActivityTabColorEnabled
     ),
     moveEverythingActiveWindowHighlightColorize: Boolean(
       source.moveEverythingActiveWindowHighlightColorize ??
@@ -5423,6 +5513,16 @@ function normalizeSettings(settings) {
       source.moveEverythingITermRecentActivityIdleColor ??
         defaults.moveEverythingITermRecentActivityIdleColor,
       defaultMoveEverythingITermRecentActivityIdleColor
+    ),
+    moveEverythingITermRecentActivityActiveColorLight: normalizeHexColor(
+      source.moveEverythingITermRecentActivityActiveColorLight ??
+        defaults.moveEverythingITermRecentActivityActiveColorLight,
+      defaultMoveEverythingITermRecentActivityActiveColorLight
+    ),
+    moveEverythingITermRecentActivityIdleColorLight: normalizeHexColor(
+      source.moveEverythingITermRecentActivityIdleColorLight ??
+        defaults.moveEverythingITermRecentActivityIdleColorLight,
+      defaultMoveEverythingITermRecentActivityIdleColorLight
     ),
     moveEverythingITermBadgeTopMargin: clampInt(
       Number(
@@ -5681,8 +5781,12 @@ function createDefaultConfig() {
       moveEverythingITermRecentActivityBadgeEnabled: false,
       moveEverythingITermBadgeFromTitle: true,
       moveEverythingITermTitleFromBadge: true,
+      moveEverythingITermTitleAllCaps: false,
       moveEverythingITermRecentActivityColorize: true,
       moveEverythingITermRecentActivityColorizeNamedOnly: false,
+      moveEverythingITermActivityOverlayOpacity: 0.0,
+      moveEverythingITermActivityBackgroundTintEnabled: false,
+      moveEverythingITermActivityTabColorEnabled: false,
       moveEverythingActiveWindowHighlightColorize: true,
       moveEverythingActiveWindowHighlightColor: "#4D88D4",
       moveEverythingITermBadgeTopMargin: 6,
@@ -5691,6 +5795,8 @@ function createDefaultConfig() {
       // top-level state initialization, before later const defaults are initialized.
       moveEverythingITermRecentActivityActiveColor: "#2F8F4E",
       moveEverythingITermRecentActivityIdleColor: "#BA4D4D",
+      moveEverythingITermRecentActivityActiveColorLight: "#1A7535",
+      moveEverythingITermRecentActivityIdleColorLight: "#A03030",
       moveEverythingOverlayMode: "persistent",
       moveEverythingOverlayDuration: 2,
       moveEverythingCloseWindowHotkey: null,
@@ -5959,6 +6065,8 @@ function wireEvents() {
   on(ids.moveEverythingSaveDefaultsBtn, "click", saveCurrentMoveEverythingAsDefaults);
   on(ids.moveEverythingResetDefaultsBtn, "click", resetMoveEverythingDefaults);
   ids.settingsBtn.addEventListener("click", openSettingsModal);
+  if (ids.colorsBtn) ids.colorsBtn.addEventListener("click", openColorsModal);
+  if (ids.colorsCloseBtn) ids.colorsCloseBtn.addEventListener("click", closeColorsModal);
   ids.hideBtn.addEventListener("click", () => sendToNative("hideControlCenter"));
   on(document.getElementById("openYamlBtn"), "click", () => sendToNative("openConfigFile"));
   on(document.getElementById("saveAsYamlBtn"), "click", () => sendToNative("saveAsYaml"));
@@ -6364,8 +6472,13 @@ function wireEvents() {
   on(ids.moveEverythingITermRecentActivityBadgeEnabledSetting, "change", updateMoveEverythingSettings);
   on(ids.moveEverythingITermBadgeFromTitleSetting, "change", updateMoveEverythingSettings);
   on(ids.moveEverythingITermTitleFromBadgeSetting, "change", updateMoveEverythingSettings);
+  on(ids.moveEverythingITermTitleAllCapsSetting, "change", updateMoveEverythingSettings);
   on(ids.moveEverythingITermRecentActivityColorizeSetting, "change", updateMoveEverythingSettings);
   on(ids.moveEverythingITermRecentActivityColorizeNamedOnlySetting, "change", updateMoveEverythingSettings);
+  on(ids.moveEverythingITermActivityOverlayOpacitySetting, "change", updateMoveEverythingSettings);
+  on(ids.moveEverythingITermActivityOverlayOpacitySetting, "input", updateMoveEverythingSettings);
+  on(ids.moveEverythingITermActivityBackgroundTintEnabledSetting, "change", updateMoveEverythingSettings);
+  on(ids.moveEverythingITermActivityTabColorEnabledSetting, "change", updateMoveEverythingSettings);
   on(ids.moveEverythingActiveWindowHighlightColorizeSetting, "change", updateMoveEverythingSettings);
   on(ids.moveEverythingActiveWindowHighlightColorSetting, "change", updateMoveEverythingSettings);
   on(ids.moveEverythingActiveWindowHighlightColorSetting, "input", updateMoveEverythingSettings);
@@ -6373,6 +6486,10 @@ function wireEvents() {
   on(ids.moveEverythingITermRecentActivityActiveColorSetting, "input", updateMoveEverythingSettings);
   on(ids.moveEverythingITermRecentActivityIdleColorSetting, "change", updateMoveEverythingSettings);
   on(ids.moveEverythingITermRecentActivityIdleColorSetting, "input", updateMoveEverythingSettings);
+  on(ids.moveEverythingITermRecentActivityActiveColorLightSetting, "change", updateMoveEverythingSettings);
+  on(ids.moveEverythingITermRecentActivityActiveColorLightSetting, "input", updateMoveEverythingSettings);
+  on(ids.moveEverythingITermRecentActivityIdleColorLightSetting, "change", updateMoveEverythingSettings);
+  on(ids.moveEverythingITermRecentActivityIdleColorLightSetting, "input", updateMoveEverythingSettings);
   on(ids.moveEverythingITermBadgeTopMarginSetting, "change", updateMoveEverythingSettings);
   on(ids.moveEverythingITermBadgeTopMarginSetting, "input", updateMoveEverythingSettings);
   on(ids.moveEverythingITermBadgeRightMarginSetting, "change", updateMoveEverythingSettings);

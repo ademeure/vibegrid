@@ -225,16 +225,21 @@ struct Settings: Codable {
     var moveEverythingITermRecentActivityColorize: Bool
     var moveEverythingITermRecentActivityColorizeNamedOnly: Bool
     var moveEverythingITermActivityOverlayOpacity: Double
+    var moveEverythingITermActivityBackgroundTintEnabled: Bool
+    var moveEverythingITermActivityTabColorEnabled: Bool
     var moveEverythingActiveWindowHighlightColorize: Bool
     var moveEverythingActiveWindowHighlightColor: String
     var moveEverythingITermRecentActivityActiveColor: String
     var moveEverythingITermRecentActivityIdleColor: String
+    var moveEverythingITermRecentActivityActiveColorLight: String
+    var moveEverythingITermRecentActivityIdleColorLight: String
     var moveEverythingITermBadgeTopMargin: Int
     var moveEverythingITermBadgeRightMargin: Int
     var moveEverythingITermBadgeMaxWidth: Int
     var moveEverythingITermBadgeMaxHeight: Int
     var moveEverythingITermBadgeFromTitle: Bool
     var moveEverythingITermTitleFromBadge: Bool
+    var moveEverythingITermTitleAllCaps: Bool
     var controlCenterFrameX: Double?
     var controlCenterFrameY: Double?
     var controlCenterFrameWidth: Double?
@@ -277,17 +282,22 @@ struct Settings: Codable {
             moveEverythingITermRecentActivityBadgeEnabled: false,
             moveEverythingITermRecentActivityColorize: true,
             moveEverythingITermRecentActivityColorizeNamedOnly: false,
-            moveEverythingITermActivityOverlayOpacity: 0.14,
+            moveEverythingITermActivityOverlayOpacity: 0.0,
+            moveEverythingITermActivityBackgroundTintEnabled: false,
+            moveEverythingITermActivityTabColorEnabled: false,
             moveEverythingActiveWindowHighlightColorize: true,
             moveEverythingActiveWindowHighlightColor: "#4D88D4",
             moveEverythingITermRecentActivityActiveColor: "#2F8F4E",
             moveEverythingITermRecentActivityIdleColor: "#BA4D4D",
+            moveEverythingITermRecentActivityActiveColorLight: "#1A7535",
+            moveEverythingITermRecentActivityIdleColorLight: "#A03030",
             moveEverythingITermBadgeTopMargin: 6,
             moveEverythingITermBadgeRightMargin: 8,
             moveEverythingITermBadgeMaxWidth: 120,
             moveEverythingITermBadgeMaxHeight: 28,
             moveEverythingITermBadgeFromTitle: true,
             moveEverythingITermTitleFromBadge: true,
+            moveEverythingITermTitleAllCaps: false,
             controlCenterFrameX: nil,
             controlCenterFrameY: nil,
             controlCenterFrameWidth: nil,
@@ -332,16 +342,21 @@ struct Settings: Codable {
         moveEverythingITermRecentActivityColorize: Bool = true,
         moveEverythingITermRecentActivityColorizeNamedOnly: Bool = false,
         moveEverythingITermActivityOverlayOpacity: Double = 0.14,
+        moveEverythingITermActivityBackgroundTintEnabled: Bool = false,
+        moveEverythingITermActivityTabColorEnabled: Bool = false,
         moveEverythingActiveWindowHighlightColorize: Bool = true,
         moveEverythingActiveWindowHighlightColor: String = "#4D88D4",
         moveEverythingITermRecentActivityActiveColor: String = "#2F8F4E",
         moveEverythingITermRecentActivityIdleColor: String = "#BA4D4D",
+        moveEverythingITermRecentActivityActiveColorLight: String = "#1A7535",
+        moveEverythingITermRecentActivityIdleColorLight: String = "#A03030",
         moveEverythingITermBadgeTopMargin: Int = 6,
         moveEverythingITermBadgeRightMargin: Int = 8,
         moveEverythingITermBadgeMaxWidth: Int = 120,
         moveEverythingITermBadgeMaxHeight: Int = 28,
         moveEverythingITermBadgeFromTitle: Bool = false,
         moveEverythingITermTitleFromBadge: Bool = true,
+        moveEverythingITermTitleAllCaps: Bool = false,
         controlCenterFrameX: Double? = nil,
         controlCenterFrameY: Double? = nil,
         controlCenterFrameWidth: Double? = nil,
@@ -383,16 +398,21 @@ struct Settings: Codable {
         self.moveEverythingITermRecentActivityColorize = moveEverythingITermRecentActivityColorize
         self.moveEverythingITermRecentActivityColorizeNamedOnly = moveEverythingITermRecentActivityColorizeNamedOnly
         self.moveEverythingITermActivityOverlayOpacity = moveEverythingITermActivityOverlayOpacity
+        self.moveEverythingITermActivityBackgroundTintEnabled = moveEverythingITermActivityBackgroundTintEnabled
+        self.moveEverythingITermActivityTabColorEnabled = moveEverythingITermActivityTabColorEnabled
         self.moveEverythingActiveWindowHighlightColorize = moveEverythingActiveWindowHighlightColorize
         self.moveEverythingActiveWindowHighlightColor = moveEverythingActiveWindowHighlightColor
         self.moveEverythingITermRecentActivityActiveColor = moveEverythingITermRecentActivityActiveColor
         self.moveEverythingITermRecentActivityIdleColor = moveEverythingITermRecentActivityIdleColor
+        self.moveEverythingITermRecentActivityActiveColorLight = moveEverythingITermRecentActivityActiveColorLight
+        self.moveEverythingITermRecentActivityIdleColorLight = moveEverythingITermRecentActivityIdleColorLight
         self.moveEverythingITermBadgeTopMargin = moveEverythingITermBadgeTopMargin
         self.moveEverythingITermBadgeRightMargin = moveEverythingITermBadgeRightMargin
         self.moveEverythingITermBadgeMaxWidth = moveEverythingITermBadgeMaxWidth
         self.moveEverythingITermBadgeMaxHeight = moveEverythingITermBadgeMaxHeight
         self.moveEverythingITermBadgeFromTitle = moveEverythingITermBadgeFromTitle
         self.moveEverythingITermTitleFromBadge = moveEverythingITermTitleFromBadge
+        self.moveEverythingITermTitleAllCaps = moveEverythingITermTitleAllCaps
         self.controlCenterFrameX = controlCenterFrameX
         self.controlCenterFrameY = controlCenterFrameY
         self.controlCenterFrameWidth = controlCenterFrameWidth
@@ -437,16 +457,21 @@ struct Settings: Codable {
         case moveEverythingITermRecentActivityColorize
         case moveEverythingITermRecentActivityColorizeNamedOnly
         case moveEverythingITermActivityOverlayOpacity
+        case moveEverythingITermActivityBackgroundTintEnabled
+        case moveEverythingITermActivityTabColorEnabled
         case moveEverythingActiveWindowHighlightColorize
         case moveEverythingActiveWindowHighlightColor
         case moveEverythingITermRecentActivityActiveColor
         case moveEverythingITermRecentActivityIdleColor
+        case moveEverythingITermRecentActivityActiveColorLight
+        case moveEverythingITermRecentActivityIdleColorLight
         case moveEverythingITermBadgeTopMargin
         case moveEverythingITermBadgeRightMargin
         case moveEverythingITermBadgeMaxWidth
         case moveEverythingITermBadgeMaxHeight
         case moveEverythingITermBadgeFromTitle
         case moveEverythingITermTitleFromBadge
+        case moveEverythingITermTitleAllCaps
         case controlCenterFrameX
         case controlCenterFrameY
         case controlCenterFrameWidth
@@ -520,6 +545,14 @@ struct Settings: Codable {
             Double.self,
             forKey: .moveEverythingITermActivityOverlayOpacity
         ) ?? 0.14
+        moveEverythingITermActivityBackgroundTintEnabled = try container.decodeIfPresent(
+            Bool.self,
+            forKey: .moveEverythingITermActivityBackgroundTintEnabled
+        ) ?? false
+        moveEverythingITermActivityTabColorEnabled = try container.decodeIfPresent(
+            Bool.self,
+            forKey: .moveEverythingITermActivityTabColorEnabled
+        ) ?? false
         moveEverythingActiveWindowHighlightColorize = try container.decodeIfPresent(
             Bool.self,
             forKey: .moveEverythingActiveWindowHighlightColorize
@@ -536,6 +569,14 @@ struct Settings: Codable {
             String.self,
             forKey: .moveEverythingITermRecentActivityIdleColor
         ) ?? "#BA4D4D"
+        moveEverythingITermRecentActivityActiveColorLight = try container.decodeIfPresent(
+            String.self,
+            forKey: .moveEverythingITermRecentActivityActiveColorLight
+        ) ?? "#1A7535"
+        moveEverythingITermRecentActivityIdleColorLight = try container.decodeIfPresent(
+            String.self,
+            forKey: .moveEverythingITermRecentActivityIdleColorLight
+        ) ?? "#A03030"
         moveEverythingITermBadgeTopMargin = try container.decodeIfPresent(
             Int.self,
             forKey: .moveEverythingITermBadgeTopMargin
@@ -560,6 +601,10 @@ struct Settings: Codable {
             Bool.self,
             forKey: .moveEverythingITermTitleFromBadge
         ) ?? true
+        moveEverythingITermTitleAllCaps = try container.decodeIfPresent(
+            Bool.self,
+            forKey: .moveEverythingITermTitleAllCaps
+        ) ?? false
         controlCenterFrameX = try container.decodeIfPresent(Double.self, forKey: .controlCenterFrameX)
         controlCenterFrameY = try container.decodeIfPresent(Double.self, forKey: .controlCenterFrameY)
         controlCenterFrameWidth = try container.decodeIfPresent(Double.self, forKey: .controlCenterFrameWidth)
@@ -622,6 +667,8 @@ struct Settings: Codable {
         try container.encode(moveEverythingITermRecentActivityColorize, forKey: .moveEverythingITermRecentActivityColorize)
         try container.encode(moveEverythingITermRecentActivityColorizeNamedOnly, forKey: .moveEverythingITermRecentActivityColorizeNamedOnly)
         try container.encode(moveEverythingITermActivityOverlayOpacity, forKey: .moveEverythingITermActivityOverlayOpacity)
+        try container.encode(moveEverythingITermActivityBackgroundTintEnabled, forKey: .moveEverythingITermActivityBackgroundTintEnabled)
+        try container.encode(moveEverythingITermActivityTabColorEnabled, forKey: .moveEverythingITermActivityTabColorEnabled)
         try container.encode(
             moveEverythingActiveWindowHighlightColorize,
             forKey: .moveEverythingActiveWindowHighlightColorize
@@ -629,12 +676,15 @@ struct Settings: Codable {
         try container.encode(moveEverythingActiveWindowHighlightColor, forKey: .moveEverythingActiveWindowHighlightColor)
         try container.encode(moveEverythingITermRecentActivityActiveColor, forKey: .moveEverythingITermRecentActivityActiveColor)
         try container.encode(moveEverythingITermRecentActivityIdleColor, forKey: .moveEverythingITermRecentActivityIdleColor)
+        try container.encode(moveEverythingITermRecentActivityActiveColorLight, forKey: .moveEverythingITermRecentActivityActiveColorLight)
+        try container.encode(moveEverythingITermRecentActivityIdleColorLight, forKey: .moveEverythingITermRecentActivityIdleColorLight)
         try container.encode(moveEverythingITermBadgeTopMargin, forKey: .moveEverythingITermBadgeTopMargin)
         try container.encode(moveEverythingITermBadgeRightMargin, forKey: .moveEverythingITermBadgeRightMargin)
         try container.encode(moveEverythingITermBadgeMaxWidth, forKey: .moveEverythingITermBadgeMaxWidth)
         try container.encode(moveEverythingITermBadgeMaxHeight, forKey: .moveEverythingITermBadgeMaxHeight)
         try container.encode(moveEverythingITermBadgeFromTitle, forKey: .moveEverythingITermBadgeFromTitle)
         try container.encode(moveEverythingITermTitleFromBadge, forKey: .moveEverythingITermTitleFromBadge)
+        try container.encode(moveEverythingITermTitleAllCaps, forKey: .moveEverythingITermTitleAllCaps)
         try container.encodeIfPresent(controlCenterFrameX, forKey: .controlCenterFrameX)
         try container.encodeIfPresent(controlCenterFrameY, forKey: .controlCenterFrameY)
         try container.encodeIfPresent(controlCenterFrameWidth, forKey: .controlCenterFrameWidth)

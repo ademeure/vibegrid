@@ -102,6 +102,7 @@ async def collect_window_snapshots(
     connection,
     max_polled_non_empty_lines: int,
     metadata_cache: CachedWindowMetadata | None = None,
+    original_bg_by_profile_guid: dict[str, tuple[int, int, int]] | None = None,
 ) -> list[PollEntry]:
     app = await iterm2.async_get_app(connection)
     entries: list[PollEntry] = []
@@ -135,6 +136,23 @@ async def collect_window_snapshots(
         if metadata is None:
             metadata = {"badge_text": "", "command_line": "", "presentation_name": "", "session_name": ""}
 
+        # Background color is populated by the worker from the profile list cache
+        bg_r, bg_g, bg_b = 0, 0, 0
+        bg_light_r, bg_light_g, bg_light_b = 0, 0, 0
+        use_separate_colors = False
+        if original_bg_by_profile_guid is not None:
+            try:
+                if current_session is not None:
+                    profile = await current_session.async_get_profile()
+                    guid = profile.guid
+                    if guid and guid in original_bg_by_profile_guid:
+                        info = original_bg_by_profile_guid[guid]
+                        bg_r, bg_g, bg_b = info.dark
+                        bg_light_r, bg_light_g, bg_light_b = info.light
+                        use_separate_colors = info.use_separate
+            except Exception:
+                pass
+
         frame = window.frame
         entries.append(
             PollEntry(
@@ -150,6 +168,13 @@ async def collect_window_snapshots(
                 command_line=metadata["command_line"],
                 last_line=last_line,
                 non_empty_lines_from_bottom=non_empty_lines,
+                background_color_r=bg_r,
+                background_color_g=bg_g,
+                background_color_b=bg_b,
+                background_color_light_r=bg_light_r,
+                background_color_light_g=bg_light_g,
+                background_color_light_b=bg_light_b,
+                use_separate_colors=use_separate_colors,
             )
         )
 

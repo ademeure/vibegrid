@@ -17,6 +17,13 @@ class PollEntry:
     last_line: str = ""
     non_empty_lines_from_bottom: list[str] = field(default_factory=list)
     tty_active: bool = False
+    background_color_r: int = 0
+    background_color_g: int = 0
+    background_color_b: int = 0
+    background_color_light_r: int = 0
+    background_color_light_g: int = 0
+    background_color_light_b: int = 0
+    use_separate_colors: bool = False
 
     def to_json(self) -> dict[str, object]:
         return {
@@ -32,6 +39,13 @@ class PollEntry:
             "command_line": self.command_line,
             "last_line": self.last_line,
             "non_empty_lines_from_bottom": list(self.non_empty_lines_from_bottom),
+            "background_color_r": self.background_color_r,
+            "background_color_g": self.background_color_g,
+            "background_color_b": self.background_color_b,
+            "background_color_light_r": self.background_color_light_r,
+            "background_color_light_g": self.background_color_light_g,
+            "background_color_light_b": self.background_color_light_b,
+            "use_separate_colors": self.use_separate_colors,
         }
 
     @classmethod

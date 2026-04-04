@@ -70,7 +70,7 @@ final class ITermActivityOverlayController {
         // Show/update overlays
         let conn = _CGSMainConnectionID()
         for window in windows {
-            if isSuppressed(window: window, now: now) {
+            if window.overlayOpacity <= 0 || isSuppressed(window: window, now: now) {
                 overlaysByKey[window.key]?.hide()
                 overlaysByKey.removeValue(forKey: window.key)
                 continue

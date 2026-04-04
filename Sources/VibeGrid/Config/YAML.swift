@@ -318,6 +318,18 @@ struct YAMLConfigCodec {
                             lineNumber: line.number,
                             field: "moveEverythingITermActivityOverlayOpacity"
                         )
+                    case "moveEverythingITermActivityBackgroundTintEnabled":
+                        config.settings.moveEverythingITermActivityBackgroundTintEnabled = try parseBoolean(
+                            effectiveValue,
+                            lineNumber: line.number,
+                            field: "moveEverythingITermActivityBackgroundTintEnabled"
+                        )
+                    case "moveEverythingITermActivityTabColorEnabled":
+                        config.settings.moveEverythingITermActivityTabColorEnabled = try parseBoolean(
+                            effectiveValue,
+                            lineNumber: line.number,
+                            field: "moveEverythingITermActivityTabColorEnabled"
+                        )
                     case "moveEverythingActiveWindowHighlightColorize":
                         config.settings.moveEverythingActiveWindowHighlightColorize = try parseBoolean(
                             effectiveValue,
@@ -330,6 +342,10 @@ struct YAMLConfigCodec {
                         config.settings.moveEverythingITermRecentActivityActiveColor = parseScalar(effectiveValue)
                     case "moveEverythingITermRecentActivityIdleColor":
                         config.settings.moveEverythingITermRecentActivityIdleColor = parseScalar(effectiveValue)
+                    case "moveEverythingITermRecentActivityActiveColorLight":
+                        config.settings.moveEverythingITermRecentActivityActiveColorLight = parseScalar(effectiveValue)
+                    case "moveEverythingITermRecentActivityIdleColorLight":
+                        config.settings.moveEverythingITermRecentActivityIdleColorLight = parseScalar(effectiveValue)
                     case "moveEverythingITermBadgeTopMargin":
                         config.settings.moveEverythingITermBadgeTopMargin = try parseInt(
                             effectiveValue,
@@ -359,6 +375,12 @@ struct YAMLConfigCodec {
                             effectiveValue,
                             lineNumber: line.number,
                             field: "moveEverythingITermBadgeFromTitle"
+                        )
+                    case "moveEverythingITermTitleAllCaps":
+                        config.settings.moveEverythingITermTitleAllCaps = try parseBoolean(
+                            effectiveValue,
+                            lineNumber: line.number,
+                            field: "moveEverythingITermTitleAllCaps"
                         )
                     case "moveEverythingITermTitleFromBadge":
                         config.settings.moveEverythingITermTitleFromBadge = try parseBoolean(
@@ -613,16 +635,21 @@ struct YAMLConfigCodec {
         lines.append("  moveEverythingITermRecentActivityColorize: \(normalized.settings.moveEverythingITermRecentActivityColorize ? "true" : "false")")
         lines.append("  moveEverythingITermRecentActivityColorizeNamedOnly: \(normalized.settings.moveEverythingITermRecentActivityColorizeNamedOnly ? "true" : "false")")
         lines.append("  moveEverythingITermActivityOverlayOpacity: \(normalized.settings.moveEverythingITermActivityOverlayOpacity)")
+        lines.append("  moveEverythingITermActivityBackgroundTintEnabled: \(normalized.settings.moveEverythingITermActivityBackgroundTintEnabled ? "true" : "false")")
+        lines.append("  moveEverythingITermActivityTabColorEnabled: \(normalized.settings.moveEverythingITermActivityTabColorEnabled ? "true" : "false")")
         lines.append("  moveEverythingActiveWindowHighlightColorize: \(normalized.settings.moveEverythingActiveWindowHighlightColorize ? "true" : "false")")
         lines.append("  moveEverythingActiveWindowHighlightColor: \(encodeScalar(normalized.settings.moveEverythingActiveWindowHighlightColor))")
         lines.append("  moveEverythingITermRecentActivityActiveColor: \(encodeScalar(normalized.settings.moveEverythingITermRecentActivityActiveColor))")
         lines.append("  moveEverythingITermRecentActivityIdleColor: \(encodeScalar(normalized.settings.moveEverythingITermRecentActivityIdleColor))")
+        lines.append("  moveEverythingITermRecentActivityActiveColorLight: \(encodeScalar(normalized.settings.moveEverythingITermRecentActivityActiveColorLight))")
+        lines.append("  moveEverythingITermRecentActivityIdleColorLight: \(encodeScalar(normalized.settings.moveEverythingITermRecentActivityIdleColorLight))")
         lines.append("  moveEverythingITermBadgeTopMargin: \(normalized.settings.moveEverythingITermBadgeTopMargin)")
         lines.append("  moveEverythingITermBadgeRightMargin: \(normalized.settings.moveEverythingITermBadgeRightMargin)")
         lines.append("  moveEverythingITermBadgeMaxWidth: \(normalized.settings.moveEverythingITermBadgeMaxWidth)")
         lines.append("  moveEverythingITermBadgeMaxHeight: \(normalized.settings.moveEverythingITermBadgeMaxHeight)")
         lines.append("  moveEverythingITermBadgeFromTitle: \(normalized.settings.moveEverythingITermBadgeFromTitle)")
         lines.append("  moveEverythingITermTitleFromBadge: \(normalized.settings.moveEverythingITermTitleFromBadge)")
+        lines.append("  moveEverythingITermTitleAllCaps: \(normalized.settings.moveEverythingITermTitleAllCaps ? "true" : "false")")
         lines.append("  moveEverythingCloseWindowHotkey: \(encodeHotkey(normalized.settings.moveEverythingCloseWindowHotkey))")
         lines.append("  moveEverythingHideWindowHotkey: \(encodeHotkey(normalized.settings.moveEverythingHideWindowHotkey))")
         lines.append("  moveEverythingNameWindowHotkey: \(encodeHotkey(normalized.settings.moveEverythingNameWindowHotkey))")

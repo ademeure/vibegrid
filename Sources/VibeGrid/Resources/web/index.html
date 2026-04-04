@@ -28,6 +28,7 @@
           <button id="undoBtn" class="btn ghost">Undo</button>
           <button id="redoBtn" class="btn ghost">Redo</button>
           <button id="moveEverythingBtn" class="btn move-everything">Window List</button>
+          <button id="colorsBtn" class="btn ghost">Colors</button>
           <button id="settingsBtn" class="btn primary">Settings</button>
           <button id="hideBtn" class="btn warning">Hide</button>
           <button id="exitBtn" class="btn danger">Exit</button>
@@ -377,31 +378,9 @@
               Use badge as window title
             </label>
             <label class="toggle-line move-everything-modal-toggle" style="margin-top: 8px;">
-              <input id="moveEverythingITermRecentActivityColorizeSetting" type="checkbox" />
-              Color-code by iTerm2 activity
+              <input id="moveEverythingITermTitleAllCapsSetting" type="checkbox" />
+              ALL CAPS iTerm window titles
             </label>
-            <label class="toggle-line move-everything-modal-toggle" style="margin-top: 8px;">
-              <input id="moveEverythingITermRecentActivityColorizeNamedOnlySetting" type="checkbox" />
-              Only color-code named windows
-            </label>
-            <label class="toggle-line move-everything-modal-toggle" style="margin-top: 8px;">
-              <input id="moveEverythingActiveWindowHighlightColorizeSetting" type="checkbox" />
-              Highlight OS-focused window in list
-            </label>
-            <div class="settings-grid" style="margin-top: 8px;">
-              <label>
-                iTerm2 Active Color
-                <input id="moveEverythingITermRecentActivityActiveColorSetting" type="color" />
-              </label>
-              <label>
-                iTerm2 Idle Color
-                <input id="moveEverythingITermRecentActivityIdleColorSetting" type="color" />
-              </label>
-              <label>
-                Focused Window Color
-                <input id="moveEverythingActiveWindowHighlightColorSetting" type="color" />
-              </label>
-            </div>
             <div class="settings-grid" style="margin-top: 8px;">
               <label>
                 Badge Top (pt)
@@ -412,7 +391,6 @@
                 <input id="moveEverythingITermBadgeRightMarginSetting" type="number" min="0" max="200" step="1" />
               </label>
             </div>
-            <p id="moveEverythingITermRecentActivityHint" class="settings-hint">Activity colors now follow visible screen changes and per-profile rules. Use per-window Badge button for custom text/color.</p>
           </div>
           <div class="settings-section">
             <h4>Hotkeys</h4>
@@ -479,6 +457,74 @@
           </div>
           <div class="modal-actions">
             <button id="moveEverythingCloseBtn" class="btn primary">Done</button>
+          </div>
+        </div>
+      </div>
+      <div id="colorsModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="colorsTitle">
+        <div class="modal-card settings-card">
+          <h3 id="colorsTitle">Colors</h3>
+          <p>Activity indicator colors and modes for iTerm windows.</p>
+          <div class="settings-section">
+            <h4>Indicator Modes</h4>
+            <label class="toggle-line">
+              <input id="moveEverythingITermActivityBackgroundTintEnabledSetting" type="checkbox" />
+              iTerm2 background tint by activity
+            </label>
+            <label class="toggle-line" style="margin-top: 8px;">
+              <input id="moveEverythingITermActivityTabColorEnabledSetting" type="checkbox" />
+              iTerm2 tab color by activity
+            </label>
+            <label class="toggle-line" style="margin-top: 8px;">
+              <input id="moveEverythingITermRecentActivityColorizeSetting" type="checkbox" />
+              Color-code window list by activity
+            </label>
+            <label class="toggle-line" style="margin-top: 8px;">
+              <input id="moveEverythingActiveWindowHighlightColorizeSetting" type="checkbox" />
+              Highlight OS-focused window in list
+            </label>
+            <label class="toggle-line" style="margin-top: 8px;">
+              <input id="moveEverythingITermRecentActivityColorizeNamedOnlySetting" type="checkbox" />
+              Only color-code named windows
+            </label>
+            <div class="settings-grid" style="margin-top: 8px;">
+              <label>
+                Overlay Opacity (legacy, 0=off)
+                <input id="moveEverythingITermActivityOverlayOpacitySetting" type="number" min="0" max="1" step="0.01" />
+              </label>
+            </div>
+          </div>
+          <div class="settings-section">
+            <h4>Dark Mode Colors</h4>
+            <div class="settings-grid">
+              <label>
+                Active
+                <input id="moveEverythingITermRecentActivityActiveColorSetting" type="color" />
+              </label>
+              <label>
+                Idle
+                <input id="moveEverythingITermRecentActivityIdleColorSetting" type="color" />
+              </label>
+              <label>
+                Focused Window
+                <input id="moveEverythingActiveWindowHighlightColorSetting" type="color" />
+              </label>
+            </div>
+          </div>
+          <div class="settings-section">
+            <h4>Light Mode Colors</h4>
+            <div class="settings-grid">
+              <label>
+                Active
+                <input id="moveEverythingITermRecentActivityActiveColorLightSetting" type="color" />
+              </label>
+              <label>
+                Idle
+                <input id="moveEverythingITermRecentActivityIdleColorLightSetting" type="color" />
+              </label>
+            </div>
+          </div>
+          <div class="modal-actions">
+            <button id="colorsCloseBtn" class="btn primary">Done</button>
           </div>
         </div>
       </div>
