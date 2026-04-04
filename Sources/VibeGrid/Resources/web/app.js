@@ -3185,7 +3185,7 @@ function buildMoveEverythingWindowRow(windowItem, options = {}) {
       const closeBtn = document.createElement("button");
       closeBtn.type = "button";
       closeBtn.className = "btn tiny danger";
-      closeBtn.textContent = compactActions ? "X" : (isCoreGraphicsFallback ? "Quit" : "Close");
+      closeBtn.textContent = compactActions ? "X" : (windowItem.isCoreGraphicsFallback ? "Quit" : "Close");
       closeBtn.dataset.meWindowAction = "close";
       closeBtn.dataset.meWindowKey = windowItem.key;
       actions.appendChild(closeBtn);
