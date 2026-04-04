@@ -16,6 +16,8 @@ swift test            # run all tests
 
 > **Important:** Always use `./scripts/run_dev.sh` (or `make dev-app`) when testing or debugging with computer-use.
 > `make dev` runs as a raw binary with no `.app` bundle — macOS hides its menu bar icon and the computer-use MCP cannot see its windows.
+>
+> **After making changes:** If VibeGrid was already running, always rebuild and restart with `./scripts/run_dev.sh` before finishing so the user gets the latest build. Don't leave stale builds running.
 
 Requires macOS 13+, Swift 5.9+, SPM. No external Swift dependencies (except swift-testing for tests).
 
