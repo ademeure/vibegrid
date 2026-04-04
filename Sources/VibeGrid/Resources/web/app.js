@@ -271,7 +271,7 @@ const ids = {
 
 const modifierOrder = ["cmd", "ctrl", "alt", "shift", "fn"];
 const maxUndoChanges = 100;
-const autosaveDelayMs = 2000;
+const autosaveDelayMs = 0;
 const listReorderHoldDelayMs = 110;
 const listReorderMoveTolerancePx = 8;
 const listReorderClickSuppressMs = 250;
@@ -476,12 +476,17 @@ function receiveState(payload) {
           ? Boolean(state.config.settings.defaultCycleDisplaysOnWrap)
           : Boolean(shortcut.cycleDisplaysOnWrap),
       controlCenterOnly: Boolean(shortcut.controlCenterOnly),
+      useForRetiling: shortcut.useForRetiling || "no",
     }));
 
     const nextSignature = configSignature(state.config);
     state._currentConfigSig = nextSignature;
-    if (!state.history.length || previousSignature === null || previousSignature !== nextSignature) {
+    if (!state.history.length || previousSignature === null) {
       resetHistoryFromCurrentConfig();
+    } else if (previousSignature !== nextSignature) {
+      // Config changed externally (e.g. file edited outside app).
+      // Preserve undo history but add the new state as a checkpoint.
+      pushCurrentConfigToHistory();
     }
   }
   state.permissions.accessibility = Boolean(payload?.permissions?.accessibility);
@@ -3666,7 +3671,12 @@ function hidePlacementPreview() {
 
 function markDirty() {
   pushCurrentConfigToHistory();
-  scheduleAutosave();
+  // Save immediately — server pushes state frequently and would overwrite
+  // unsaved changes if we delayed. The guard window prevents stale server
+  // pushes from reverting the config before Swift processes the save.
+  cancelAutosave();
+  saveConfig({ silent: true });
+  configSaveGuardUntil = performance.now() + 5000;
 }
 
 function saveConfig(options = {}) {
@@ -3706,7 +3716,7 @@ function flushAutosave() {
   saveConfig({ silent: true });
   // Protect local config from being overwritten by stale server pushes
   // that arrive before the server processes our save.
-  configSaveGuardUntil = performance.now() + 1500;
+  configSaveGuardUntil = performance.now() + 5000;
 }
 
 function persistCurrentConfigAfterUndoRedo() {
@@ -3715,6 +3725,7 @@ function persistCurrentConfigAfterUndoRedo() {
   }
   cancelAutosave();
   saveConfig({ silent: true });
+  configSaveGuardUntil = performance.now() + 5000;
 }
 
 function cloneConfig(config) {
