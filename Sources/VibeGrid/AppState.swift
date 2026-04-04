@@ -75,6 +75,11 @@ final class AppState {
     private var iTermCurrentBgTintStatus: [String: String] = [:]  // windowID → "active"/"idle"/""
     private var iTermCurrentTabColorStatus: [String: String] = [:]  // windowID → "active"/"idle"/""
     private var pendingITermColorCommands: [[String: Any]] = []
+    private static let tintedWindowsFileURL: URL = {
+        FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Application Support/VibeGrid")
+            .appendingPathComponent("tinted-windows.json")
+    }()
     private var iTermInputTimestamps: [Int: Date] = [:]  // windowNumber → last interaction time
     private var lastGlobalInputAt: Date = .distantPast
     private var globalInputMonitor: Any?
@@ -194,6 +199,8 @@ final class AppState {
     func openControlCenter() {
         if controlCenter == nil {
             controlCenter = ControlCenterWindowController(appState: self)
+            // Restore iTerm colors left tinted by a previous crash
+            restoreTintedWindowsFromPreviousSession()
         }
 
         placementPreviewOverlay.prepare()
@@ -1591,6 +1598,12 @@ final class AppState {
         }
         iTermCurrentBgTintStatus = iTermCurrentBgTintStatus.filter { activeWindowIDs.contains($0.key) }
         iTermCurrentTabColorStatus = iTermCurrentTabColorStatus.filter { activeWindowIDs.contains($0.key) }
+        // Persist tinted state for crash recovery
+        if iTermOriginalBackgroundByWindowID.isEmpty {
+            Self.clearTintedWindowsFile()
+        } else {
+            saveTintedWindowsFile()
+        }
     }
 
     /// Queues restore commands for all iTerm windows. Called when indicators are disabled.
@@ -1611,6 +1624,67 @@ final class AppState {
         iTermOriginalBackgroundByWindowID.removeAll()
         iTermCurrentBgTintStatus.removeAll()
         iTermCurrentTabColorStatus.removeAll()
+        Self.clearTintedWindowsFile()
+    }
+
+    /// Persist tinted window IDs and their original backgrounds so a crash recovery can restore them.
+    private func saveTintedWindowsFile() {
+        let entries = iTermOriginalBackgroundByWindowID.map { (windowID, bg) -> [String: Any] in
+            var entry: [String: Any] = [
+                "windowID": windowID,
+                "dark_r": bg.dark.r, "dark_g": bg.dark.g, "dark_b": bg.dark.b,
+                "light_r": bg.light.r, "light_g": bg.light.g, "light_b": bg.light.b,
+                "useSeparateColors": bg.useSeparateColors,
+            ]
+            return entry
+        }
+        guard !entries.isEmpty,
+              let data = try? JSONSerialization.data(withJSONObject: entries) else {
+            Self.clearTintedWindowsFile()
+            return
+        }
+        try? data.write(to: Self.tintedWindowsFileURL)
+    }
+
+    private static func clearTintedWindowsFile() {
+        try? FileManager.default.removeItem(at: tintedWindowsFileURL)
+    }
+
+    /// On startup, restore any iTerm windows left tinted by a previous crash.
+    private func restoreTintedWindowsFromPreviousSession() {
+        guard let data = try? Data(contentsOf: Self.tintedWindowsFileURL),
+              let entries = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+            return
+        }
+        for entry in entries {
+            guard let windowID = entry["windowID"] as? String else { continue }
+            let bg = OriginalBackground(
+                dark: (
+                    r: (entry["dark_r"] as? Int) ?? 0,
+                    g: (entry["dark_g"] as? Int) ?? 0,
+                    b: (entry["dark_b"] as? Int) ?? 0
+                ),
+                light: (
+                    r: (entry["light_r"] as? Int) ?? 0,
+                    g: (entry["light_g"] as? Int) ?? 0,
+                    b: (entry["light_b"] as? Int) ?? 0
+                ),
+                useSeparateColors: (entry["useSeparateColors"] as? Bool) ?? false
+            )
+            pendingITermColorCommands.append(
+                Self.buildBgColorCommand(windowID: windowID, original: bg, tintDark: nil, tintLight: nil)
+            )
+            pendingITermColorCommands.append([
+                "op": "set_tab_color",
+                "window_id": windowID,
+                "r": 0, "g": 0, "b": 0,
+                "enabled": false,
+            ])
+        }
+        Self.clearTintedWindowsFile()
+        if !pendingITermColorCommands.isEmpty {
+            WindowListDebugLogger.log("iterm-indicators", "restoring \(pendingITermColorCommands.count) colors from previous crash")
+        }
     }
 
     /// Build a set_background_color command dict. If tintDark/tintLight are nil, restores the original.
