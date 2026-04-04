@@ -216,16 +216,7 @@ final class ControlCenterWindowController: NSWindowController, NSWindowDelegate,
         // Wait for the web view to render the window list, then resize once
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
             guard let self else { return }
-            let script = """
-                (function() {
-                    var ws = document.getElementById('moveEverythingWorkspace');
-                    var header = document.querySelector('header');
-                    if (!ws) return document.body.scrollHeight;
-                    var h = ws.scrollHeight;
-                    if (header) h += header.offsetHeight;
-                    return h + 24;
-                })()
-                """
+            let script = "document.body.scrollHeight"
             self.webView.evaluateJavaScript(script) { [weak self] value, _ in
                 guard let self, let window = self.window,
                       let contentHeight = (value as? NSNumber)?.doubleValue else { return }
