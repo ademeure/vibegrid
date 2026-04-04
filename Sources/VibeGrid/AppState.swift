@@ -316,6 +316,8 @@ final class AppState {
         // Force iTerm tints to re-apply with new colors on next poll cycle
         iTermCurrentBgTintStatus.removeAll()
         iTermCurrentTabColorStatus.removeAll()
+        // Re-push all window names (handles ALL CAPS toggle change)
+        reapplyAllITermWindowNames()
         windowListActivityConfigSync.sync(
             settings: normalized.settings,
             iTermWindowOverridesByID: moveEverythingITermWindowOverridesByID,
@@ -1603,6 +1605,20 @@ final class AppState {
             Self.clearTintedWindowsFile()
         } else {
             saveTintedWindowsFile()
+        }
+    }
+
+    /// Re-push all known window names to iTerm (e.g., after ALL CAPS toggle changes).
+    private func reapplyAllITermWindowNames() {
+        let pythonURL = ITermWindowInventoryResolver.pythonURL()
+        let allCaps = config.settings.moveEverythingITermTitleAllCaps
+        for (windowID, override) in moveEverythingITermWindowOverridesByID {
+            guard !override.title.isEmpty else { continue }
+            let title = allCaps ? override.title.uppercased() : override.title
+            let client = self.iTermActivityWorkerClient
+            DispatchQueue.global(qos: .userInitiated).async {
+                _ = client.setWindowName(pythonURL: pythonURL, windowID: windowID, name: title)
+            }
         }
     }
 
