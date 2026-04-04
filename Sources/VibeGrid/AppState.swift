@@ -1555,7 +1555,7 @@ final class AppState {
                         let tintDark = isActive ? activeRGBDark : idleRGBDark
                         let tintLight = isActive ? activeRGBLight : idleRGBLight
                         pendingITermColorCommands.append(
-                            Self.buildBgColorCommand(windowID: windowID, original: original, tintDark: tintDark, tintLight: tintLight)
+                            Self.buildBgColorCommand(windowID: windowID, original: original, tintDark: tintDark, tintLight: tintLight, intensity: config.settings.moveEverythingITermActivityTintIntensity)
                         )
                     }
                 }
@@ -1658,7 +1658,7 @@ final class AppState {
     /// Persist tinted window IDs and their original backgrounds so a crash recovery can restore them.
     private func saveTintedWindowsFile() {
         let entries = iTermOriginalBackgroundByWindowID.map { (windowID, bg) -> [String: Any] in
-            var entry: [String: Any] = [
+            let entry: [String: Any] = [
                 "windowID": windowID,
                 "dark_r": bg.dark.r, "dark_g": bg.dark.g, "dark_b": bg.dark.b,
                 "light_r": bg.light.r, "light_g": bg.light.g, "light_b": bg.light.b,
@@ -1720,9 +1720,10 @@ final class AppState {
         windowID: String,
         original: OriginalBackground,
         tintDark: (r: Int, g: Int, b: Int)?,
-        tintLight: (r: Int, g: Int, b: Int)?
+        tintLight: (r: Int, g: Int, b: Int)?,
+        intensity: Double = 0.25
     ) -> [String: Any] {
-        let alpha = 0.25
+        let alpha = min(max(intensity, 0), 1)
         func blend(_ orig: (r: Int, g: Int, b: Int), _ tint: (r: Int, g: Int, b: Int)) -> (r: Int, g: Int, b: Int) {
             (
                 r: min(max(Int(Double(orig.r) * (1 - alpha) + Double(tint.r) * alpha), 0), 255),

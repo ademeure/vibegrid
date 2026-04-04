@@ -216,6 +216,7 @@ const ids = {
   moveEverythingITermTitleAllCapsSetting: document.getElementById("moveEverythingITermTitleAllCapsSetting"),
   moveEverythingITermRecentActivityColorizeSetting: document.getElementById("moveEverythingITermRecentActivityColorizeSetting"),
   moveEverythingITermRecentActivityColorizeNamedOnlySetting: document.getElementById("moveEverythingITermRecentActivityColorizeNamedOnlySetting"),
+  moveEverythingITermActivityTintIntensitySetting: document.getElementById("moveEverythingITermActivityTintIntensitySetting"),
   moveEverythingITermActivityHoldSecondsSetting: document.getElementById("moveEverythingITermActivityHoldSecondsSetting"),
   moveEverythingITermActivityOverlayOpacitySetting: document.getElementById("moveEverythingITermActivityOverlayOpacitySetting"),
   moveEverythingITermActivityBackgroundTintEnabledSetting: document.getElementById("moveEverythingITermActivityBackgroundTintEnabledSetting"),
@@ -1053,6 +1054,12 @@ function renderMoveEverythingModal() {
       settings.moveEverythingITermRecentActivityColorizeNamedOnly
     );
   }
+  if (ids.moveEverythingITermActivityTintIntensitySetting) {
+    ids.moveEverythingITermActivityTintIntensitySetting.value = clampNumber(
+      Number(settings.moveEverythingITermActivityTintIntensity ?? 0.25),
+      0.05, 1
+    );
+  }
   if (ids.moveEverythingITermActivityHoldSecondsSetting) {
     ids.moveEverythingITermActivityHoldSecondsSetting.value = clampNumber(
       Number(settings.moveEverythingITermActivityHoldSeconds ?? 7),
@@ -1825,6 +1832,12 @@ function updateMoveEverythingSettings() {
   if (ids.moveEverythingITermRecentActivityColorizeNamedOnlySetting) {
     settings.moveEverythingITermRecentActivityColorizeNamedOnly = Boolean(
       ids.moveEverythingITermRecentActivityColorizeNamedOnlySetting.checked
+    );
+  }
+  if (ids.moveEverythingITermActivityTintIntensitySetting) {
+    settings.moveEverythingITermActivityTintIntensity = clampNumber(
+      Number(ids.moveEverythingITermActivityTintIntensitySetting.value),
+      0.05, 1
     );
   }
   if (ids.moveEverythingITermActivityHoldSecondsSetting) {
@@ -5501,6 +5514,13 @@ function normalizeSettings(settings) {
       source.moveEverythingITermRecentActivityColorizeNamedOnly ??
         defaults.moveEverythingITermRecentActivityColorizeNamedOnly
     ),
+    moveEverythingITermActivityTintIntensity: clampNumber(
+      Number(
+        source.moveEverythingITermActivityTintIntensity ??
+          defaults.moveEverythingITermActivityTintIntensity
+      ),
+      0.05, 1
+    ),
     moveEverythingITermActivityHoldSeconds: clampNumber(
       Number(
         source.moveEverythingITermActivityHoldSeconds ??
@@ -5812,6 +5832,7 @@ function createDefaultConfig() {
       moveEverythingITermTitleAllCaps: false,
       moveEverythingITermRecentActivityColorize: true,
       moveEverythingITermRecentActivityColorizeNamedOnly: false,
+      moveEverythingITermActivityTintIntensity: 0.25,
       moveEverythingITermActivityHoldSeconds: 7,
       moveEverythingITermActivityOverlayOpacity: 0.0,
       moveEverythingITermActivityBackgroundTintEnabled: false,
@@ -6509,6 +6530,8 @@ function wireEvents() {
   on(ids.moveEverythingITermTitleAllCapsSetting, "change", updateMoveEverythingSettings);
   on(ids.moveEverythingITermRecentActivityColorizeSetting, "change", updateMoveEverythingSettings);
   on(ids.moveEverythingITermRecentActivityColorizeNamedOnlySetting, "change", updateMoveEverythingSettings);
+  on(ids.moveEverythingITermActivityTintIntensitySetting, "change", updateMoveEverythingSettings);
+  on(ids.moveEverythingITermActivityTintIntensitySetting, "input", updateMoveEverythingSettings);
   on(ids.moveEverythingITermActivityHoldSecondsSetting, "change", updateMoveEverythingSettings);
   on(ids.moveEverythingITermActivityHoldSecondsSetting, "input", updateMoveEverythingSettings);
   on(ids.moveEverythingITermActivityOverlayOpacitySetting, "change", updateMoveEverythingSettings);

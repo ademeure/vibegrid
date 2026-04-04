@@ -224,6 +224,7 @@ struct Settings: Codable {
     var moveEverythingITermRecentActivityBadgeEnabled: Bool
     var moveEverythingITermRecentActivityColorize: Bool
     var moveEverythingITermRecentActivityColorizeNamedOnly: Bool
+    var moveEverythingITermActivityTintIntensity: Double
     var moveEverythingITermActivityHoldSeconds: Double
     var moveEverythingITermActivityOverlayOpacity: Double
     var moveEverythingITermActivityBackgroundTintEnabled: Bool
@@ -283,6 +284,7 @@ struct Settings: Codable {
             moveEverythingITermRecentActivityBadgeEnabled: false,
             moveEverythingITermRecentActivityColorize: true,
             moveEverythingITermRecentActivityColorizeNamedOnly: false,
+            moveEverythingITermActivityTintIntensity: 0.25,
             moveEverythingITermActivityHoldSeconds: 7.0,
             moveEverythingITermActivityOverlayOpacity: 0.0,
             moveEverythingITermActivityBackgroundTintEnabled: false,
@@ -343,6 +345,7 @@ struct Settings: Codable {
         moveEverythingITermRecentActivityBadgeEnabled: Bool = false,
         moveEverythingITermRecentActivityColorize: Bool = true,
         moveEverythingITermRecentActivityColorizeNamedOnly: Bool = false,
+        moveEverythingITermActivityTintIntensity: Double = 0.25,
         moveEverythingITermActivityHoldSeconds: Double = 7.0,
         moveEverythingITermActivityOverlayOpacity: Double = 0.14,
         moveEverythingITermActivityBackgroundTintEnabled: Bool = false,
@@ -400,6 +403,7 @@ struct Settings: Codable {
         self.moveEverythingITermRecentActivityBadgeEnabled = moveEverythingITermRecentActivityBadgeEnabled
         self.moveEverythingITermRecentActivityColorize = moveEverythingITermRecentActivityColorize
         self.moveEverythingITermRecentActivityColorizeNamedOnly = moveEverythingITermRecentActivityColorizeNamedOnly
+        self.moveEverythingITermActivityTintIntensity = moveEverythingITermActivityTintIntensity
         self.moveEverythingITermActivityHoldSeconds = moveEverythingITermActivityHoldSeconds
         self.moveEverythingITermActivityOverlayOpacity = moveEverythingITermActivityOverlayOpacity
         self.moveEverythingITermActivityBackgroundTintEnabled = moveEverythingITermActivityBackgroundTintEnabled
@@ -460,6 +464,7 @@ struct Settings: Codable {
         case moveEverythingITermRecentActivityBadgeEnabled
         case moveEverythingITermRecentActivityColorize
         case moveEverythingITermRecentActivityColorizeNamedOnly
+        case moveEverythingITermActivityTintIntensity
         case moveEverythingITermActivityHoldSeconds
         case moveEverythingITermActivityOverlayOpacity
         case moveEverythingITermActivityBackgroundTintEnabled
@@ -546,6 +551,10 @@ struct Settings: Codable {
             Bool.self,
             forKey: .moveEverythingITermRecentActivityColorizeNamedOnly
         ) ?? false
+        moveEverythingITermActivityTintIntensity = try container.decodeIfPresent(
+            Double.self,
+            forKey: .moveEverythingITermActivityTintIntensity
+        ) ?? 0.25
         moveEverythingITermActivityHoldSeconds = try container.decodeIfPresent(
             Double.self,
             forKey: .moveEverythingITermActivityHoldSeconds
@@ -675,6 +684,7 @@ struct Settings: Codable {
         )
         try container.encode(moveEverythingITermRecentActivityColorize, forKey: .moveEverythingITermRecentActivityColorize)
         try container.encode(moveEverythingITermRecentActivityColorizeNamedOnly, forKey: .moveEverythingITermRecentActivityColorizeNamedOnly)
+        try container.encode(moveEverythingITermActivityTintIntensity, forKey: .moveEverythingITermActivityTintIntensity)
         try container.encode(moveEverythingITermActivityHoldSeconds, forKey: .moveEverythingITermActivityHoldSeconds)
         try container.encode(moveEverythingITermActivityOverlayOpacity, forKey: .moveEverythingITermActivityOverlayOpacity)
         try container.encode(moveEverythingITermActivityBackgroundTintEnabled, forKey: .moveEverythingITermActivityBackgroundTintEnabled)

@@ -312,6 +312,12 @@ struct YAMLConfigCodec {
                             lineNumber: line.number,
                             field: "moveEverythingITermRecentActivityColorizeNamedOnly"
                         )
+                    case "moveEverythingITermActivityTintIntensity":
+                        config.settings.moveEverythingITermActivityTintIntensity = try parseDouble(
+                            effectiveValue,
+                            lineNumber: line.number,
+                            field: "moveEverythingITermActivityTintIntensity"
+                        )
                     case "moveEverythingITermActivityHoldSeconds":
                         config.settings.moveEverythingITermActivityHoldSeconds = try parseDouble(
                             effectiveValue,
@@ -640,6 +646,7 @@ struct YAMLConfigCodec {
         lines.append("  moveEverythingITermRecentActivityBadgeEnabled: \(normalized.settings.moveEverythingITermRecentActivityBadgeEnabled ? "true" : "false")")
         lines.append("  moveEverythingITermRecentActivityColorize: \(normalized.settings.moveEverythingITermRecentActivityColorize ? "true" : "false")")
         lines.append("  moveEverythingITermRecentActivityColorizeNamedOnly: \(normalized.settings.moveEverythingITermRecentActivityColorizeNamedOnly ? "true" : "false")")
+        lines.append("  moveEverythingITermActivityTintIntensity: \(formatDouble(normalized.settings.moveEverythingITermActivityTintIntensity))")
         lines.append("  moveEverythingITermActivityHoldSeconds: \(formatDouble(normalized.settings.moveEverythingITermActivityHoldSeconds))")
         lines.append("  moveEverythingITermActivityOverlayOpacity: \(normalized.settings.moveEverythingITermActivityOverlayOpacity)")
         lines.append("  moveEverythingITermActivityBackgroundTintEnabled: \(normalized.settings.moveEverythingITermActivityBackgroundTintEnabled ? "true" : "false")")
