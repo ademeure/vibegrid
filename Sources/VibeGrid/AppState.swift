@@ -1283,11 +1283,13 @@ final class AppState {
         let pollTimeout = colorCommands.isEmpty ? iTermActivityPollTimeout : iTermActivityPollTimeout + Double(colorCommands.count) * 1.5
 
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let holdSeconds = self?.config.settings.moveEverythingITermActivityHoldSeconds ?? 7.0
             let pollResult = self?.iTermActivityWorkerClient.poll(
                 pythonURL: pythonURL,
                 timeout: pollTimeout,
                 maxPolledNonEmptyLines: maxPolledNonEmptyLines,
-                commands: colorCommands
+                commands: colorCommands,
+                activeHoldOverride: holdSeconds
             ) ?? ITermWindowActivityDetector.PollResult(
                 entries: [],
                 activitiesByWindowID: [:],
@@ -1468,7 +1470,8 @@ final class AppState {
                 isActive: isActive,
                 hasRecentUserInput: hasRecentKeystroke || hasRecentMouseInput,
                 windowNumber: snapshot.windowNumber,
-                overlayOpacity: config.settings.moveEverythingITermActivityOverlayOpacity
+                overlayOpacity: config.settings.moveEverythingITermActivityOverlayOpacity,
+                activeHoldDuration: config.settings.moveEverythingITermActivityHoldSeconds
             ))
         }
         iTermActivityOverlayController.update(windows: trackedWindows)

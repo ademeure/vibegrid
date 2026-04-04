@@ -54,12 +54,13 @@ async def _handle_poll(
     max_polled_non_empty_lines: int,
     commands: list[dict] | None = None,
     original_bg_by_profile_guid: dict[str, tuple[int, int, int]] | None = None,
+    active_hold_override: float | None = None,
 ) -> None:
     entries = await collect_window_snapshots(
         connection, max_polled_non_empty_lines, metadata_cache,
         original_bg_by_profile_guid=original_bg_by_profile_guid,
     )
-    activities = detector.resolve(entries)
+    activities = detector.resolve(entries, active_hold_override=active_hold_override)
 
     # Process batched commands efficiently — group by window, fetch profile once
     command_results: list[dict] = []
@@ -202,10 +203,14 @@ async def _worker_main(connection) -> None:
 
             max_polled_non_empty_lines = int(request.get("max_polled_non_empty_lines", 60) or 60)
             commands = request.get("commands") or []
+            active_hold_override = request.get("active_hold_override")
+            if active_hold_override is not None:
+                active_hold_override = float(active_hold_override)
             await _handle_poll(
                 connection, detector, metadata_cache, request_id, max_polled_non_empty_lines,
                 commands=commands,
                 original_bg_by_profile_guid=original_bg_by_profile_guid,
+                active_hold_override=active_hold_override,
             )
         except Exception:
             _write_response(

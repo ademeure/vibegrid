@@ -46,7 +46,7 @@ class Detector:
         self.max_polled_non_empty_lines = max_polled_non_empty_lines
         self._state_by_window_id: dict[str, WindowState] = {}
 
-    def resolve(self, entries: list[PollEntry], now: float | None = None) -> dict[str, ResolvedActivity]:
+    def resolve(self, entries: list[PollEntry], now: float | None = None, active_hold_override: float | None = None) -> dict[str, ResolvedActivity]:
         if now is None:
             now = time.monotonic()
 
@@ -105,9 +105,9 @@ class Detector:
                 # HACK: "thinking with X effort" can stall iTerm rendering for
                 # extended periods, so use a longer hold to avoid false idle.
                 hold_seconds = (
-                    THINKING_HOLD_SECONDS
+                    max(THINKING_HOLD_SECONDS, active_hold_override or 0)
                     if recent_active_rule_match.id == "thinking-effort"
-                    else profile.activity_tuning.active_rule_hold_seconds
+                    else (active_hold_override or profile.activity_tuning.active_rule_hold_seconds)
                 )
                 next_state.active_hold = ActiveHold(
                     reason=f"rule:{recent_active_rule_match.id}",
@@ -125,7 +125,7 @@ class Detector:
                 next_state.active_hold = ActiveHold(
                     reason=f"input:{recent_input_rule_match.id}",
                     detail=detail,
-                    expires_at=now + profile.activity_tuning.input_hold_seconds,
+                    expires_at=now + (active_hold_override or profile.activity_tuning.input_hold_seconds),
                 )
                 status = "active"
                 reason = next_state.active_hold.reason
@@ -142,7 +142,7 @@ class Detector:
                     next_state.active_hold = ActiveHold(
                         reason="meaningful-body-change",
                         detail=detail,
-                        expires_at=now + profile.activity_tuning.meaningful_change_hold_seconds,
+                        expires_at=now + (active_hold_override or profile.activity_tuning.meaningful_change_hold_seconds),
                     )
                     status = "active"
                     reason = "meaningful-body-change"

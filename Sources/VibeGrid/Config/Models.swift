@@ -224,6 +224,7 @@ struct Settings: Codable {
     var moveEverythingITermRecentActivityBadgeEnabled: Bool
     var moveEverythingITermRecentActivityColorize: Bool
     var moveEverythingITermRecentActivityColorizeNamedOnly: Bool
+    var moveEverythingITermActivityHoldSeconds: Double
     var moveEverythingITermActivityOverlayOpacity: Double
     var moveEverythingITermActivityBackgroundTintEnabled: Bool
     var moveEverythingITermActivityTabColorEnabled: Bool
@@ -282,6 +283,7 @@ struct Settings: Codable {
             moveEverythingITermRecentActivityBadgeEnabled: false,
             moveEverythingITermRecentActivityColorize: true,
             moveEverythingITermRecentActivityColorizeNamedOnly: false,
+            moveEverythingITermActivityHoldSeconds: 7.0,
             moveEverythingITermActivityOverlayOpacity: 0.0,
             moveEverythingITermActivityBackgroundTintEnabled: false,
             moveEverythingITermActivityTabColorEnabled: false,
@@ -341,6 +343,7 @@ struct Settings: Codable {
         moveEverythingITermRecentActivityBadgeEnabled: Bool = false,
         moveEverythingITermRecentActivityColorize: Bool = true,
         moveEverythingITermRecentActivityColorizeNamedOnly: Bool = false,
+        moveEverythingITermActivityHoldSeconds: Double = 7.0,
         moveEverythingITermActivityOverlayOpacity: Double = 0.14,
         moveEverythingITermActivityBackgroundTintEnabled: Bool = false,
         moveEverythingITermActivityTabColorEnabled: Bool = false,
@@ -397,6 +400,7 @@ struct Settings: Codable {
         self.moveEverythingITermRecentActivityBadgeEnabled = moveEverythingITermRecentActivityBadgeEnabled
         self.moveEverythingITermRecentActivityColorize = moveEverythingITermRecentActivityColorize
         self.moveEverythingITermRecentActivityColorizeNamedOnly = moveEverythingITermRecentActivityColorizeNamedOnly
+        self.moveEverythingITermActivityHoldSeconds = moveEverythingITermActivityHoldSeconds
         self.moveEverythingITermActivityOverlayOpacity = moveEverythingITermActivityOverlayOpacity
         self.moveEverythingITermActivityBackgroundTintEnabled = moveEverythingITermActivityBackgroundTintEnabled
         self.moveEverythingITermActivityTabColorEnabled = moveEverythingITermActivityTabColorEnabled
@@ -456,6 +460,7 @@ struct Settings: Codable {
         case moveEverythingITermRecentActivityBadgeEnabled
         case moveEverythingITermRecentActivityColorize
         case moveEverythingITermRecentActivityColorizeNamedOnly
+        case moveEverythingITermActivityHoldSeconds
         case moveEverythingITermActivityOverlayOpacity
         case moveEverythingITermActivityBackgroundTintEnabled
         case moveEverythingITermActivityTabColorEnabled
@@ -541,6 +546,10 @@ struct Settings: Codable {
             Bool.self,
             forKey: .moveEverythingITermRecentActivityColorizeNamedOnly
         ) ?? false
+        moveEverythingITermActivityHoldSeconds = try container.decodeIfPresent(
+            Double.self,
+            forKey: .moveEverythingITermActivityHoldSeconds
+        ) ?? 7.0
         moveEverythingITermActivityOverlayOpacity = try container.decodeIfPresent(
             Double.self,
             forKey: .moveEverythingITermActivityOverlayOpacity
@@ -666,6 +675,7 @@ struct Settings: Codable {
         )
         try container.encode(moveEverythingITermRecentActivityColorize, forKey: .moveEverythingITermRecentActivityColorize)
         try container.encode(moveEverythingITermRecentActivityColorizeNamedOnly, forKey: .moveEverythingITermRecentActivityColorizeNamedOnly)
+        try container.encode(moveEverythingITermActivityHoldSeconds, forKey: .moveEverythingITermActivityHoldSeconds)
         try container.encode(moveEverythingITermActivityOverlayOpacity, forKey: .moveEverythingITermActivityOverlayOpacity)
         try container.encode(moveEverythingITermActivityBackgroundTintEnabled, forKey: .moveEverythingITermActivityBackgroundTintEnabled)
         try container.encode(moveEverythingITermActivityTabColorEnabled, forKey: .moveEverythingITermActivityTabColorEnabled)

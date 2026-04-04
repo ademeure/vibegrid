@@ -23,14 +23,16 @@ public final class ITermActivityWorkerClient {
         pythonURL: URL,
         timeout: Double,
         maxPolledNonEmptyLines: Int,
-        commands: [[String: Any]] = []
+        commands: [[String: Any]] = [],
+        activeHoldOverride: Double? = nil
     ) -> ITermWindowActivityDetector.PollResult {
         stateQueue.sync {
             pollLocked(
                 pythonURL: pythonURL,
                 timeout: timeout,
                 maxPolledNonEmptyLines: maxPolledNonEmptyLines,
-                commands: commands
+                commands: commands,
+                activeHoldOverride: activeHoldOverride
             )
         }
     }
@@ -62,7 +64,8 @@ public final class ITermActivityWorkerClient {
         pythonURL: URL,
         timeout: Double,
         maxPolledNonEmptyLines: Int,
-        commands: [[String: Any]] = []
+        commands: [[String: Any]] = [],
+        activeHoldOverride: Double? = nil
     ) -> ITermWindowActivityDetector.PollResult {
         do {
             try ensureWorkerRunningLocked(pythonURL: pythonURL)
@@ -88,6 +91,9 @@ public final class ITermActivityWorkerClient {
         ]
         if !commands.isEmpty {
             request["commands"] = commands
+        }
+        if let activeHoldOverride {
+            request["active_hold_override"] = activeHoldOverride
         }
 
         do {

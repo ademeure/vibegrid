@@ -20,8 +20,6 @@ private let kCGSOrderAbove: Int32 = 1
 /// (green = active, red = idle) on top of iTerm windows running Claude Code or Codex.
 final class ITermActivityOverlayController {
     private static let moveGracePeriod: TimeInterval = 0.7
-    private static let activeHoldDuration: TimeInterval = 7.0
-
     struct TrackedWindow {
         let key: String
         let frame: CGRect
@@ -29,6 +27,7 @@ final class ITermActivityOverlayController {
         let hasRecentUserInput: Bool
         let windowNumber: Int?
         let overlayOpacity: Double
+        let activeHoldDuration: TimeInterval
     }
 
     private var overlaysByKey: [String: PlacementPreviewOverlayController] = [:]
@@ -81,7 +80,7 @@ final class ITermActivityOverlayController {
 
             // Active if currently active OR was active within the hold duration
             let isEffectivelyActive = window.isActive ||
-                (lastActiveAt[window.key].map { now.timeIntervalSince($0) < Self.activeHoldDuration } ?? false)
+                (lastActiveAt[window.key].map { now.timeIntervalSince($0) < window.activeHoldDuration } ?? false)
 
             let baseColor: NSColor = isEffectivelyActive ? .systemGreen : .systemRed
             let borderAlpha = CGFloat(window.overlayOpacity)
