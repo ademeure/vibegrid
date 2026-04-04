@@ -689,6 +689,8 @@ struct YAMLConfigCodec {
         lines.append("  moveEverythingHideWindowHotkey: \(encodeHotkey(normalized.settings.moveEverythingHideWindowHotkey))")
         lines.append("  moveEverythingNameWindowHotkey: \(encodeHotkey(normalized.settings.moveEverythingNameWindowHotkey))")
         lines.append("  moveEverythingQuickViewHotkey: \(encodeHotkey(normalized.settings.moveEverythingQuickViewHotkey))")
+        lines.append("  moveEverythingUndoWindowMovementHotkey: \(encodeHotkey(normalized.settings.moveEverythingUndoWindowMovementHotkey))")
+        lines.append("  moveEverythingRedoWindowMovementHotkey: \(encodeHotkey(normalized.settings.moveEverythingRedoWindowMovementHotkey))")
         lines.append("")
         lines.append("# ── Shortcuts ───────────────────────────────────────────────────")
         lines.append("# Each shortcut has a hotkey and one or more placement steps.")
