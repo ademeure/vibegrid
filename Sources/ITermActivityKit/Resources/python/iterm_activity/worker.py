@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
+import re
+import subprocess
 import sys
 import traceback
 from dataclasses import dataclass
@@ -21,6 +24,59 @@ async def _read_stdin_line() -> bytes:
     return await asyncio.to_thread(sys.stdin.buffer.readline)
 
 
+def _rename_mux_session(tty: str, new_name: str) -> str | None:
+    """Find the mux session attached from a TTY and rename it.
+
+    Returns the new session name on success, or None if no session found.
+    """
+    if not tty:
+        return None
+    tty_short = tty.replace("/dev/", "")
+    try:
+        ps_out = subprocess.check_output(
+            ["ps", "-eo", "tty,args"], text=True, timeout=2
+        )
+    except Exception:
+        return None
+    # Find "tmux attach -t <session>" on this TTY
+    old_session = None
+    for line in ps_out.splitlines():
+        parts = line.split(None, 1)
+        if len(parts) < 2:
+            continue
+        if parts[0] != tty_short:
+            continue
+        m = re.search(r"tmux\s+attach\s+.*-t\s+['\"]?(\S+)", parts[1])
+        if m:
+            old_session = m.group(1).strip("'\"")
+            break
+    if not old_session:
+        return None
+    # Parse machine and number from session name (e.g. "local-10-oldname" or "neb-3")
+    m = re.match(r"^([a-zA-Z][a-zA-Z0-9]*)-(\d+)", old_session)
+    if not m:
+        return None
+    machine, num = m.group(1), m.group(2)
+    try:
+        # Find mux binary — check common locations
+        import shutil
+        mux_bin = shutil.which("mux")
+        if not mux_bin:
+            for p in ["/usr/local/bin/mux", os.path.expanduser("~/github/mux/mux")]:
+                if os.path.isfile(p):
+                    mux_bin = p
+                    break
+        if not mux_bin:
+            return None
+        subprocess.run(
+            [mux_bin, "rename", f"{machine}:{num}", new_name],
+            timeout=5, capture_output=True,
+        )
+    except Exception:
+        return None
+    return f"{machine}-{num}-{new_name}"
+
+
 async def _handle_set_name(
     connection,
     request_id: object,
@@ -36,10 +92,23 @@ async def _handle_set_name(
     for window in app.windows:
         if str(window.window_id) == window_id:
             try:
-                await window.async_set_title(name)
+                # Get the TTY so we can rename the mux/tmux session
                 session = window.current_tab.current_session
-                await session.async_set_name(name)
-                _write_response({"id": request_id, "ok": True})
+                tty = await session.async_get_variable("tty") or ""
+
+                # Rename the mux session — tmux set-titles propagates to iTerm
+                mux_result = await asyncio.to_thread(_rename_mux_session, tty, name)
+
+                # Also set iTerm title directly as fallback (for non-mux windows)
+                if not mux_result:
+                    await window.async_set_title(name)
+                    await session.async_set_name(name)
+
+                _write_response({
+                    "id": request_id,
+                    "ok": True,
+                    "mux_session": mux_result or "",
+                })
             except Exception:
                 _write_response({"id": request_id, "ok": False, "error": traceback.format_exc()})
             return
