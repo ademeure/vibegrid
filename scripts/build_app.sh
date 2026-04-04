@@ -41,22 +41,24 @@ if [[ ! -x "${BIN_PATH}" ]]; then
   exit 1
 fi
 
-RESOURCE_BUNDLE="${BIN_DIR}/${APP_NAME}_VibeGrid.bundle"
-if [[ ! -d "${RESOURCE_BUNDLE}" ]]; then
-  RESOURCE_BUNDLE="$(find "${BIN_DIR}" -maxdepth 1 -type d -name "*VibeGrid*.bundle" | head -n 1 || true)"
-fi
-
-if [[ -z "${RESOURCE_BUNDLE}" || ! -d "${RESOURCE_BUNDLE}" ]]; then
-  echo "error: SwiftPM resource bundle was not found in ${BIN_DIR}" >&2
-  exit 1
-fi
-
 APP_DIR="${OUT_DIR}/${APP_BUNDLE_NAME}"
 rm -rf "${APP_DIR}"
 mkdir -p "${APP_DIR}/Contents/MacOS" "${APP_DIR}/Contents/Resources"
 
 cp "${BIN_PATH}" "${APP_DIR}/Contents/MacOS/${APP_NAME}"
-cp -R "${RESOURCE_BUNDLE}" "${APP_DIR}/Contents/Resources/"
+
+# Copy ALL SwiftPM resource bundles (VibeGrid + ITermActivityKit etc.)
+BUNDLE_COUNT=0
+for bundle in "${BIN_DIR}"/*.bundle; do
+  [[ -d "${bundle}" ]] || continue
+  cp -R "${bundle}" "${APP_DIR}/Contents/Resources/"
+  echo "Bundled: $(basename "${bundle}")"
+  BUNDLE_COUNT=$((BUNDLE_COUNT + 1))
+done
+if [[ "${BUNDLE_COUNT}" -eq 0 ]]; then
+  echo "error: no SwiftPM resource bundles found in ${BIN_DIR}" >&2
+  exit 1
+fi
 
 ICON_PLIST_ENTRIES=""
 if [[ -n "${ICON_FILE}" ]]; then
