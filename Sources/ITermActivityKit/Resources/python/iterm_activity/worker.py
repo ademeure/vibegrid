@@ -53,7 +53,7 @@ async def _handle_poll(
     request_id: object,
     max_polled_non_empty_lines: int,
     commands: list[dict] | None = None,
-    original_bg_by_profile_guid: dict[str, tuple[int, int, int]] | None = None,
+    original_bg_by_profile_guid: dict[str, ProfileBgInfo] | None = None,
     active_hold_override: float | None = None,
 ) -> None:
     entries = await collect_window_snapshots(

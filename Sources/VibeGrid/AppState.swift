@@ -1437,7 +1437,8 @@ final class AppState {
 
     private func refreshITermActivityOverlays(inventory: MoveEverythingWindowInventory) {
         let now = Date()
-        let inputCutoff = now.addingTimeInterval(-10)
+        let suppressionSeconds = config.settings.moveEverythingITermActivityHoldSeconds
+        let inputCutoff = now.addingTimeInterval(-suppressionSeconds)
         // Prune old input timestamps
         iTermInputTimestamps = iTermInputTimestamps.filter { $0.value > inputCutoff }
 
@@ -1452,12 +1453,13 @@ final class AppState {
             }
         }
 
+        let colorizeNamedOnly = config.settings.moveEverythingITermRecentActivityColorizeNamedOnly
         var trackedWindows: [ITermActivityOverlayController.TrackedWindow] = []
         for snapshot in inventory.visible + inventory.hidden {
             let profileID = iTermActivityProfileCache[snapshot.key] ?? ""
             let isClaudeOrCodex = profileID.hasPrefix("claude-code") || profileID.hasPrefix("codex")
             let isNamed = hasITermNameOverride(for: snapshot)
-            guard isClaudeOrCodex || isNamed,
+            guard (isClaudeOrCodex || isNamed) && (!colorizeNamedOnly || isNamed),
                   let frameSnapshot = snapshot.frame else {
                 continue
             }
@@ -1521,7 +1523,7 @@ final class AppState {
         let activeRGBLight = Self.parseHexColor(config.settings.moveEverythingITermRecentActivityActiveColorLight) ?? (r: 26, g: 117, b: 53)
         let idleRGBLight = Self.parseHexColor(config.settings.moveEverythingITermRecentActivityIdleColorLight) ?? (r: 160, g: 48, b: 48)
         let colorizeNamedOnly = config.settings.moveEverythingITermRecentActivityColorizeNamedOnly
-        let inputCutoff = Date().addingTimeInterval(-15)
+        let inputCutoff = Date().addingTimeInterval(-config.settings.moveEverythingITermActivityHoldSeconds)
 
         var activeWindowIDs = Set<String>()
 
