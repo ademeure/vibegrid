@@ -60,6 +60,7 @@ final class AppState {
     private var quickViewWasVisible = false
     private let iTermActivityWorkerClient = ITermActivityWorkerClient()
     private(set) var iTermActivityCache: [String: String] = [:]  // snapshot key → "active"/"idle"
+    private(set) var iTermLastActiveAt: [String: Date] = [:]  // snapshot key → when last became active
     private(set) var iTermBadgeTextCache: [String: String] = [:]  // snapshot key → badge text
     private(set) var iTermSessionNameCache: [String: String] = [:]  // snapshot key → session/tmux name
     private(set) var iTermLastLineCache: [String: String] = [:]  // snapshot key → last non-empty screen line
@@ -919,6 +920,11 @@ final class AppState {
     }
 
     @discardableResult
+    func nonITermRetileVisibleMoveEverythingWindows() -> Bool {
+        windowManager.nonITermRetileVisibleMoveEverythingWindows()
+    }
+
+    @discardableResult
     func hybridRetileVisibleMoveEverythingWindows() -> Bool {
         windowManager.hybridRetileVisibleMoveEverythingWindows()
     }
@@ -1416,12 +1422,24 @@ final class AppState {
                         )
                     }
                 }
+                // Track when each window last became active
+                let now = Date()
+                for (key, status) in newCache where status == "active" {
+                    if self.iTermActivityCache[key] != "active" || self.iTermLastActiveAt[key] == nil {
+                        self.iTermLastActiveAt[key] = now
+                    }
+                }
+                // Prune stale entries
+                for key in self.iTermLastActiveAt.keys where newCache[key] == nil {
+                    self.iTermLastActiveAt.removeValue(forKey: key)
+                }
                 self.iTermActivityCache = newCache
                 self.iTermBadgeTextCache = newBadgeCache
                 self.iTermSessionNameCache = newSessionNameCache
                 self.iTermLastLineCache = newLastLineCache
                 self.iTermActivityProfileCache = newProfileCache
                 self.iTermRuntimeWindowIDBySnapshotKey = newRuntimeWindowIDBySnapshotKey
+                self.windowManager.iTermLastActiveAtBySnapshotKey = self.iTermLastActiveAt
                 WindowListDebugLogger.log(
                     "iterm-activity",
                     "poll done generation=\(pollGeneration): matched=\(newCache.keys.sorted()) " +

@@ -10,6 +10,7 @@ protocol WindowManagerEngineProtocol: AnyObject {
     var onMoveEverythingSavedWindowPositionsHistoryChanged: (([MoveEverythingSavedWindowPositionsSnapshot]) -> Void)? { get set }
     var isMoveEverythingActive: Bool { get }
     var moveEverythingHoveredWindowKey: String? { get }
+    var iTermLastActiveAtBySnapshotKey: [String: Date] { get set }
 
     func applyConfig(_ config: AppConfig)
     func requestAccessibility(prompt: Bool) -> Bool
@@ -36,6 +37,7 @@ protocol WindowManagerEngineProtocol: AnyObject {
     func retileVisibleMoveEverythingWindows() -> Bool
     func miniRetileVisibleMoveEverythingWindows() -> Bool
     func iTermRetileVisibleMoveEverythingWindows() -> Bool
+    func nonITermRetileVisibleMoveEverythingWindows() -> Bool
     func hybridRetileVisibleMoveEverythingWindows() -> Bool
     func undoLastMoveEverythingRetile() -> Bool
     func moveEverythingUndoRetileAvailable() -> Bool

@@ -1328,14 +1328,28 @@ body.narrow-mode.narrow-sequences .move-everything-workspace {
 body.narrow-mode.narrow-sequences .narrow-mode-toggle {
   grid-column: 1;
 }
+body.narrow-mode.narrow-sequences .shortcuts-panel {
+  max-height: 480px;
+}
 body.narrow-mode.narrow-sequences .layout {
   grid-template-columns: 1fr;
-  grid-template-rows: auto minmax(0, 0.35fr) minmax(0, 0.85fr) minmax(0, 1.8fr);
+  grid-template-rows: auto minmax(0, auto) minmax(0, 0.8fr) minmax(0, 1.2fr);
   min-height: 0;
 }
 /* Hide the toggle's container in windows mode (narrow-mode without narrow-sequences) */
 body.narrow-mode:not(.narrow-sequences) .narrow-mode-toggle {
   grid-column: 1;
+}
+
+.add-step-btn {
+  background: linear-gradient(135deg, #29956b, #1a7651) !important;
+  color: #f2fff7 !important;
+  border-color: #0e5f3c !important;
+}
+.mode-btn.active {
+  background: linear-gradient(135deg, #3477b8, #2a5f9e) !important;
+  color: #f0f6ff !important;
+  border-color: #1d4b82 !important;
 }
 
 .retile-designation {

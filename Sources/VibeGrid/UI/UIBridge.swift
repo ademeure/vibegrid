@@ -346,6 +346,15 @@ final class UIBridge: NSObject, WKScriptMessageHandler {
             }
             pushStateToWeb(forceMoveEverythingWindowRefresh: true)
 
+        case "moveEverythingNonITermRetileVisibleWindows":
+            if !appState.nonITermRetileVisibleMoveEverythingWindows() {
+                let message = appState.moveEverythingLastDirectActionError() ?? "Unable to retile non-iTerm windows"
+                sendNotice(level: "error", message: message)
+            } else if let message = appState.moveEverythingLastDirectActionError(), !message.isEmpty {
+                sendNotice(level: "info", message: message)
+            }
+            pushStateToWeb(forceMoveEverythingWindowRefresh: true)
+
         case "moveEverythingHybridRetileVisibleWindows":
             if !appState.hybridRetileVisibleMoveEverythingWindows() {
                 let message = appState.moveEverythingLastDirectActionError() ?? "Unable to hybrid retile visible windows"

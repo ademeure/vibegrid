@@ -179,6 +179,7 @@ const ids = {
   moveEverythingMiniRetileBtn: document.getElementById("moveEverythingMiniRetileBtn"),
   moveEverythingHybridRetileBtn: document.getElementById("moveEverythingHybridRetileBtn"),
   moveEverythingITermRetileBtn: document.getElementById("moveEverythingITermRetileBtn"),
+  moveEverythingNonITermRetileBtn: document.getElementById("moveEverythingNonITermRetileBtn"),
   moveEverythingUndoRetileBtn: document.getElementById("moveEverythingUndoRetileBtn"),
   moveEverythingAlwaysOnTop: document.getElementById("moveEverythingAlwaysOnTop"),
   moveEverythingAlwaysOnTopLabel: document.getElementById("moveEverythingAlwaysOnTopLabel"),
@@ -1557,6 +1558,10 @@ function hybridRetileVisibleMoveEverythingWindows() {
 
 function iTermRetileVisibleMoveEverythingWindows() {
   sendToNative("moveEverythingITermRetileVisibleWindows");
+}
+
+function nonITermRetileVisibleMoveEverythingWindows() {
+  sendToNative("moveEverythingNonITermRetileVisibleWindows");
 }
 
 function undoLastMoveEverythingRetile() {
@@ -3403,7 +3408,7 @@ function displayPlacementContext() {
     }
   }
 
-  if (state.hoveredShortcutId) {
+  if (state.hoveredShortcutId && state.hoveredShortcutId !== state.selectedShortcutId) {
     const hoveredShortcut = shortcutById(state.hoveredShortcutId);
     const firstPlacement = hoveredShortcut?.placements?.[0] || null;
     if (firstPlacement) {
@@ -6213,6 +6218,7 @@ function wireEvents() {
   on(ids.moveEverythingMiniRetileBtn, "click", miniRetileVisibleMoveEverythingWindows);
   on(ids.moveEverythingHybridRetileBtn, "click", hybridRetileVisibleMoveEverythingWindows);
   on(ids.moveEverythingITermRetileBtn, "click", iTermRetileVisibleMoveEverythingWindows);
+  on(ids.moveEverythingNonITermRetileBtn, "click", nonITermRetileVisibleMoveEverythingWindows);
   on(ids.moveEverythingUndoRetileBtn, "click", undoLastMoveEverythingRetile);
   on(ids.moveEverythingSaveDefaultsBtn, "click", saveCurrentMoveEverythingAsDefaults);
   on(ids.moveEverythingResetDefaultsBtn, "click", resetMoveEverythingDefaults);
@@ -6265,6 +6271,10 @@ function wireEvents() {
     }
     addPlacement("freeform");
   });
+  const addStepInEditorBtn = document.getElementById("addStepInEditorBtn");
+  if (addStepInEditorBtn) {
+    addStepInEditorBtn.addEventListener("click", () => addPlacement("grid"));
+  }
   ids.flipHorizontalBtn.addEventListener("click", () => flipSelectedPlacement("horizontal"));
   ids.flipVerticalBtn.addEventListener("click", () => flipSelectedPlacement("vertical"));
   document.getElementById("removePlacementBtn").addEventListener("click", removePlacement);

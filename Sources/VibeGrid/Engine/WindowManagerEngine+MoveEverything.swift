@@ -923,6 +923,38 @@ extension WindowManagerEngine {
                 return result
             }
         }
+        func nonITermRetileVisibleMoveEverythingWindows() -> Bool {
+            return performRetileVisibleMoveEverythingWindows(successVerb: "non-iTerm retiled") {
+                managedWindows,
+                fullAvailableFrame,
+                _,
+                gap in
+                let nonITermWindows = managedWindows.filter { !moveEverythingManagedWindowLooksLikeITerm($0) }
+                let iTermWindows = managedWindows.filter(moveEverythingManagedWindowLooksLikeITerm)
+                guard !nonITermWindows.isEmpty else { return nil }
+
+                let nonITermTargets: [String: CGRect]?
+                if let seq = retileSequence(for: "non-iterm") {
+                    nonITermTargets = moveEverythingRetileUsingSequence(
+                        seq, for: nonITermWindows, availableFrame: fullAvailableFrame, gap: gap
+                    )
+                } else {
+                    nonITermTargets = moveEverythingRetileTargetFramesByKey(
+                        for: nonITermWindows,
+                        availableFrame: fullAvailableFrame,
+                        aspectRatio: 1,
+                        gap: gap
+                    )
+                }
+                guard var result = nonITermTargets else { return nil }
+                for w in iTermWindows {
+                    if let frame = currentWindowRect(for: w.window) {
+                        result[w.key] = frame
+                    }
+                }
+                return result
+            }
+        }
         func hybridRetileVisibleMoveEverythingWindows() -> Bool {
             let widthPercent = min(max(config.settings.moveEverythingMiniRetileWidthPercent, 5), 100)
             let baseMiniWidthFraction = CGFloat(widthPercent / 100)
@@ -934,15 +966,7 @@ extension WindowManagerEngine {
                 let iTermWindows = managedWindows.filter(moveEverythingManagedWindowLooksLikeITerm)
                 let nonITermWindows = managedWindows.filter { !moveEverythingManagedWindowLooksLikeITerm($0) }
 
-                let iTermSeq = retileSequence(for: "iterm")
-                let nonITermSeq = retileSequence(for: "non-iterm")
-
                 if iTermWindows.isEmpty {
-                    if let nonITermSeq {
-                        return moveEverythingRetileUsingSequence(
-                            nonITermSeq, for: nonITermWindows, availableFrame: fullAvailableFrame, gap: gap
-                        )
-                    }
                     let miniFrame = moveEverythingRetileSlice(
                         within: fullAvailableFrame,
                         widthFraction: baseMiniWidthFraction,
@@ -956,11 +980,6 @@ extension WindowManagerEngine {
                     )
                 }
                 if nonITermWindows.isEmpty {
-                    if let iTermSeq {
-                        return moveEverythingRetileUsingSequence(
-                            iTermSeq, for: iTermWindows, availableFrame: fullAvailableFrame, gap: gap
-                        )
-                    }
                     return moveEverythingRetileTargetFramesByKey(
                         for: iTermWindows,
                         availableFrame: fullAvailableFrame,
@@ -969,48 +988,32 @@ extension WindowManagerEngine {
                     )
                 }
 
-                // Both types present — use sequences if available, else grid
-                let iTermTargets: [String: CGRect]?
-                if let iTermSeq {
-                    iTermTargets = moveEverythingRetileUsingSequence(
-                        iTermSeq, for: iTermWindows, availableFrame: fullAvailableFrame, gap: gap
-                    )
-                } else {
-                    let miniWidthFraction = min(max(baseMiniWidthFraction, 0.05), 0.95)
-                    let remainingFrame = moveEverythingRetileRemainingSlice(
-                        within: fullAvailableFrame,
-                        widthFraction: miniWidthFraction,
-                        controlCenterIsOnRight: controlCenterIsOnRight
-                    )
-                    iTermTargets = moveEverythingRetileTargetFramesByKey(
-                        for: iTermWindows,
-                        availableFrame: remainingFrame,
-                        aspectRatio: 1,
-                        gap: gap
-                    )
+                let miniWidthFraction = min(max(baseMiniWidthFraction, 0.05), 0.95)
+                let miniFrame = moveEverythingRetileSlice(
+                    within: fullAvailableFrame,
+                    widthFraction: miniWidthFraction,
+                    controlCenterIsOnRight: controlCenterIsOnRight
+                )
+                let remainingFrame = moveEverythingRetileRemainingSlice(
+                    within: fullAvailableFrame,
+                    widthFraction: miniWidthFraction,
+                    controlCenterIsOnRight: controlCenterIsOnRight
+                )
+                guard let nonITermTargets = moveEverythingRetileTargetFramesByKey(
+                    for: nonITermWindows,
+                    availableFrame: miniFrame,
+                    aspectRatio: 1,
+                    gap: gap
+                ),
+                let iTermTargets = moveEverythingRetileTargetFramesByKey(
+                    for: iTermWindows,
+                    availableFrame: remainingFrame,
+                    aspectRatio: 1,
+                    gap: gap
+                ) else {
+                    return nil
                 }
 
-                let nonITermTargets: [String: CGRect]?
-                if let nonITermSeq {
-                    nonITermTargets = moveEverythingRetileUsingSequence(
-                        nonITermSeq, for: nonITermWindows, availableFrame: fullAvailableFrame, gap: gap
-                    )
-                } else {
-                    let miniWidthFraction = min(max(baseMiniWidthFraction, 0.05), 0.95)
-                    let miniFrame = moveEverythingRetileSlice(
-                        within: fullAvailableFrame,
-                        widthFraction: miniWidthFraction,
-                        controlCenterIsOnRight: controlCenterIsOnRight
-                    )
-                    nonITermTargets = moveEverythingRetileTargetFramesByKey(
-                        for: nonITermWindows,
-                        availableFrame: miniFrame,
-                        aspectRatio: 1,
-                        gap: gap
-                    )
-                }
-
-                guard let iTermTargets, let nonITermTargets else { return nil }
                 return nonITermTargets.merging(iTermTargets) { current, _ in current }
             }
         }
@@ -1291,7 +1294,23 @@ extension WindowManagerEngine {
             from windows: [MoveEverythingManagedWindow]
         ) -> [MoveEverythingManagedWindow] {
             let recencyRankByKey = moveEverythingRetileRecencyRankByWindowKey(for: windows)
+            let activityTimes = iTermLastActiveAtBySnapshotKey
             return windows.sorted { left, right in
+                let leftIsITerm = moveEverythingManagedWindowLooksLikeITerm(left)
+                let rightIsITerm = moveEverythingManagedWindowLooksLikeITerm(right)
+                // iTerm windows always come first
+                if leftIsITerm != rightIsITerm {
+                    return leftIsITerm
+                }
+                // Among iTerm windows, sort by last activity time (most recent first)
+                if leftIsITerm && rightIsITerm {
+                    let leftTime = activityTimes[left.key]?.timeIntervalSinceReferenceDate ?? 0
+                    let rightTime = activityTimes[right.key]?.timeIntervalSinceReferenceDate ?? 0
+                    if leftTime != rightTime {
+                        return leftTime > rightTime
+                    }
+                }
+                // Fall back to z-order recency
                 let leftRank = recencyRankByKey[left.key] ?? Int.max
                 let rightRank = recencyRankByKey[right.key] ?? Int.max
                 if leftRank != rightRank {
