@@ -3526,7 +3526,7 @@ function renderSettingsTabContent() {
   if (tabWindowList) tabWindowList.style.display = activeTab === "windowList" ? "" : "none";
   if (tabColors) tabColors.style.display = activeTab === "colors" ? "" : "none";
   if (activeTab === "windowList" || activeTab === "colors") {
-    renderMoveEverythingSettings();
+    renderMoveEverythingModal();
   }
 }
 

@@ -1286,13 +1286,13 @@ body.narrow-mode .move-window-actions .btn.tiny[data-me-window-action="hide"]::a
   background: none;
   border: none;
   border-bottom: 2px solid transparent;
-  color: var(--text-secondary);
+  color: #c44;
   cursor: pointer;
   font-size: 13px;
   font-weight: 500;
 }
 .settings-tab:hover {
-  color: var(--text);
+  color: #e55;
 }
 .settings-tab.active {
   color: var(--accent);
