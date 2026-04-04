@@ -24,3 +24,4 @@ windows/vibegrid-win11/web/app.js
 windows/vibegrid-win11/web/styles.css
 windows/vibegrid-win11/web/index.html
 windows/vibegrid-win11/*.test.exe
+__pycache__
