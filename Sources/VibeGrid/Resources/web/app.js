@@ -2153,7 +2153,7 @@ function renderMoveEverythingWorkspace() {
   // In narrow mode, workspace visibility depends on whether a placement is being edited.
   // In wide mode, always show the workspace in the right panel (it coexists with the shortcut editor).
   const narrowMode = state.moveEverythingNarrowMode === true;
-  const showWorkspace = narrowMode ? moveEverythingWorkspaceVisible() : true;
+  const showWorkspace = narrowMode ? moveEverythingWorkspaceVisible() : Boolean(state.moveEverythingActive);
   ids.moveEverythingWorkspace.classList.toggle("hidden", !showWorkspace);
   if (!showWorkspace) {
     if (state.moveEverythingHoveredWindowKey) {
@@ -2162,9 +2162,7 @@ function renderMoveEverythingWorkspace() {
     return;
   }
 
-  // In wide mode, always keep move-everything mode active so the right panel has windows.
-  // In narrow mode, only activate when the workspace is visible (no placement editing).
-  maybeEnsureMoveEverythingMode(!narrowMode);
+  maybeEnsureMoveEverythingMode();
 
   if (window.vibeGridPlatform && window.vibeGridPlatform.noNativeFeatures) {
     if (ids.moveEverythingNativeOnlyControls) ids.moveEverythingNativeOnlyControls.style.display = "none";
