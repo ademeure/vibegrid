@@ -424,11 +424,21 @@ struct YAMLConfigCodec {
                             lineNumber: line.number,
                             field: "moveEverythingQuickViewHotkey"
                         )
+                    case "moveEverythingUndoWindowMovementHotkey":
+                        config.settings.moveEverythingUndoWindowMovementHotkey = try parseHotkey(
+                            effectiveValue,
+                            lineNumber: line.number,
+                            field: "moveEverythingUndoWindowMovementHotkey"
+                        )
+                    case "moveEverythingRedoWindowMovementHotkey":
+                        config.settings.moveEverythingRedoWindowMovementHotkey = try parseHotkey(
+                            effectiveValue,
+                            lineNumber: line.number,
+                            field: "moveEverythingRedoWindowMovementHotkey"
+                        )
                     default:
-                        if Self.ignoredLegacySettingsKeys.contains(key) {
-                            break
-                        }
-                        throw ConfigParseError.invalidLine(line.number, "Unknown settings key: \(key)")
+                        // Silently ignore unknown settings keys for forward compatibility
+                        break
                     }
                 } else if topLevelSection == "shortcuts" {
                     guard line.content.hasPrefix("- ") else {
@@ -689,8 +699,6 @@ struct YAMLConfigCodec {
         lines.append("  moveEverythingHideWindowHotkey: \(encodeHotkey(normalized.settings.moveEverythingHideWindowHotkey))")
         lines.append("  moveEverythingNameWindowHotkey: \(encodeHotkey(normalized.settings.moveEverythingNameWindowHotkey))")
         lines.append("  moveEverythingQuickViewHotkey: \(encodeHotkey(normalized.settings.moveEverythingQuickViewHotkey))")
-        lines.append("  moveEverythingUndoWindowMovementHotkey: \(encodeHotkey(normalized.settings.moveEverythingUndoWindowMovementHotkey))")
-        lines.append("  moveEverythingRedoWindowMovementHotkey: \(encodeHotkey(normalized.settings.moveEverythingRedoWindowMovementHotkey))")
         lines.append("")
         lines.append("# ── Shortcuts ───────────────────────────────────────────────────")
         lines.append("# Each shortcut has a hotkey and one or more placement steps.")

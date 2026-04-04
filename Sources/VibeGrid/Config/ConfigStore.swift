@@ -4,6 +4,8 @@ final class ConfigStore {
     let configURL: URL
     let legacyConfigURL: URL?
     private let fileManager: FileManager
+    /// Set when config parsing fails and defaults are restored. Cleared on successful load.
+    private(set) var lastParseError: String?
 
     init(fileManager: FileManager = .default, configURL: URL? = nil, legacyConfigURL: URL? = nil) {
         self.fileManager = fileManager
@@ -85,17 +87,22 @@ final class ConfigStore {
 
     private func decodeOrRestore(rawYAML: String) -> AppConfig {
         do {
-            return try YAMLConfigCodec.decode(rawYAML)
+            let config = try YAMLConfigCodec.decode(rawYAML)
+            lastParseError = nil
+            return config
         } catch {
             let backupURL = backupInvalidConfig(rawYAML: rawYAML)
+            let errorMessage = String(describing: error)
+            lastParseError = "Config parse failed: \(errorMessage)"
             if let backupURL {
+                lastParseError! += " — backed up to \(backupURL.lastPathComponent)"
                 NSLog(
                     "VibeGrid: failed to parse config, restored defaults and backed up invalid file to %@. Error: %@",
                     backupURL.path,
-                    String(describing: error)
+                    errorMessage
                 )
             } else {
-                NSLog("VibeGrid: failed to parse config, restored defaults. Error: %@", String(describing: error))
+                NSLog("VibeGrid: failed to parse config, restored defaults. Error: %@", errorMessage)
             }
             return saveDefaultConfig()
         }

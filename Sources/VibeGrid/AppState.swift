@@ -99,8 +99,6 @@ final class AppState {
 
     init() {
         let initialConfig = configStore.loadOrCreate()
-        // Re-save to update YAML format (adds documentation comments)
-        configStore.save(initialConfig.normalized())
         config = initialConfig
         let loadedOverrides = windowListActivityConfigSync.loadOverrides()
         moveEverythingITermWindowOverridesByID = loadedOverrides.byID
@@ -274,7 +272,7 @@ final class AppState {
             quickViewSavedFrame = controlCenter?.window?.frame
             quickViewActive = true
 
-            // Compute compact narrow size: full screen height, web view handles scrolling
+            // Compute compact narrow size: width ~550px, height up to full screen
             let cursor = NSEvent.mouseLocation
             let screen = NSScreen.screens.first(where: { NSMouseInRect(cursor, $0.frame, false) })
                 ?? NSScreen.main
@@ -287,6 +285,9 @@ final class AppState {
             controlCenter?.showWindow(nil)
             NSApp.activate(ignoringOtherApps: true)
             controlCenter?.window?.makeKeyAndOrderFront(nil)
+
+            // Shrink to fit content after the web view renders
+            controlCenter?.shrinkQuickViewToFitContent(maxHeight: screenHeight)
         }
     }
 
@@ -502,6 +503,10 @@ final class AppState {
 
     func configURLString() -> String {
         configStore.configURL.path
+    }
+
+    func configParseError() -> String? {
+        configStore.lastParseError
     }
 
     func runtimeEnvironment() -> RuntimeEnvironment {

@@ -513,6 +513,7 @@ final class UIBridge: NSObject, WKScriptMessageHandler {
             "config": configObject,
             "hotKeyIssues": issuesObject,
             "configPath": appState.configURLString(),
+            "configParseError": appState.configParseError() as Any,
             "launchAtLogin": [
                 "supported": launchAtLogin.supported,
                 "enabled": launchAtLogin.enabled,

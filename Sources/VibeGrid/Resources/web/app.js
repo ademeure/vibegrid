@@ -483,6 +483,7 @@ function receiveState(payload) {
   state.runtime.sandboxed = Boolean(payload?.runtime?.sandboxed);
   state.runtime.message = typeof payload?.runtime?.message === "string" ? payload.runtime.message : "";
   state.configPath = typeof payload?.configPath === "string" ? payload.configPath : "";
+  state.configParseError = typeof payload?.configParseError === "string" ? payload.configParseError : "";
   state.launchAtLogin = normalizeLaunchAtLoginState(payload?.launchAtLogin);
   state.moveEverythingActive = Boolean(payload?.moveEverythingActive);
   state.controlCenterFocused = Boolean(payload?.controlCenterFocused);
@@ -834,12 +835,14 @@ function renderHotKeyIssues() {
 }
 
 function renderRuntimeBanner() {
-  const message = state.runtime?.message || "";
-  const sandboxed = Boolean(state.runtime?.sandboxed);
+  const parseError = state.configParseError || "";
+  const runtimeMessage = state.runtime?.message || "";
+  const message = parseError || runtimeMessage;
+  const isWarning = Boolean(parseError) || Boolean(state.runtime?.sandboxed);
   ids.runtimeBanner.textContent = message;
   ids.runtimeBanner.classList.toggle("hidden", !message);
-  ids.runtimeBanner.classList.toggle("warning", sandboxed);
-  ids.runtimeBanner.classList.toggle("info", !sandboxed);
+  ids.runtimeBanner.classList.toggle("warning", isWarning);
+  ids.runtimeBanner.classList.toggle("info", !isWarning && Boolean(message));
 }
 
 function moveEverythingRequirementText(settings = state.config?.settings) {
@@ -1160,11 +1163,7 @@ function renderMoveEverythingModal() {
 
 function toggleMoveEverythingFromButton() {
   if (moveEverythingWorkspaceVisible()) {
-    // Already showing windows — deselect any selected shortcut to return to window list view
-    state.selectedPlacementId = null;
-    state.selectedShortcutId = null;
-    hidePlacementPreview();
-    pubsub.publish('selection');
+    openSettingsModal("windowList");
     return;
   }
   state.selectedPlacementId = null;

@@ -212,6 +212,25 @@ final class ControlCenterWindowController: NSWindowController, NSWindowDelegate,
         window.setFrame(NSRect(origin: NSPoint(x: x, y: y), size: frameSize), display: false, animate: false)
     }
 
+    func shrinkQuickViewToFitContent(maxHeight: CGFloat) {
+        let script = "document.documentElement.scrollHeight"
+        webView.evaluateJavaScript(script) { [weak self] value, _ in
+            guard let self, let window = self.window,
+                  let scrollHeight = (value as? NSNumber)?.doubleValue else { return }
+            let idealHeight = min(CGFloat(scrollHeight) + 20, maxHeight)  // +20 for padding
+            let frame = window.frame
+            if idealHeight < frame.height {
+                let newFrame = NSRect(
+                    x: frame.origin.x,
+                    y: frame.origin.y + (frame.height - idealHeight),
+                    width: frame.width,
+                    height: idealHeight
+                )
+                window.setFrame(newFrame, display: true, animate: false)
+            }
+        }
+    }
+
     private func attemptOpenSettingsModal(remainingAttempts: Int) {
         let script = "(function(){ if (window.vibeGridOpenSettingsModal) { window.vibeGridOpenSettingsModal(); return true; } return false; })();"
         webView.evaluateJavaScript(script) { [weak self] value, _ in
