@@ -145,8 +145,16 @@ async def collect_window_snapshots(
                 if current_session is not None:
                     profile = await current_session.async_get_profile()
                     guid = profile.guid
+                    # Try exact GUID, then original_guid (for tmux/dynamic profiles),
+                    # then fall back to any cached profile
+                    info = None
                     if guid and guid in original_bg_by_profile_guid:
                         info = original_bg_by_profile_guid[guid]
+                    elif hasattr(profile, 'original_guid') and profile.original_guid:
+                        info = original_bg_by_profile_guid.get(profile.original_guid)
+                    if info is None and original_bg_by_profile_guid:
+                        info = next(iter(original_bg_by_profile_guid.values()))
+                    if info is not None:
                         bg_r, bg_g, bg_b = info.dark
                         bg_light_r, bg_light_g, bg_light_b = info.light
                         use_separate_colors = info.use_separate
