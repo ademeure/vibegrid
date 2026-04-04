@@ -1160,7 +1160,11 @@ function renderMoveEverythingModal() {
 
 function toggleMoveEverythingFromButton() {
   if (moveEverythingWorkspaceVisible()) {
-    openSettingsModal("windowList");
+    // Already showing windows — deselect any selected shortcut to return to window list view
+    state.selectedPlacementId = null;
+    state.selectedShortcutId = null;
+    hidePlacementPreview();
+    pubsub.publish('selection');
     return;
   }
   state.selectedPlacementId = null;
