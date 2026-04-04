@@ -1278,10 +1278,11 @@ body.narrow-mode .move-window-actions .btn.tiny[data-me-window-action="hide"]::a
 .narrow-mode-toggle {
   display: flex;
   gap: 0;
-  margin-bottom: 8px;
+  margin: 0 12px 4px;
   border: 1px solid var(--border);
   border-radius: 6px;
   overflow: hidden;
+  flex-shrink: 0;
 }
 .narrow-toggle-btn {
   flex: 1;
@@ -1303,21 +1304,22 @@ body.narrow-mode .move-window-actions .btn.tiny[data-me-window-action="hide"]::a
   color: var(--accent);
   background: var(--surface-active, rgba(255,255,255,0.08));
 }
-/* In narrow sequences mode, show shortcuts and editor panels */
+/* In narrow sequences mode: show all 3 panels vertically in equal thirds */
 body.narrow-mode.narrow-sequences .shortcuts-panel,
-body.narrow-mode.narrow-sequences .editor-panel {
-  display: block !important;
+body.narrow-mode.narrow-sequences .editor-panel,
+body.narrow-mode.narrow-sequences .preview-panel {
+  display: flex !important;
+  flex-direction: column;
+  overflow-y: auto;
+  min-height: 0;
 }
 body.narrow-mode.narrow-sequences .move-everything-workspace {
   display: none !important;
 }
 body.narrow-mode.narrow-sequences .layout {
   grid-template-columns: 1fr;
-  grid-template-rows: auto 1fr;
-}
-body.narrow-mode.narrow-sequences .shortcuts-panel {
-  max-height: 200px;
-  overflow-y: auto;
+  grid-template-rows: 1fr 1fr 1fr;
+  min-height: 0;
 }
 
 .settings-tabs {
