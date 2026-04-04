@@ -23,9 +23,12 @@ async def _capture_screen_lines(
         async with iterm2.Transaction(connection):
             line_info = await session.async_get_line_info()
             visible_height = max(1, int(line_info.mutable_area_height))
-            first_visible = int(line_info.first_visible_line_number)
             requested_lines = min(visible_height, max_polled_non_empty_lines)
-            first_line = first_visible + max(0, visible_height - requested_lines)
+            # Read from the bottom of the mutable area (where new output appears),
+            # NOT from first_visible_line_number. This prevents user scrolling
+            # from triggering false activity detection.
+            mutable_area_start = int(line_info.scrollback_buffer_height)
+            first_line = mutable_area_start + max(0, visible_height - requested_lines)
             lines = await session.async_get_contents(first_line, requested_lines)
 
         for line in reversed(lines):
