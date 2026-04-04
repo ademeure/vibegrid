@@ -67,6 +67,13 @@ class PollEntry:
                 for item in list(value.get("non_empty_lines_from_bottom", []) or [])
                 if str(item).strip()
             ],
+            background_color_r=int(value.get("background_color_r", 0) or 0),
+            background_color_g=int(value.get("background_color_g", 0) or 0),
+            background_color_b=int(value.get("background_color_b", 0) or 0),
+            background_color_light_r=int(value.get("background_color_light_r", 0) or 0),
+            background_color_light_g=int(value.get("background_color_light_g", 0) or 0),
+            background_color_light_b=int(value.get("background_color_light_b", 0) or 0),
+            use_separate_colors=bool(value.get("use_separate_colors", False)),
         )
 
 

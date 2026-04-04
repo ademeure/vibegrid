@@ -1128,8 +1128,9 @@ function renderMoveEverythingModal() {
   ids.moveEverythingRequirementsHint.classList.toggle("warning", false);
   ids.moveEverythingRequirementsHint.textContent = moveEverythingRequirementText(settings);
 
-  const recordButtons = ids.moveEverythingModal.querySelectorAll("button[data-me-record]");
-  const clearButtons = ids.moveEverythingModal.querySelectorAll("button[data-me-clear]");
+  const hotkeyContainer = ids.moveEverythingModal || ids.settingsModal;
+  const recordButtons = hotkeyContainer ? hotkeyContainer.querySelectorAll("button[data-me-record]") : [];
+  const clearButtons = hotkeyContainer ? hotkeyContainer.querySelectorAll("button[data-me-clear]") : [];
   recordButtons.forEach((button) => {
     const field = button.dataset.meRecord;
     const recording = state.recordingMoveEverythingField === field;
