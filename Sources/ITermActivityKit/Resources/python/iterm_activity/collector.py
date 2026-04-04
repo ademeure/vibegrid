@@ -105,7 +105,7 @@ async def collect_window_snapshots(
     connection,
     max_polled_non_empty_lines: int,
     metadata_cache: CachedWindowMetadata | None = None,
-    original_bg_by_profile_guid: dict[str, tuple[int, int, int]] | None = None,
+    original_bg_by_profile_guid: dict | None = None,
 ) -> list[PollEntry]:
     app = await iterm2.async_get_app(connection)
     entries: list[PollEntry] = []

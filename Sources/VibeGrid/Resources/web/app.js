@@ -1153,7 +1153,7 @@ function renderMoveEverythingModal() {
 
 function toggleMoveEverythingFromButton() {
   if (moveEverythingWorkspaceVisible()) {
-    openMoveEverythingModal();
+    openSettingsModal("windowList");
     return;
   }
   state.selectedPlacementId = null;
