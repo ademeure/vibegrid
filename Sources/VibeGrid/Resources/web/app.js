@@ -2150,10 +2150,10 @@ function renderMoveEverythingWorkspace() {
   }
   const renderStartedAt = performance.now();
 
-  // In narrow mode, workspace visibility depends on whether a placement is being edited.
-  // In wide mode, always show the workspace in the right panel (it coexists with the shortcut editor).
+  // In narrow mode, hide workspace when editing a grid step (it takes the full width).
+  // In wide mode, always show — the window list coexists with the shortcut editor.
   const narrowMode = state.moveEverythingNarrowMode === true;
-  const showWorkspace = narrowMode ? moveEverythingWorkspaceVisible() : Boolean(state.moveEverythingActive);
+  const showWorkspace = narrowMode ? moveEverythingWorkspaceVisible() : true;
   ids.moveEverythingWorkspace.classList.toggle("hidden", !showWorkspace);
   if (!showWorkspace) {
     if (state.moveEverythingHoveredWindowKey) {
@@ -2162,7 +2162,8 @@ function renderMoveEverythingWorkspace() {
     return;
   }
 
-  maybeEnsureMoveEverythingMode();
+  // Always ensure move-everything mode is active so Swift populates the window inventory.
+  maybeEnsureMoveEverythingMode(true);
 
   if (window.vibeGridPlatform && window.vibeGridPlatform.noNativeFeatures) {
     if (ids.moveEverythingNativeOnlyControls) ids.moveEverythingNativeOnlyControls.style.display = "none";
