@@ -1275,6 +1275,51 @@ body.narrow-mode .move-window-actions .btn.tiny[data-me-window-action="hide"]::a
   flex-wrap: wrap;
 }
 
+.narrow-mode-toggle {
+  display: flex;
+  gap: 0;
+  margin-bottom: 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.narrow-toggle-btn {
+  flex: 1;
+  padding: 6px 12px;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.narrow-toggle-btn:hover {
+  color: var(--text);
+  background: var(--surface-hover);
+}
+.narrow-toggle-btn.active {
+  color: var(--accent);
+  background: var(--surface-active, rgba(255,255,255,0.08));
+}
+/* In narrow sequences mode, show shortcuts and editor panels */
+body.narrow-mode.narrow-sequences .shortcuts-panel,
+body.narrow-mode.narrow-sequences .editor-panel {
+  display: block !important;
+}
+body.narrow-mode.narrow-sequences .move-everything-workspace {
+  display: none !important;
+}
+body.narrow-mode.narrow-sequences .layout {
+  grid-template-columns: 1fr;
+  grid-template-rows: auto 1fr;
+}
+body.narrow-mode.narrow-sequences .shortcuts-panel {
+  max-height: 200px;
+  overflow-y: auto;
+}
+
 .settings-tabs {
   display: flex;
   gap: 0;

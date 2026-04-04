@@ -99,6 +99,7 @@ const state = {
   moveEverythingFocusedWindowKey: null,
   moveEverythingEnsureRequestedAt: 0,
   moveEverythingNarrowMode: null,
+  narrowPreviewMode: "windows",  // "windows" or "sequences"
   moveEverythingActionButtonsCompact: null,
   moveEverythingHoverLastSentAt: 0,
   moveEverythingHoverPendingKey: null,
@@ -216,6 +217,9 @@ const ids = {
   moveEverythingITermTitleAllCapsSetting: document.getElementById("moveEverythingITermTitleAllCapsSetting"),
   moveEverythingITermRecentActivityColorizeSetting: document.getElementById("moveEverythingITermRecentActivityColorizeSetting"),
   moveEverythingITermRecentActivityColorizeNamedOnlySetting: document.getElementById("moveEverythingITermRecentActivityColorizeNamedOnlySetting"),
+  narrowModeToggle: document.getElementById("narrowModeToggle"),
+  narrowModeWindowsBtn: document.getElementById("narrowModeWindowsBtn"),
+  narrowModeSequencesBtn: document.getElementById("narrowModeSequencesBtn"),
   moveEverythingITermActivityTintIntensitySetting: document.getElementById("moveEverythingITermActivityTintIntensitySetting"),
   moveEverythingITermActivityHoldSecondsSetting: document.getElementById("moveEverythingITermActivityHoldSecondsSetting"),
   moveEverythingITermActivityOverlayOpacitySetting: document.getElementById("moveEverythingITermActivityOverlayOpacitySetting"),
@@ -677,7 +681,30 @@ function syncNarrowModeLayout() {
     sendToNative("setMoveEverythingNarrowMode", { enabled: isNarrow });
     didMutate = true;
   }
+  // Show/hide narrow mode toggle and apply sequences class
+  syncNarrowPreviewMode();
   return didMutate || wasNarrow !== isNarrow;
+}
+
+function syncNarrowPreviewMode() {
+  const isNarrow = state.moveEverythingNarrowMode === true;
+  if (ids.narrowModeToggle) {
+    ids.narrowModeToggle.classList.toggle("hidden", !isNarrow);
+  }
+  if (ids.narrowModeWindowsBtn) {
+    ids.narrowModeWindowsBtn.classList.toggle("active", state.narrowPreviewMode === "windows");
+  }
+  if (ids.narrowModeSequencesBtn) {
+    ids.narrowModeSequencesBtn.classList.toggle("active", state.narrowPreviewMode === "sequences");
+  }
+  document.body.classList.toggle("narrow-sequences", isNarrow && state.narrowPreviewMode === "sequences");
+}
+
+function setNarrowPreviewMode(mode) {
+  state.narrowPreviewMode = mode;
+  syncNarrowPreviewMode();
+  pubsub.publish("selection");
+  pubsub.publish("moveEverything");
 }
 
 function normalizeHexColor(value, fallback) {
@@ -3333,7 +3360,7 @@ function displayPlacement() {
 }
 
 function displayPlacementContext() {
-  if (state.moveEverythingNarrowMode === true) {
+  if (state.moveEverythingNarrowMode === true && state.narrowPreviewMode !== "sequences") {
     return {
       placement: null,
       readOnly: true,
@@ -6123,6 +6150,8 @@ function wireEvents() {
   on(ids.moveEverythingSaveDefaultsBtn, "click", saveCurrentMoveEverythingAsDefaults);
   on(ids.moveEverythingResetDefaultsBtn, "click", resetMoveEverythingDefaults);
   ids.settingsBtn.addEventListener("click", () => openSettingsModal());
+  if (ids.narrowModeWindowsBtn) ids.narrowModeWindowsBtn.addEventListener("click", () => setNarrowPreviewMode("windows"));
+  if (ids.narrowModeSequencesBtn) ids.narrowModeSequencesBtn.addEventListener("click", () => setNarrowPreviewMode("sequences"));
   // Settings tab switching
   document.querySelectorAll("[data-settings-tab]").forEach((btn) => {
     btn.addEventListener("click", () => {
