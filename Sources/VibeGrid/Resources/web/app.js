@@ -6458,12 +6458,10 @@ function wireEvents() {
     }
   });
   on(ids.moveEverythingCloseBtn, "click", closeMoveEverythingModal);
-  on(ids.moveEverythingModal, "click", (event) => {
-      if (event.target === ids.moveEverythingModal) {
-        closeMoveEverythingModal();
-        return;
-      }
-
+  // Hotkey record/clear buttons — delegate from the settings modal (where they now live)
+  const hotkeyDelegateTarget = ids.settingsModal || ids.moveEverythingModal;
+  if (hotkeyDelegateTarget) {
+    hotkeyDelegateTarget.addEventListener("click", (event) => {
       if (event.target.matches("input[type='checkbox']")) {
         return;
       }
@@ -6474,11 +6472,12 @@ function wireEvents() {
         return;
       }
 
-    const clearBtn = event.target.closest("button[data-me-clear]");
-    if (clearBtn) {
-      clearMoveEverythingHotkey(clearBtn.dataset.meClear);
-    }
-  });
+      const clearBtn = event.target.closest("button[data-me-clear]");
+      if (clearBtn) {
+        clearMoveEverythingHotkey(clearBtn.dataset.meClear);
+      }
+    });
+  }
   on(ids.moveEverythingWindowEditorCancelBtn, "click", closeMoveEverythingWindowEditorModal);
   on(ids.moveEverythingWindowEditorResetBtn, "click", resetMoveEverythingWindowEditorFields);
   on(ids.moveEverythingWindowEditorBadgeColorInput, "input", syncMoveEverythingWindowEditorBadgeColorSwatchSelection);

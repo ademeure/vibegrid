@@ -274,19 +274,22 @@ final class AppState {
             quickViewSavedFrame = controlCenter?.window?.frame
             quickViewActive = true
 
-            // Compute compact narrow size: width ~550px, height capped at 1/4 screen
+            // Compute compact narrow size: width ~550px, height up to full screen
             let cursor = NSEvent.mouseLocation
             let screen = NSScreen.screens.first(where: { NSMouseInRect(cursor, $0.frame, false) })
                 ?? NSScreen.main
                 ?? NSScreen.screens.first
-            let maxHeight = (screen?.visibleFrame.height ?? 800) / 4
-            let contentSize = NSSize(width: 550, height: min(1120, maxHeight * 1.6))
+            let screenHeight = screen?.visibleFrame.height ?? 800
+            let contentSize = NSSize(width: 550, height: screenHeight)
 
             ensureMoveEverythingMode()
             controlCenter?.placeWindowNearCursor(at: cursor, contentSize: contentSize)
             controlCenter?.showWindow(nil)
             NSApp.activate(ignoringOtherApps: true)
             controlCenter?.window?.makeKeyAndOrderFront(nil)
+
+            // Shrink to fit content after the web view renders
+            controlCenter?.shrinkQuickViewToFitContent(maxHeight: screenHeight)
         }
     }
 
