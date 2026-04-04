@@ -1605,6 +1605,11 @@ final class AppState {
         }
         iTermCurrentBgTintStatus = iTermCurrentBgTintStatus.filter { activeWindowIDs.contains($0.key) }
         iTermCurrentTabColorStatus = iTermCurrentTabColorStatus.filter { activeWindowIDs.contains($0.key) }
+        // Prune original background cache for windows no longer in inventory
+        let allCurrentWindowIDs = Set(iTermRuntimeWindowIDBySnapshotKey.values)
+        for windowID in iTermOriginalBackgroundByWindowID.keys where !allCurrentWindowIDs.contains(windowID) {
+            iTermOriginalBackgroundByWindowID.removeValue(forKey: windowID)
+        }
         // Persist tinted state for crash recovery
         if iTermOriginalBackgroundByWindowID.isEmpty {
             Self.clearTintedWindowsFile()
