@@ -49,7 +49,7 @@ const state = {
   massRecordingOrder: null,
   massRecordingIndex: -1,
   settingsModalOpen: false,
-  colorsModalOpen: false,
+  settingsActiveTab: "general",
   moveEverythingModalOpen: false,
   moveEverythingWindowEditor: null,
   recordingMoveEverythingField: null,
@@ -872,12 +872,17 @@ function closeMoveEverythingModal() {
 }
 
 function renderMoveEverythingModal() {
-  if (!ids.moveEverythingModal) {
-    return;
+  // Window List settings are now rendered inside the Settings modal tabs.
+  // Still render the standalone modal if it exists (backward compat).
+  if (ids.moveEverythingModal) {
+    ids.moveEverythingModal.classList.toggle("hidden", !state.moveEverythingModalOpen);
   }
 
-  ids.moveEverythingModal.classList.toggle("hidden", !state.moveEverythingModalOpen);
-  if (!state.moveEverythingModalOpen) {
+  // Render content if the standalone modal is open OR the settings modal is
+  // on the windowList/colors tab.
+  const settingsTabActive = state.settingsModalOpen &&
+    (state.settingsActiveTab === "windowList" || state.settingsActiveTab === "colors");
+  if (!state.moveEverythingModalOpen && !settingsTabActive) {
     return;
   }
 
@@ -3493,10 +3498,12 @@ function renderSettingsModal() {
   ids.settingsConfigPath.textContent = state.configPath || "";
 }
 
-function openSettingsModal() {
+function openSettingsModal(tab) {
   state.settingsModalOpen = true;
+  state.settingsActiveTab = tab || state.settingsActiveTab || "general";
   syncControlCenterScaleDraftFromSettings();
   renderSettingsModal();
+  renderSettingsTabContent();
 }
 
 function closeSettingsModal() {
@@ -3505,21 +3512,21 @@ function closeSettingsModal() {
   renderSettingsModal();
 }
 
-function openColorsModal() {
-  state.colorsModalOpen = true;
-  renderColorsModal();
-}
-
-function closeColorsModal() {
-  state.colorsModalOpen = false;
-  renderColorsModal();
-}
-
-function renderColorsModal() {
-  if (!ids.colorsModal) return;
-  ids.colorsModal.classList.toggle("hidden", !state.colorsModalOpen);
-  if (!state.colorsModalOpen || !state.config?.settings) return;
-  renderMoveEverythingSettings();
+function renderSettingsTabContent() {
+  const tabs = document.querySelectorAll("[data-settings-tab]");
+  const activeTab = state.settingsActiveTab || "general";
+  tabs.forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.settingsTab === activeTab);
+  });
+  const tabGeneral = document.getElementById("settingsTabGeneral");
+  const tabWindowList = document.getElementById("settingsTabWindowList");
+  const tabColors = document.getElementById("settingsTabColors");
+  if (tabGeneral) tabGeneral.style.display = activeTab === "general" ? "" : "none";
+  if (tabWindowList) tabWindowList.style.display = activeTab === "windowList" ? "" : "none";
+  if (tabColors) tabColors.style.display = activeTab === "colors" ? "" : "none";
+  if (activeTab === "windowList" || activeTab === "colors") {
+    renderMoveEverythingSettings();
+  }
 }
 
 async function restoreDefaultSettingsFromModal() {
@@ -6064,9 +6071,14 @@ function wireEvents() {
   on(ids.moveEverythingUndoRetileBtn, "click", undoLastMoveEverythingRetile);
   on(ids.moveEverythingSaveDefaultsBtn, "click", saveCurrentMoveEverythingAsDefaults);
   on(ids.moveEverythingResetDefaultsBtn, "click", resetMoveEverythingDefaults);
-  ids.settingsBtn.addEventListener("click", openSettingsModal);
-  if (ids.colorsBtn) ids.colorsBtn.addEventListener("click", openColorsModal);
-  if (ids.colorsCloseBtn) ids.colorsCloseBtn.addEventListener("click", closeColorsModal);
+  ids.settingsBtn.addEventListener("click", () => openSettingsModal());
+  // Settings tab switching
+  document.querySelectorAll("[data-settings-tab]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.settingsActiveTab = btn.dataset.settingsTab;
+      renderSettingsTabContent();
+    });
+  });
   ids.hideBtn.addEventListener("click", () => sendToNative("hideControlCenter"));
   on(document.getElementById("openYamlBtn"), "click", () => sendToNative("openConfigFile"));
   on(document.getElementById("saveAsYamlBtn"), "click", () => sendToNative("saveAsYaml"));
@@ -6291,7 +6303,7 @@ function wireEvents() {
     ids.openConfigBtn.style.display = "none";
     ids.copyConfigPathBtn.style.display = "none";
   }
-  on(ids.openMoveEverythingSettingsBtn, "click", openMoveEverythingModal);
+  on(ids.openMoveEverythingSettingsBtn, "click", () => openSettingsModal("windowList"));
 
   ids.hotkeyCaptureBtn.addEventListener("click", () => {
     if (state.recordingShortcutId) {

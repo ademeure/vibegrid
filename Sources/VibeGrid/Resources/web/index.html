@@ -28,7 +28,6 @@
           <button id="undoBtn" class="btn ghost">Undo</button>
           <button id="redoBtn" class="btn ghost">Redo</button>
           <button id="moveEverythingBtn" class="btn move-everything">Window List</button>
-          <button id="colorsBtn" class="btn ghost">Colors</button>
           <button id="settingsBtn" class="btn primary">Settings</button>
           <button id="hideBtn" class="btn warning">Hide</button>
           <button id="exitBtn" class="btn danger">Exit</button>
@@ -238,7 +237,12 @@
       <div id="settingsModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
         <div class="modal-card settings-card">
           <h3 id="settingsTitle">Settings</h3>
-          <p>Configure Control Center defaults and app behavior.</p>
+          <div class="settings-tabs" id="settingsTabs">
+            <button class="settings-tab active" data-settings-tab="general">General</button>
+            <button class="settings-tab" data-settings-tab="windowList">Window List</button>
+            <button class="settings-tab" data-settings-tab="colors">Colors</button>
+          </div>
+          <div id="settingsTabGeneral" class="settings-tab-content">
           <div class="settings-section">
             <h4>Appearance</h4>
             <div class="settings-grid">
@@ -306,23 +310,8 @@
             </label>
             <button id="openLoginItemsSettingsBtn" class="btn ghost tiny settings-utility-btn">Open Login Items Settings</button>
           </div>
-          <div class="modal-actions">
-            <button id="moveEverythingSaveDefaultsBtn" class="btn ghost" type="button" title="Save window position, size, and Window List toggles (On Top / Sticky / Move To Side) as defaults for next launch">Save Position &amp; Defaults</button>
-            <button id="moveEverythingResetDefaultsBtn" class="btn ghost" type="button" title="Reset saved window position and Window List toggles to factory defaults">Reset Position &amp; Defaults</button>
           </div>
-          <div class="modal-actions">
-            <button id="openMoveEverythingSettingsBtn" class="btn move-everything">Window List Settings</button>
-            <button id="settingsRestoreDefaultsBtn" class="btn warning">Restore Defaults</button>
-            <button id="settingsExitBtn" class="btn danger">Exit</button>
-            <button id="settingsCloseBtn" class="btn primary">Done</button>
-          </div>
-        </div>
-      </div>
-      <div id="moveEverythingModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="moveEverythingTitle">
-        <div class="modal-card settings-card">
-          <h3 id="moveEverythingTitle">Window List</h3>
-          <p>Hover a visible window in the list to target it.</p>
-          <p id="moveEverythingRequirementsHint" class="settings-hint warning"></p>
+          <div id="settingsTabWindowList" class="settings-tab-content" style="display:none;">
           <div class="settings-section">
             <h4>Behavior</h4>
             <label class="toggle-line move-everything-modal-toggle">
@@ -347,27 +336,30 @@
                 <input id="moveEverythingBackgroundRefreshIntervalSetting" type="number" min="0.5" max="30" step="0.1" />
               </label>
             </div>
-            <div class="settings-grid" style="margin-top: 8px;">
+          </div>
+          <div class="settings-section">
+            <h4>iTerm2 Integration</h4>
+            <div class="settings-grid">
               <label>
-                iTerm2 Activity Timeout (sec)
+                Activity Timeout (sec)
                 <input id="moveEverythingITermRecentActivityTimeoutSetting" type="number" min="0" max="300" step="0.5" />
               </label>
               <label>
-                iTerm2 Activity Buffer (sec)
+                Activity Buffer (sec)
                 <input id="moveEverythingITermRecentActivityBufferSetting" type="number" min="0" max="300" step="0.5" />
               </label>
               <label>
-                iTerm2 Active Text
+                Active Text
                 <input id="moveEverythingITermRecentActivityActiveTextSetting" type="text" placeholder="[ACTIVE]" />
               </label>
               <label>
-                iTerm2 Idle Text
+                Idle Text
                 <input id="moveEverythingITermRecentActivityIdleTextSetting" type="text" placeholder="Leave blank to omit" />
               </label>
             </div>
             <label class="toggle-line move-everything-modal-toggle" style="margin-top: 8px;">
               <input id="moveEverythingITermRecentActivityBadgeEnabledSetting" type="checkbox" />
-              Show iTerm2 activity badge
+              Show activity badge
             </label>
             <label class="toggle-line move-everything-modal-toggle" style="margin-top: 8px;">
               <input id="moveEverythingITermBadgeFromTitleSetting" type="checkbox" />
@@ -400,70 +392,45 @@
             </label>
             <div class="move-hotkey-list">
               <div class="move-hotkey-row">
-                <div class="move-hotkey-meta">
-                  <strong>Close Window</strong>
-                  <small>Optional</small>
-                </div>
+                <div class="move-hotkey-meta"><strong>Close Window</strong><small>Optional</small></div>
                 <span id="moveEverythingCloseWindowPreview" class="hotkey-preview move-hotkey-preview"></span>
                 <button class="btn tiny capture" type="button" data-me-record="moveEverythingCloseWindowHotkey">Record</button>
                 <button class="btn tiny ghost" type="button" data-me-clear="moveEverythingCloseWindowHotkey">Clear</button>
               </div>
               <div class="move-hotkey-row">
-                <div class="move-hotkey-meta">
-                  <strong>Hide Window</strong>
-                  <small>Optional</small>
-                </div>
+                <div class="move-hotkey-meta"><strong>Hide Window</strong><small>Optional</small></div>
                 <span id="moveEverythingHideWindowPreview" class="hotkey-preview move-hotkey-preview"></span>
                 <button class="btn tiny capture" type="button" data-me-record="moveEverythingHideWindowHotkey">Record</button>
                 <button class="btn tiny ghost" type="button" data-me-clear="moveEverythingHideWindowHotkey">Clear</button>
               </div>
               <div class="move-hotkey-row">
-                <div class="move-hotkey-meta">
-                  <strong>Name Window</strong>
-                  <small>Optional</small>
-                </div>
+                <div class="move-hotkey-meta"><strong>Name Window</strong><small>Optional</small></div>
                 <span id="moveEverythingNameWindowPreview" class="hotkey-preview move-hotkey-preview"></span>
                 <button class="btn tiny capture" type="button" data-me-record="moveEverythingNameWindowHotkey">Record</button>
                 <button class="btn tiny ghost" type="button" data-me-clear="moveEverythingNameWindowHotkey">Clear</button>
               </div>
               <div class="move-hotkey-row">
-                <div class="move-hotkey-meta">
-                  <strong>Quick View</strong>
-                  <small>Optional</small>
-                </div>
+                <div class="move-hotkey-meta"><strong>Quick View</strong><small>Optional</small></div>
                 <span id="moveEverythingQuickViewPreview" class="hotkey-preview move-hotkey-preview"></span>
                 <button class="btn tiny capture" type="button" data-me-record="moveEverythingQuickViewHotkey">Record</button>
                 <button class="btn tiny ghost" type="button" data-me-clear="moveEverythingQuickViewHotkey">Clear</button>
               </div>
               <div class="move-hotkey-row">
-                <div class="move-hotkey-meta">
-                  <strong>Undo Window Movement</strong>
-                  <small>Optional</small>
-                </div>
+                <div class="move-hotkey-meta"><strong>Undo Movement</strong><small>Optional</small></div>
                 <span id="moveEverythingUndoWindowMovementPreview" class="hotkey-preview move-hotkey-preview"></span>
                 <button class="btn tiny capture" type="button" data-me-record="moveEverythingUndoWindowMovementHotkey">Record</button>
                 <button class="btn tiny ghost" type="button" data-me-clear="moveEverythingUndoWindowMovementHotkey">Clear</button>
               </div>
               <div class="move-hotkey-row">
-                <div class="move-hotkey-meta">
-                  <strong>Redo Window Movement</strong>
-                  <small>Optional</small>
-                </div>
+                <div class="move-hotkey-meta"><strong>Redo Movement</strong><small>Optional</small></div>
                 <span id="moveEverythingRedoWindowMovementPreview" class="hotkey-preview move-hotkey-preview"></span>
                 <button class="btn tiny capture" type="button" data-me-record="moveEverythingRedoWindowMovementHotkey">Record</button>
                 <button class="btn tiny ghost" type="button" data-me-clear="moveEverythingRedoWindowMovementHotkey">Clear</button>
               </div>
             </div>
           </div>
-          <div class="modal-actions">
-            <button id="moveEverythingCloseBtn" class="btn primary">Done</button>
           </div>
-        </div>
-      </div>
-      <div id="colorsModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="colorsTitle">
-        <div class="modal-card settings-card">
-          <h3 id="colorsTitle">Colors</h3>
-          <p>Activity indicator colors and modes for iTerm windows.</p>
+          <div id="settingsTabColors" class="settings-tab-content" style="display:none;">
           <div class="settings-section">
             <h4>Indicator Modes</h4>
             <label class="toggle-line">
@@ -496,35 +463,28 @@
           <div class="settings-section">
             <h4>Dark Mode Colors</h4>
             <div class="settings-grid">
-              <label>
-                Active
-                <input id="moveEverythingITermRecentActivityActiveColorSetting" type="color" />
-              </label>
-              <label>
-                Idle
-                <input id="moveEverythingITermRecentActivityIdleColorSetting" type="color" />
-              </label>
-              <label>
-                Focused Window
-                <input id="moveEverythingActiveWindowHighlightColorSetting" type="color" />
-              </label>
+              <label>Active<input id="moveEverythingITermRecentActivityActiveColorSetting" type="color" /></label>
+              <label>Idle<input id="moveEverythingITermRecentActivityIdleColorSetting" type="color" /></label>
+              <label>Focused Window<input id="moveEverythingActiveWindowHighlightColorSetting" type="color" /></label>
             </div>
           </div>
           <div class="settings-section">
             <h4>Light Mode Colors</h4>
             <div class="settings-grid">
-              <label>
-                Active
-                <input id="moveEverythingITermRecentActivityActiveColorLightSetting" type="color" />
-              </label>
-              <label>
-                Idle
-                <input id="moveEverythingITermRecentActivityIdleColorLightSetting" type="color" />
-              </label>
+              <label>Active<input id="moveEverythingITermRecentActivityActiveColorLightSetting" type="color" /></label>
+              <label>Idle<input id="moveEverythingITermRecentActivityIdleColorLightSetting" type="color" /></label>
             </div>
           </div>
+          </div>
           <div class="modal-actions">
-            <button id="colorsCloseBtn" class="btn primary">Done</button>
+            <button id="moveEverythingSaveDefaultsBtn" class="btn ghost" type="button" title="Save window position, size, and Window List toggles (On Top / Sticky / Move To Side) as defaults for next launch">Save Position &amp; Defaults</button>
+            <button id="moveEverythingResetDefaultsBtn" class="btn ghost" type="button" title="Reset saved window position and Window List toggles to factory defaults">Reset Position &amp; Defaults</button>
+          </div>
+          <div class="modal-actions">
+            <button id="settingsRestoreDefaultsBtn" class="btn warning">Restore Defaults</button>
+            <button id="openMoveEverythingSettingsBtn" class="btn ghost" style="display:none;"></button>
+            <button id="settingsExitBtn" class="btn danger">Exit</button>
+            <button id="settingsCloseBtn" class="btn primary">Done</button>
           </div>
         </div>
       </div>

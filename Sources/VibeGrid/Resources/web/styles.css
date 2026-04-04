@@ -1275,6 +1275,29 @@ body.narrow-mode .move-window-actions .btn.tiny[data-me-window-action="hide"]::a
   flex-wrap: wrap;
 }
 
+.settings-tabs {
+  display: flex;
+  gap: 0;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+.settings-tab {
+  padding: 6px 16px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+}
+.settings-tab:hover {
+  color: var(--text);
+}
+.settings-tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
 .settings-card {
   width: min(760px, 100%);
   max-height: min(90vh, 860px);
