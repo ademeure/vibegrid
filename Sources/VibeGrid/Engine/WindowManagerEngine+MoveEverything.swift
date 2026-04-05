@@ -924,7 +924,7 @@ extension WindowManagerEngine {
             }
         }
         func nonITermRetileVisibleMoveEverythingWindows() -> Bool {
-            return performRetileVisibleMoveEverythingWindows(successVerb: "non-iTerm retiled") {
+            return performRetileVisibleMoveEverythingWindows(successVerb: "other retiled") {
                 managedWindows,
                 fullAvailableFrame,
                 _,

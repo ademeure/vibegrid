@@ -170,6 +170,14 @@ final class AppState {
         windowManager.onMoveEverythingNameWindowRequested = { [weak self] key in
             DispatchQueue.main.async {
                 guard let self else { return }
+                // If the editor is already open, just refocus — don't overwrite the saved frame
+                if self.windowEditorRestorePending {
+                    self.controlCenter?.showWindow(nil)
+                    NSApp.activate(ignoringOtherApps: true)
+                    self.controlCenter?.window?.makeKeyAndOrderFront(nil)
+                    self.controlCenter?.openWindowEditor(forKey: key)
+                    return
+                }
                 self.ensureMoveEverythingMode()
                 // Save current visibility and position so we can restore after the editor closes
                 let cursor = NSEvent.mouseLocation
@@ -297,8 +305,10 @@ final class AppState {
                 placementY = visible.minY
                 availableHeight = visible.height
             case .fromCursor:
+                let extraAbove: CGFloat = 150
+                let topY = min(cursor.y + extraAbove, visible.maxY)
                 placementY = visible.minY
-                availableHeight = max(200, cursor.y - visible.minY)
+                availableHeight = max(200, topY - visible.minY)
             case .padded:
                 let padTop = visible.height * 0.2
                 let padBottom = visible.height * 0.2
@@ -642,11 +652,14 @@ final class AppState {
 
     private static func extractRepoFromString(_ text: String) -> String? {
         // 1. Mux session name: "machine-number-reponame" → "reponame"
+        //    If the session has no repo suffix (e.g. "local-79"), return nil
+        //    immediately — don't fall through to generic patterns.
         if isMuxSessionName(text) {
             let parts = text.split(separator: "-", maxSplits: 2)
             if parts.count >= 3 {
                 return String(parts[2...].joined(separator: "-")).lowercased()
             }
+            return nil
         }
 
         // 2. Path-like pattern: extract last meaningful component
@@ -676,11 +689,17 @@ final class AppState {
         // 4. Claude Code session title often shows: "reponame (claude)" or just "reponame"
         let claudePattern = #"^([\w][\w.\-]*)\s*(?:\(claude\)|\(codex\))?\s*$"#
         if let match = text.range(of: claudePattern, options: [.regularExpression, .caseInsensitive]) {
-            let repo = String(text[match])
+            var repo = String(text[match])
                 .replacingOccurrences(of: #"\s*\((?:claude|codex)\)\s*$"#, with: "", options: .regularExpression)
                 .trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased()
+            // Strip trailing digits so "vibegrid1", "vibegrid2" group with "vibegrid"
+            let stripped = repo.replacingOccurrences(of: #"\d+$"#, with: "", options: .regularExpression)
+            if !stripped.isEmpty, stripped.count > 1 {
+                repo = stripped
+            }
             if !repo.isEmpty, repo.count > 1 {
-                return repo.lowercased()
+                return repo
             }
         }
 
@@ -1599,28 +1618,46 @@ final class AppState {
                 self.iTermRuntimeWindowIDBySnapshotKey = newRuntimeWindowIDBySnapshotKey
                 self.windowManager.iTermLastActiveAtBySnapshotKey = self.iTermLastActiveAt
 
-                // Compute repository groups from session/badge/title metadata
+                // Compute repository groups from session/badge/title/override metadata
                 var repoGroups: [String: String] = [:]
                 for (key, sessionName) in newSessionNameCache {
+                    // Also try VibeGrid override title (user-assigned name) as a candidate
+                    let overrideTitle: String? = {
+                        guard let runtimeID = newRuntimeWindowIDBySnapshotKey[key],
+                              let override = self.moveEverythingITermWindowOverridesByID[runtimeID] else {
+                            return nil
+                        }
+                        let title = override.title.trimmingCharacters(in: .whitespacesAndNewlines)
+                        return title.isEmpty ? nil : title
+                    }()
                     if let repo = AppState.extractRepositoryGroup(
                         sessionName: sessionName,
                         badgeText: newBadgeCache[key],
                         windowTitle: nil,
-                        iTermWindowName: nil
+                        iTermWindowName: overrideTitle
                     ) {
                         repoGroups[key] = repo
                     }
                 }
-                // Also check windows not in session cache but in badge/title
+                // Also check windows not in session cache but in badge/title/override
                 for snapshot in currentInventory.visible + currentInventory.hidden {
                     guard repoGroups[snapshot.key] == nil else { continue }
                     let appName = snapshot.appName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
                     guard appName.contains("iterm") else { continue }
+                    // Prefer VibeGrid override title (user-assigned name) over the iTerm API name
+                    let overrideTitle: String? = {
+                        guard let runtimeID = newRuntimeWindowIDBySnapshotKey[snapshot.key],
+                              let override = self.moveEverythingITermWindowOverridesByID[runtimeID] else {
+                            return nil
+                        }
+                        let title = override.title.trimmingCharacters(in: .whitespacesAndNewlines)
+                        return title.isEmpty ? nil : title
+                    }()
                     if let repo = AppState.extractRepositoryGroup(
                         sessionName: newSessionNameCache[snapshot.key],
                         badgeText: newBadgeCache[snapshot.key],
                         windowTitle: snapshot.title,
-                        iTermWindowName: snapshot.iTermWindowName
+                        iTermWindowName: overrideTitle ?? snapshot.iTermWindowName
                     ) {
                         repoGroups[snapshot.key] = repo
                     }

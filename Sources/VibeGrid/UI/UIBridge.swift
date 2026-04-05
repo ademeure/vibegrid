@@ -348,7 +348,7 @@ final class UIBridge: NSObject, WKScriptMessageHandler {
 
         case "moveEverythingNonITermRetileVisibleWindows":
             if !appState.nonITermRetileVisibleMoveEverythingWindows() {
-                let message = appState.moveEverythingLastDirectActionError() ?? "Unable to retile non-iTerm windows"
+                let message = appState.moveEverythingLastDirectActionError() ?? "Unable to retile other windows"
                 sendNotice(level: "error", message: message)
             } else if let message = appState.moveEverythingLastDirectActionError(), !message.isEmpty {
                 sendNotice(level: "info", message: message)

@@ -182,7 +182,7 @@ struct Settings: Codable {
             case "padded":
                 self = .padded
             default:
-                self = .padded
+                self = .fromCursor
             }
         }
 
@@ -362,7 +362,7 @@ struct Settings: Codable {
             moveEverythingITermBadgeFromTitle: true,
             moveEverythingITermTitleFromBadge: true,
             moveEverythingITermTitleAllCaps: false,
-            moveEverythingQuickViewVerticalMode: .padded,
+            moveEverythingQuickViewVerticalMode: .fromCursor,
             controlCenterFrameX: nil,
             controlCenterFrameY: nil,
             controlCenterFrameWidth: nil,
@@ -426,7 +426,7 @@ struct Settings: Codable {
         moveEverythingITermBadgeFromTitle: Bool = false,
         moveEverythingITermTitleFromBadge: Bool = true,
         moveEverythingITermTitleAllCaps: Bool = false,
-        moveEverythingQuickViewVerticalMode: MoveEverythingQuickViewVerticalMode = .padded,
+        moveEverythingQuickViewVerticalMode: MoveEverythingQuickViewVerticalMode = .fromCursor,
         controlCenterFrameX: Double? = nil,
         controlCenterFrameY: Double? = nil,
         controlCenterFrameWidth: Double? = nil,
@@ -704,7 +704,7 @@ struct Settings: Codable {
         moveEverythingQuickViewVerticalMode = try container.decodeIfPresent(
             MoveEverythingQuickViewVerticalMode.self,
             forKey: .moveEverythingQuickViewVerticalMode
-        ) ?? .padded
+        ) ?? .fromCursor
         controlCenterFrameX = try container.decodeIfPresent(Double.self, forKey: .controlCenterFrameX)
         controlCenterFrameY = try container.decodeIfPresent(Double.self, forKey: .controlCenterFrameY)
         controlCenterFrameWidth = try container.decodeIfPresent(Double.self, forKey: .controlCenterFrameWidth)

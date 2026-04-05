@@ -1060,7 +1060,7 @@ function renderMoveEverythingModal() {
     ids.moveEverythingRetileOrderSetting.value = settings.moveEverythingRetileOrder || "leftToRight";
   }
   if (ids.moveEverythingQuickViewVerticalModeSetting) {
-    ids.moveEverythingQuickViewVerticalModeSetting.value = settings.moveEverythingQuickViewVerticalMode || "padded";
+    ids.moveEverythingQuickViewVerticalModeSetting.value = settings.moveEverythingQuickViewVerticalMode || "fromCursor";
   }
   if (ids.moveEverythingITermGroupByRepositorySetting) {
     ids.moveEverythingITermGroupByRepositorySetting.checked = settings.moveEverythingITermGroupByRepository !== false;
@@ -1899,7 +1899,7 @@ function updateMoveEverythingSettings() {
     settings.moveEverythingRetileOrder = ids.moveEverythingRetileOrderSetting.value || "leftToRight";
   }
   if (ids.moveEverythingQuickViewVerticalModeSetting) {
-    settings.moveEverythingQuickViewVerticalMode = ids.moveEverythingQuickViewVerticalModeSetting.value || "padded";
+    settings.moveEverythingQuickViewVerticalMode = ids.moveEverythingQuickViewVerticalModeSetting.value || "fromCursor";
   }
   if (ids.moveEverythingITermGroupByRepositorySetting) {
     settings.moveEverythingITermGroupByRepository = Boolean(ids.moveEverythingITermGroupByRepositorySetting.checked);
@@ -4234,8 +4234,20 @@ function addPlacement(mode) {
     return;
   }
 
+  const current = selectedPlacement();
   const placement = mode === "freeform" ? defaultFreeformPlacement() : defaultGridPlacement();
-  shortcut.placements.push(placement);
+  if (mode === "grid" && current?.grid) {
+    placement.grid.columns = current.grid.columns;
+    placement.grid.rows = current.grid.rows;
+    placement.grid.width = Math.max(1, Math.floor(current.grid.columns / 2));
+    placement.grid.height = current.grid.rows;
+  }
+  const currentIndex = current ? shortcut.placements.findIndex(p => p.id === current.id) : -1;
+  if (currentIndex >= 0) {
+    shortcut.placements.splice(currentIndex + 1, 0, placement);
+  } else {
+    shortcut.placements.push(placement);
+  }
   state.selectedPlacementId = placement.id;
   markDirty();
   pubsub.publishAll(['config', 'selection']);
@@ -4793,7 +4805,7 @@ function retileDesignationErrors() {
     errors.push({ kind: "iterm", ids: iTermShortcuts.map(s => s.id), message: "Multiple shortcuts set as iTerm retile sequence" });
   }
   if (nonITermShortcuts.length > 1) {
-    errors.push({ kind: "non-iterm", ids: nonITermShortcuts.map(s => s.id), message: "Multiple shortcuts set as non-iTerm retile sequence" });
+    errors.push({ kind: "non-iterm", ids: nonITermShortcuts.map(s => s.id), message: "Multiple shortcuts set as Other retile sequence" });
   }
   return errors;
 }
@@ -5639,7 +5651,7 @@ function normalizeMoveEverythingQuickViewVerticalMode(value) {
     case "padded":
       return "padded";
     default:
-      return "padded";
+      return "fromCursor";
   }
 }
 
@@ -6096,7 +6108,7 @@ function createDefaultConfig() {
       moveEverythingStickyHoverStealFocus: false,
       moveEverythingCloseHideHotkeysOutsideMode: false,
       moveEverythingExcludePinnedWindows: false,
-      moveEverythingQuickViewVerticalMode: "padded",
+      moveEverythingQuickViewVerticalMode: "fromCursor",
       moveEverythingRetileOrder: "leftToRight",
       moveEverythingITermGroupByRepository: true,
       moveEverythingMiniRetileWidthPercent: 25,
