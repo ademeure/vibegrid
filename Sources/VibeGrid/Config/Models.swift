@@ -776,6 +776,7 @@ struct ShortcutConfig: Codable, Identifiable {
     var hotkey: Hotkey
     var cycleDisplaysOnWrap: Bool
     var controlCenterOnly: Bool
+    var ignoreExcludeControlCenter: Bool
     var useForRetiling: String
     var placements: [PlacementStep]
 
@@ -786,6 +787,7 @@ struct ShortcutConfig: Codable, Identifiable {
         hotkey: Hotkey,
         cycleDisplaysOnWrap: Bool = false,
         controlCenterOnly: Bool = false,
+        ignoreExcludeControlCenter: Bool = false,
         useForRetiling: String = "no",
         placements: [PlacementStep]
     ) {
@@ -795,13 +797,14 @@ struct ShortcutConfig: Codable, Identifiable {
         self.hotkey = hotkey
         self.cycleDisplaysOnWrap = cycleDisplaysOnWrap
         self.controlCenterOnly = controlCenterOnly
+        self.ignoreExcludeControlCenter = ignoreExcludeControlCenter
         self.useForRetiling = useForRetiling
         self.placements = placements
     }
 
     enum CodingKeys: String, CodingKey {
         case id, name, enabled, hotkey
-        case cycleDisplaysOnWrap, controlCenterOnly
+        case cycleDisplaysOnWrap, controlCenterOnly, ignoreExcludeControlCenter
         case useForRetiling, placements
     }
 
@@ -813,6 +816,7 @@ struct ShortcutConfig: Codable, Identifiable {
         hotkey = try container.decode(Hotkey.self, forKey: .hotkey)
         cycleDisplaysOnWrap = try container.decodeIfPresent(Bool.self, forKey: .cycleDisplaysOnWrap) ?? false
         controlCenterOnly = try container.decodeIfPresent(Bool.self, forKey: .controlCenterOnly) ?? false
+        ignoreExcludeControlCenter = try container.decodeIfPresent(Bool.self, forKey: .ignoreExcludeControlCenter) ?? false
         useForRetiling = try container.decodeIfPresent(String.self, forKey: .useForRetiling) ?? "no"
         placements = try container.decode([PlacementStep].self, forKey: .placements)
     }
@@ -825,6 +829,7 @@ struct ShortcutConfig: Codable, Identifiable {
         try container.encode(hotkey, forKey: .hotkey)
         try container.encode(cycleDisplaysOnWrap, forKey: .cycleDisplaysOnWrap)
         try container.encode(controlCenterOnly, forKey: .controlCenterOnly)
+        try container.encode(ignoreExcludeControlCenter, forKey: .ignoreExcludeControlCenter)
         try container.encode(useForRetiling, forKey: .useForRetiling)
         try container.encode(placements, forKey: .placements)
     }

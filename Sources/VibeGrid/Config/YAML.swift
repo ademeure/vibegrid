@@ -453,6 +453,7 @@ struct YAMLConfigCodec {
                         hotkey: Hotkey(key: "", modifiers: []),
                         cycleDisplaysOnWrap: config.settings.defaultCycleDisplaysOnWrap,
                         controlCenterOnly: false,
+                        ignoreExcludeControlCenter: false,
                         placements: []
                     )
                     shortcutSubsection = nil
@@ -734,6 +735,7 @@ struct YAMLConfigCodec {
             lines.append("    enabled: \(shortcut.enabled ? "true" : "false")")
             lines.append("    cycleDisplaysOnWrap: \(shortcut.cycleDisplaysOnWrap ? "true" : "false")")
             lines.append("    controlCenterOnly: \(shortcut.controlCenterOnly ? "true" : "false")")
+            lines.append("    ignoreExcludeControlCenter: \(shortcut.ignoreExcludeControlCenter ? "true" : "false")")
             if shortcut.useForRetiling != "no" {
                 lines.append("    useForRetiling: \(encodeScalar(shortcut.useForRetiling))")
             }
@@ -932,6 +934,8 @@ struct YAMLConfigCodec {
             shortcut.cycleDisplaysOnWrap = try parseRequiredBoolean(value, lineNumber: lineNumber, field: "shortcut.cycleDisplaysOnWrap")
         case "controlCenterOnly":
             shortcut.controlCenterOnly = try parseRequiredBoolean(value, lineNumber: lineNumber, field: "shortcut.controlCenterOnly")
+        case "ignoreExcludeControlCenter":
+            shortcut.ignoreExcludeControlCenter = try parseRequiredBoolean(value, lineNumber: lineNumber, field: "shortcut.ignoreExcludeControlCenter")
         case "useForRetiling":
             shortcut.useForRetiling = parseScalar(try requiredValue(value, lineNumber: lineNumber, field: "shortcut.useForRetiling"))
         default:

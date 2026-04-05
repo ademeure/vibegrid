@@ -4586,9 +4586,13 @@ extension WindowManagerEngine {
             }
 
             let available = screen.visibleFrame.integral
+            let edgeTolerance: CGFloat = moveEverythingNarrowMode
+                ? max(controlCenterFrame?.width ?? 24, 24)
+                : 24
             return MoveEverythingRetileLayout.availableFrame(
                 within: available,
-                excluding: controlCenterFrame
+                excluding: controlCenterFrame,
+                edgeTolerance: edgeTolerance
             )
         }
         func moveEverythingRetileSortPredicate(

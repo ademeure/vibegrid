@@ -425,6 +425,11 @@ input[type="number"] {
   height: 16px;
 }
 
+.toggle-line.disabled {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
 .hotkey-preview {
   padding: 5px 8px;
   border-radius: 10px;

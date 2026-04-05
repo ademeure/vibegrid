@@ -133,6 +133,7 @@ const ids = {
   toggleShortcutEnabledBtn: document.getElementById("toggleShortcutEnabledBtn"),
   cycleDisplaysOnWrap: document.getElementById("cycleDisplaysOnWrap"),
   controlCenterOnly: document.getElementById("controlCenterOnly"),
+  ignoreExcludeControlCenter: document.getElementById("ignoreExcludeControlCenter"),
   placementTitle: document.getElementById("placementTitle"),
   displayTarget: document.getElementById("displayTarget"),
   removePlacementBtn: document.getElementById("removePlacementBtn"),
@@ -2053,6 +2054,10 @@ function renderShortcutEditor() {
   ids.toggleShortcutEnabledBtn.classList.toggle("ghost", shortcut.enabled);
   ids.cycleDisplaysOnWrap.checked = Boolean(shortcut.cycleDisplaysOnWrap);
   ids.controlCenterOnly.checked = Boolean(shortcut.controlCenterOnly);
+  const excludeCCEnabled = Boolean(state.config.settings.moveEverythingExcludeControlCenter);
+  ids.ignoreExcludeControlCenter.checked = Boolean(shortcut.ignoreExcludeControlCenter);
+  ids.ignoreExcludeControlCenter.disabled = !excludeCCEnabled;
+  ids.ignoreExcludeControlCenter.closest("label").classList.toggle("disabled", !excludeCCEnabled);
   const useForRetilingSelect = document.getElementById("useForRetiling");
   if (useForRetilingSelect) {
     useForRetilingSelect.value = shortcut.useForRetiling || "no";
@@ -4030,6 +4035,7 @@ function addShortcut() {
     hotkey: { key: "left", modifiers: ["cmd", "alt"] },
     cycleDisplaysOnWrap: Boolean(state.config.settings.defaultCycleDisplaysOnWrap),
     controlCenterOnly: false,
+    ignoreExcludeControlCenter: false,
     placements: [defaultGridPlacement()],
   };
 
@@ -4638,6 +4644,16 @@ function updateControlCenterOnly(value) {
   shortcut.controlCenterOnly = Boolean(value);
   markDirty();
   renderShortcutList();
+}
+
+function updateIgnoreExcludeControlCenter(value) {
+  const shortcut = selectedShortcut();
+  if (!shortcut) {
+    return;
+  }
+
+  shortcut.ignoreExcludeControlCenter = Boolean(value);
+  markDirty();
 }
 
 function updateUseForRetiling(value) {
@@ -6431,6 +6447,7 @@ function wireEvents() {
   ids.displayTarget.addEventListener("change", (event) => updateDisplayTarget(event.target.value));
   ids.cycleDisplaysOnWrap.addEventListener("change", (event) => updateCycleDisplaysOnWrap(event.target.checked));
   ids.controlCenterOnly.addEventListener("change", (event) => updateControlCenterOnly(event.target.checked));
+  ids.ignoreExcludeControlCenter.addEventListener("change", (event) => updateIgnoreExcludeControlCenter(event.target.checked));
   document.getElementById("useForRetiling").addEventListener("change", (event) => updateUseForRetiling(event.target.value));
   ids.settingGridCols.addEventListener("input", updateSettings);
   ids.settingGridRows.addEventListener("input", updateSettings);

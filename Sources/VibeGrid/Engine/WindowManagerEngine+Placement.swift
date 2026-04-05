@@ -115,7 +115,8 @@ extension WindowManagerEngine {
         }
 
         let isControlCenter = ownFocusedWindow.map(isControlCenterWindow) ?? false
-        let targetRect = makeTargetRect(normalizedRect: normalizedRect, on: screen, excludeControlCenter: !isControlCenter)
+        let excludeCC = !isControlCenter && !shortcut.ignoreExcludeControlCenter
+        let targetRect = makeTargetRect(normalizedRect: normalizedRect, on: screen, excludeControlCenter: excludeCC)
         let didMove: Bool
         let movementTarget: HotkeyWindowMovementTarget?
         if let ownFocusedWindow {
@@ -310,7 +311,8 @@ extension WindowManagerEngine {
             return true
         }
 
-        let targetRect = makeTargetRect(normalizedRect: normalizedRect, on: screen)
+        let ignoreExclude = shortcutsByID[shortcutID]?.ignoreExcludeControlCenter ?? false
+        let targetRect = makeTargetRect(normalizedRect: normalizedRect, on: screen, excludeControlCenter: !ignoreExclude)
         guard setMoveEverythingWindowFrame(managedWindow, cocoaRect: targetRect) else {
             NSLog("VibeGrid: failed to move selected Window List window for shortcut '%@'", shortcutID)
             return true
@@ -789,9 +791,13 @@ extension WindowManagerEngine {
         var available = screen.visibleFrame
         if excludeControlCenter, isMoveEverythingActive, config.settings.moveEverythingExcludeControlCenter {
             let controlCenterFrame = currentControlCenterFrameForMoveEverything()
+            let edgeTolerance: CGFloat = moveEverythingNarrowMode
+                ? max(controlCenterFrame?.width ?? 24, 24)
+                : 24
             available = MoveEverythingRetileLayout.availableFrame(
                 within: available,
-                excluding: controlCenterFrame
+                excluding: controlCenterFrame,
+                edgeTolerance: edgeTolerance
             )
         }
         var target = CGRect(
