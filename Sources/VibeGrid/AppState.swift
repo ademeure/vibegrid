@@ -282,17 +282,35 @@ final class AppState {
             quickViewSavedFrame = controlCenter?.window?.frame
             quickViewActive = true
 
-            // Compute compact narrow size: width ~550px, top at cursor, bottom at screen edge
             let cursor = NSEvent.mouseLocation
             let screen = NSScreen.screens.first(where: { NSMouseInRect(cursor, $0.frame, false) })
                 ?? NSScreen.main
                 ?? NSScreen.screens.first
-            let visibleMinY = screen?.visibleFrame.minY ?? 0
-            let availableHeight = max(200, cursor.y - visibleMinY)
+            let visible = screen?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1920, height: 1080)
+
+            let verticalMode = config.settings.moveEverythingQuickViewVerticalMode
+            let placementY: CGFloat
+            let availableHeight: CGFloat
+
+            switch verticalMode {
+            case .fullHeight:
+                placementY = visible.minY
+                availableHeight = visible.height
+            case .fromCursor:
+                placementY = visible.minY
+                availableHeight = max(200, cursor.y - visible.minY)
+            case .padded:
+                let padTop = visible.height * 0.2
+                let padBottom = visible.height * 0.2
+                placementY = visible.minY + padBottom
+                availableHeight = max(200, visible.height - padTop - padBottom)
+            }
+
             let contentSize = NSSize(width: 550, height: availableHeight)
+            let placementCursor = NSPoint(x: cursor.x, y: placementY + availableHeight)
 
             ensureMoveEverythingMode()
-            controlCenter?.placeWindowNearCursor(at: cursor, contentSize: contentSize)
+            controlCenter?.placeWindowNearCursor(at: placementCursor, contentSize: contentSize)
             controlCenter?.showWindow(nil)
             NSApp.activate(ignoringOtherApps: true)
             controlCenter?.window?.makeKeyAndOrderFront(nil)

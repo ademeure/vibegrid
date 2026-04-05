@@ -214,6 +214,7 @@ const ids = {
   moveEverythingMiniRetileWidthPercentSetting: document.getElementById("moveEverythingMiniRetileWidthPercentSetting"),
   moveEverythingBackgroundRefreshIntervalSetting: document.getElementById("moveEverythingBackgroundRefreshIntervalSetting"),
   moveEverythingRetileOrderSetting: document.getElementById("moveEverythingRetileOrderSetting"),
+  moveEverythingQuickViewVerticalModeSetting: document.getElementById("moveEverythingQuickViewVerticalModeSetting"),
   moveEverythingITermGroupByRepositorySetting: document.getElementById("moveEverythingITermGroupByRepositorySetting"),
   moveEverythingITermRecentActivityTimeoutSetting: document.getElementById("moveEverythingITermRecentActivityTimeoutSetting"),
   moveEverythingITermRecentActivityBufferSetting: document.getElementById("moveEverythingITermRecentActivityBufferSetting"),
@@ -679,7 +680,7 @@ function moveEverythingActionCompactModeActive() {
 function syncNarrowModeLayout() {
   const isNarrow = window.innerWidth <= narrowModeWidthThresholdPx;
   let didMutate = false;
-  if (isNarrow) {
+  if (isNarrow && state.narrowPreviewMode !== "sequences") {
     if (state.selectedPlacementId !== null) {
       clearSelectedPlacement({ render: false });
       didMutate = true;
@@ -721,6 +722,12 @@ function syncNarrowPreviewMode() {
 
 function setNarrowPreviewMode(mode) {
   state.narrowPreviewMode = mode;
+  if (mode === "sequences" && !state.selectedPlacementId) {
+    const shortcut = selectedShortcut();
+    if (shortcut?.placements?.length) {
+      state.selectedPlacementId = shortcut.placements[0].id;
+    }
+  }
   syncNarrowPreviewMode();
   pubsub.publish("selection");
   pubsub.publish("moveEverything");
@@ -1051,6 +1058,9 @@ function renderMoveEverythingModal() {
   }
   if (ids.moveEverythingRetileOrderSetting) {
     ids.moveEverythingRetileOrderSetting.value = settings.moveEverythingRetileOrder || "leftToRight";
+  }
+  if (ids.moveEverythingQuickViewVerticalModeSetting) {
+    ids.moveEverythingQuickViewVerticalModeSetting.value = settings.moveEverythingQuickViewVerticalMode || "padded";
   }
   if (ids.moveEverythingITermGroupByRepositorySetting) {
     ids.moveEverythingITermGroupByRepositorySetting.checked = settings.moveEverythingITermGroupByRepository !== false;
@@ -1887,6 +1897,9 @@ function updateMoveEverythingSettings() {
   }
   if (ids.moveEverythingRetileOrderSetting) {
     settings.moveEverythingRetileOrder = ids.moveEverythingRetileOrderSetting.value || "leftToRight";
+  }
+  if (ids.moveEverythingQuickViewVerticalModeSetting) {
+    settings.moveEverythingQuickViewVerticalMode = ids.moveEverythingQuickViewVerticalModeSetting.value || "padded";
   }
   if (ids.moveEverythingITermGroupByRepositorySetting) {
     settings.moveEverythingITermGroupByRepository = Boolean(ids.moveEverythingITermGroupByRepositorySetting.checked);
@@ -5616,6 +5629,20 @@ function normalizeMoveEverythingOverlayMode(value) {
   return defaultMoveEverythingOverlayMode;
 }
 
+function normalizeMoveEverythingQuickViewVerticalMode(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  switch (normalized) {
+    case "fullheight":
+      return "fullHeight";
+    case "fromcursor":
+      return "fromCursor";
+    case "padded":
+      return "padded";
+    default:
+      return "padded";
+  }
+}
+
 function normalizeMoveEverythingRetileOrder(value) {
   const normalized = String(value || "").trim().toLowerCase();
   switch (normalized) {
@@ -5697,6 +5724,9 @@ function normalizeSettings(settings) {
       source.moveEverythingExcludePinnedWindows ??
         source.moveEverythingExcludeControlCenter ??
         defaults.moveEverythingExcludePinnedWindows
+    ),
+    moveEverythingQuickViewVerticalMode: normalizeMoveEverythingQuickViewVerticalMode(
+      source.moveEverythingQuickViewVerticalMode ?? defaults.moveEverythingQuickViewVerticalMode
     ),
     moveEverythingRetileOrder: normalizeMoveEverythingRetileOrder(
       source.moveEverythingRetileOrder ?? defaults.moveEverythingRetileOrder
@@ -6066,6 +6096,7 @@ function createDefaultConfig() {
       moveEverythingStickyHoverStealFocus: false,
       moveEverythingCloseHideHotkeysOutsideMode: false,
       moveEverythingExcludePinnedWindows: false,
+      moveEverythingQuickViewVerticalMode: "padded",
       moveEverythingRetileOrder: "leftToRight",
       moveEverythingITermGroupByRepository: true,
       moveEverythingMiniRetileWidthPercent: 25,
@@ -6773,6 +6804,7 @@ function wireEvents() {
   on(ids.moveEverythingExcludePinnedWindowsSetting, "change", updateMoveEverythingSettings);
   on(ids.moveEverythingMiniRetileWidthPercentSetting, "change", updateMoveEverythingSettings);
   on(ids.moveEverythingRetileOrderSetting, "change", updateMoveEverythingSettings);
+  on(ids.moveEverythingQuickViewVerticalModeSetting, "change", updateMoveEverythingSettings);
   on(ids.moveEverythingITermGroupByRepositorySetting, "change", updateMoveEverythingSettings);
   on(ids.moveEverythingBackgroundRefreshIntervalSetting, "change", updateMoveEverythingSettings);
   on(ids.moveEverythingBackgroundRefreshIntervalSetting, "input", updateMoveEverythingSettings);

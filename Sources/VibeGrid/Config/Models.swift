@@ -163,6 +163,35 @@ struct Settings: Codable {
         case timed
     }
 
+    enum MoveEverythingQuickViewVerticalMode: String, Codable {
+        case fullHeight
+        case fromCursor
+        case padded
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.singleValueContainer()
+            let rawValue = (try? container.decode(String.self))?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased() ?? ""
+
+            switch rawValue {
+            case "fullheight":
+                self = .fullHeight
+            case "fromcursor":
+                self = .fromCursor
+            case "padded":
+                self = .padded
+            default:
+                self = .padded
+            }
+        }
+
+        func encode(to encoder: Encoder) throws {
+            var container = encoder.singleValueContainer()
+            try container.encode(rawValue)
+        }
+    }
+
     enum MoveEverythingRetileOrder: String, Codable {
         case leftToRight
         case innermostFirst
@@ -274,6 +303,7 @@ struct Settings: Codable {
     var controlCenterFrameY: Double?
     var controlCenterFrameWidth: Double?
     var controlCenterFrameHeight: Double?
+    var moveEverythingQuickViewVerticalMode: MoveEverythingQuickViewVerticalMode
     var moveEverythingCloseWindowHotkey: Hotkey?
     var moveEverythingHideWindowHotkey: Hotkey?
     var moveEverythingNameWindowHotkey: Hotkey?
@@ -332,6 +362,7 @@ struct Settings: Codable {
             moveEverythingITermBadgeFromTitle: true,
             moveEverythingITermTitleFromBadge: true,
             moveEverythingITermTitleAllCaps: false,
+            moveEverythingQuickViewVerticalMode: .padded,
             controlCenterFrameX: nil,
             controlCenterFrameY: nil,
             controlCenterFrameWidth: nil,
@@ -395,6 +426,7 @@ struct Settings: Codable {
         moveEverythingITermBadgeFromTitle: Bool = false,
         moveEverythingITermTitleFromBadge: Bool = true,
         moveEverythingITermTitleAllCaps: Bool = false,
+        moveEverythingQuickViewVerticalMode: MoveEverythingQuickViewVerticalMode = .padded,
         controlCenterFrameX: Double? = nil,
         controlCenterFrameY: Double? = nil,
         controlCenterFrameWidth: Double? = nil,
@@ -455,6 +487,7 @@ struct Settings: Codable {
         self.moveEverythingITermBadgeFromTitle = moveEverythingITermBadgeFromTitle
         self.moveEverythingITermTitleFromBadge = moveEverythingITermTitleFromBadge
         self.moveEverythingITermTitleAllCaps = moveEverythingITermTitleAllCaps
+        self.moveEverythingQuickViewVerticalMode = moveEverythingQuickViewVerticalMode
         self.controlCenterFrameX = controlCenterFrameX
         self.controlCenterFrameY = controlCenterFrameY
         self.controlCenterFrameWidth = controlCenterFrameWidth
@@ -526,6 +559,7 @@ struct Settings: Codable {
         case moveEverythingHideWindowHotkey
         case moveEverythingNameWindowHotkey
         case moveEverythingQuickViewHotkey
+        case moveEverythingQuickViewVerticalMode
         case moveEverythingUndoWindowMovementHotkey
         case moveEverythingRedoWindowMovementHotkey
     }
@@ -667,6 +701,10 @@ struct Settings: Codable {
             Bool.self,
             forKey: .moveEverythingITermTitleAllCaps
         ) ?? false
+        moveEverythingQuickViewVerticalMode = try container.decodeIfPresent(
+            MoveEverythingQuickViewVerticalMode.self,
+            forKey: .moveEverythingQuickViewVerticalMode
+        ) ?? .padded
         controlCenterFrameX = try container.decodeIfPresent(Double.self, forKey: .controlCenterFrameX)
         controlCenterFrameY = try container.decodeIfPresent(Double.self, forKey: .controlCenterFrameY)
         controlCenterFrameWidth = try container.decodeIfPresent(Double.self, forKey: .controlCenterFrameWidth)
@@ -751,6 +789,7 @@ struct Settings: Codable {
         try container.encode(moveEverythingITermBadgeFromTitle, forKey: .moveEverythingITermBadgeFromTitle)
         try container.encode(moveEverythingITermTitleFromBadge, forKey: .moveEverythingITermTitleFromBadge)
         try container.encode(moveEverythingITermTitleAllCaps, forKey: .moveEverythingITermTitleAllCaps)
+        try container.encode(moveEverythingQuickViewVerticalMode, forKey: .moveEverythingQuickViewVerticalMode)
         try container.encodeIfPresent(controlCenterFrameX, forKey: .controlCenterFrameX)
         try container.encodeIfPresent(controlCenterFrameY, forKey: .controlCenterFrameY)
         try container.encodeIfPresent(controlCenterFrameWidth, forKey: .controlCenterFrameWidth)

@@ -424,6 +424,25 @@ struct YAMLConfigCodec {
                             lineNumber: line.number,
                             field: "moveEverythingQuickViewHotkey"
                         )
+                    case "moveEverythingQuickViewVerticalMode":
+                        let rawMode = parseScalar(effectiveValue)
+                            .trimmingCharacters(in: .whitespacesAndNewlines)
+                            .lowercased()
+                        let mode: Settings.MoveEverythingQuickViewVerticalMode
+                        switch rawMode {
+                        case "fullheight":
+                            mode = .fullHeight
+                        case "fromcursor":
+                            mode = .fromCursor
+                        case "padded":
+                            mode = .padded
+                        default:
+                            throw ConfigParseError.invalidValue(
+                                line.number,
+                                "moveEverythingQuickViewVerticalMode must be one of: fullHeight, fromCursor, padded"
+                            )
+                        }
+                        config.settings.moveEverythingQuickViewVerticalMode = mode
                     case "moveEverythingUndoWindowMovementHotkey":
                         config.settings.moveEverythingUndoWindowMovementHotkey = try parseHotkey(
                             effectiveValue,
@@ -700,6 +719,7 @@ struct YAMLConfigCodec {
         lines.append("  moveEverythingHideWindowHotkey: \(encodeHotkey(normalized.settings.moveEverythingHideWindowHotkey))")
         lines.append("  moveEverythingNameWindowHotkey: \(encodeHotkey(normalized.settings.moveEverythingNameWindowHotkey))")
         lines.append("  moveEverythingQuickViewHotkey: \(encodeHotkey(normalized.settings.moveEverythingQuickViewHotkey))")
+        lines.append("  moveEverythingQuickViewVerticalMode: \(normalized.settings.moveEverythingQuickViewVerticalMode.rawValue)  # fullHeight | fromCursor | padded")
         lines.append("")
         lines.append("# ── Shortcuts ───────────────────────────────────────────────────")
         lines.append("# Each shortcut has a hotkey and one or more placement steps.")
