@@ -143,6 +143,7 @@ final class AppState {
                             self.moveEverythingDontMoveVibeGrid = false
                             self.windowManager.setMoveEverythingDontMoveVibeGrid(false)
                         }
+                        self.windowManager.setMoveEverythingPinMode(false)
                     }
                     self.moveEverythingModeWasActive = isActive
                 }
@@ -996,6 +997,10 @@ final class AppState {
 
     func moveEverythingPinnedKeys() -> Set<String> {
         windowManager.moveEverythingPinnedKeys()
+    }
+
+    func setMoveEverythingPinMode(enabled: Bool) {
+        windowManager.setMoveEverythingPinMode(enabled)
     }
 
     func setMoveEverythingNarrowMode(enabled: Bool) {

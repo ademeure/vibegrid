@@ -15,6 +15,7 @@ final class PlacementPreviewOverlayController {
         case moveEverythingHoverOriginal
         case activityActive
         case activityIdle
+        case moveEverythingPinned
 
         var borderColor: NSColor {
             switch self {
@@ -36,6 +37,8 @@ final class PlacementPreviewOverlayController {
                 return NSColor.systemGreen.withAlphaComponent(0.14)
             case .activityIdle:
                 return NSColor.systemRed.withAlphaComponent(0.14)
+            case .moveEverythingPinned:
+                return NSColor.systemYellow.withAlphaComponent(0.5)
             }
         }
 
@@ -59,6 +62,8 @@ final class PlacementPreviewOverlayController {
                 return NSColor.systemGreen.withAlphaComponent(0.032)
             case .activityIdle:
                 return NSColor.systemRed.withAlphaComponent(0.032)
+            case .moveEverythingPinned:
+                return NSColor.systemYellow.withAlphaComponent(0.13)
             }
         }
     }
@@ -212,7 +217,8 @@ final class PlacementPreviewOverlayController {
         case .preview:
             window.level = .statusBar
         case .moveEverything, .moveEverythingSelection, .moveEverythingHover,
-             .moveEverythingHoverSelectionBlend, .moveEverythingHoverBottom, .moveEverythingHoverOriginal:
+             .moveEverythingHoverSelectionBlend, .moveEverythingHoverBottom, .moveEverythingHoverOriginal,
+             .moveEverythingPinned:
             window.level = .floating
         case .activityActive, .activityIdle:
             window.level = .normal

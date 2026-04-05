@@ -501,6 +501,9 @@ function receiveState(payload) {
   state.configParseError = typeof payload?.configParseError === "string" ? payload.configParseError : "";
   state.launchAtLogin = normalizeLaunchAtLoginState(payload?.launchAtLogin);
   state.moveEverythingActive = Boolean(payload?.moveEverythingActive);
+  if (!state.moveEverythingActive && state.moveEverythingPinMode) {
+    state.moveEverythingPinMode = false;
+  }
   state.controlCenterFocused = Boolean(payload?.controlCenterFocused);
   state.moveEverythingControlCenterFocused = Boolean(payload?.moveEverythingControlCenterFocused);
   state.moveEverythingAlwaysOnTop = resolveMoveEverythingRuntimeToggleValue(
@@ -1556,6 +1559,7 @@ function updateMoveEverythingDontMoveVibeGrid(enabled) {
 
 function toggleMoveEverythingPinMode() {
   state.moveEverythingPinMode = !state.moveEverythingPinMode;
+  sendToNative("setMoveEverythingPinMode", { enabled: state.moveEverythingPinMode });
   syncMoveEverythingPinModeButton();
   pubsub.publish("moveEverything");
 }
@@ -1563,6 +1567,10 @@ function toggleMoveEverythingPinMode() {
 function syncMoveEverythingPinModeButton() {
   if (ids.moveEverythingPinModeBtn) {
     ids.moveEverythingPinModeBtn.classList.toggle("active", state.moveEverythingPinMode);
+  }
+  const pinCCToggle = document.querySelector(".move-everything-pin-cc-toggle");
+  if (pinCCToggle) {
+    pinCCToggle.classList.toggle("pin-mode-visible", state.moveEverythingPinMode);
   }
 }
 

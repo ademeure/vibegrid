@@ -145,6 +145,8 @@ final class WindowManagerEngine: WindowManagerEngineProtocol {
     var moveEverythingMoveToBottom = false
     var moveEverythingDontMoveVibeGrid = false
     var moveEverythingPinnedWindowKeys: Set<String> = []
+    var moveEverythingPinMode = false
+    var moveEverythingPinnedOverlaysByKey: [String: PlacementPreviewOverlayController] = [:]
     var moveEverythingNarrowMode = false
     var moveEverythingFallbackStyleHiddenWindowKeys: Set<String> = []
     var moveEverythingLastDirectActionErrorMessage: String?

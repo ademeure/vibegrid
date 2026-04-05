@@ -48,6 +48,7 @@ protocol WindowManagerEngineProtocol: AnyObject {
     func pinMoveEverythingWindow(withKey key: String)
     func unpinMoveEverythingWindow(withKey key: String)
     func moveEverythingPinnedKeys() -> Set<String>
+    func setMoveEverythingPinMode(_ enabled: Bool)
     func setMoveEverythingNarrowMode(_ enabled: Bool)
     func setMoveEverythingHoveredWindow(withKey key: String?) -> Bool
 }

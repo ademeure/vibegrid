@@ -439,6 +439,10 @@ final class UIBridge: NSObject, WKScriptMessageHandler {
             let enabled = (body["payload"] as? [String: Any])?["enabled"] as? Bool ?? false
             appState.setMoveEverythingNarrowMode(enabled: enabled)
 
+        case "setMoveEverythingPinMode":
+            let enabled = (body["payload"] as? [String: Any])?["enabled"] as? Bool ?? false
+            appState.setMoveEverythingPinMode(enabled: enabled)
+
         case "pinMoveEverythingWindow":
             let key = ((body["payload"] as? [String: Any])?["key"] as? String)?
                 .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""

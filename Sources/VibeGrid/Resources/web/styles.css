@@ -779,6 +779,11 @@ input[type="number"] {
 
 .move-everything-pin-cc-toggle {
   margin-left: auto;
+  display: none;
+}
+
+.move-everything-pin-cc-toggle.pin-mode-visible {
+  display: flex;
 }
 
 .move-everything-pin-mode-btn.active {
