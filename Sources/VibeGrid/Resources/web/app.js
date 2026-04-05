@@ -2670,7 +2670,9 @@ function stripMoveEverythingStatusMarkersForDisplay(rawTitle, windowItem) {
     }
 
     if (!stripped) {
-      // Balanced-bracket handling for nested brackets like [[mux] move focus]
+      // Unwrap one level of outer brackets when nesting is present.
+      // e.g. [[mux] move focus] → [mux] move focus
+      // Do NOT strip arbitrary [brackets] — only known markers above.
       const trimmed = current.trimStart();
       if (trimmed.startsWith("[")) {
         let depth = 0;
@@ -2685,21 +2687,11 @@ function stripMoveEverythingStatusMarkersForDisplay(rawTitle, windowItem) {
             if (depth === 0) { end = j; break; }
           }
         }
-        if (end > 0) {
-          if (hasNested) {
-            // Nested: unwrap outer [] only → [[mux] focus] becomes [mux] focus
-            current = (trimmed.slice(1, end) + trimmed.slice(end + 1)).trimStart();
-            break; // inner content is real title, stop stripping
-          } else {
-            // Simple marker like [ACTIVE]: strip entirely
-            const next = trimmed.slice(end + 1).trimStart();
-            if (next !== current) {
-              current = next;
-              stripped = true;
-            }
-          }
+        if (end > 0 && hasNested) {
+          current = (trimmed.slice(1, end) + trimmed.slice(end + 1)).trimStart();
         }
       }
+      break; // no known marker matched — stop stripping
     }
 
     if (!stripped) {
