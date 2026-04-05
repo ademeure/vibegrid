@@ -1295,6 +1295,8 @@ extension WindowManagerEngine {
         ) -> [MoveEverythingManagedWindow] {
             let activityTimes = iTermLastActiveAtBySnapshotKey
             let focusTimes = windowLastGenuineFocusAt
+            let repoGroups = iTermRepositoryGroupBySnapshotKey
+            let groupByRepo = config.settings.moveEverythingITermGroupByRepository
             return windows.sorted { left, right in
                 let leftIsITerm = moveEverythingManagedWindowLooksLikeITerm(left)
                 let rightIsITerm = moveEverythingManagedWindowLooksLikeITerm(right)
@@ -1302,8 +1304,20 @@ extension WindowManagerEngine {
                 if leftIsITerm != rightIsITerm {
                     return leftIsITerm
                 }
-                // Among iTerm windows, sort by last activity time (most recent first)
+                // Among iTerm windows: group by repository first (when enabled),
+                // then sort by last activity time within each group
                 if leftIsITerm && rightIsITerm {
+                    if groupByRepo {
+                        let leftRepo = repoGroups[left.key] ?? ""
+                        let rightRepo = repoGroups[right.key] ?? ""
+                        if leftRepo != rightRepo {
+                            // Windows with a known repo come before unknown ones
+                            if leftRepo.isEmpty != rightRepo.isEmpty {
+                                return !leftRepo.isEmpty
+                            }
+                            return leftRepo.localizedStandardCompare(rightRepo) == .orderedAscending
+                        }
+                    }
                     let leftTime = activityTimes[left.key]?.timeIntervalSinceReferenceDate ?? 0
                     let rightTime = activityTimes[right.key]?.timeIntervalSinceReferenceDate ?? 0
                     if leftTime != rightTime {
@@ -1351,6 +1365,15 @@ extension WindowManagerEngine {
             return rankByKey
         }
         func moveEverythingRetileFramesOrderedByRecency(_ frames: [CGRect]) -> [CGRect] {
+            let retileOrder = config.settings.moveEverythingRetileOrder
+            switch retileOrder {
+            case .innermostFirst:
+                return moveEverythingRetileFramesOrderedFromCenter(frames)
+            case .leftToRight:
+                return moveEverythingRetileFramesOrderedLeftToRight(frames)
+            }
+        }
+        private func moveEverythingRetileFramesOrderedLeftToRight(_ frames: [CGRect]) -> [CGRect] {
             // Cocoa coordinates: Y increases upward. Sort column-first:
             // left-to-right, then top-to-bottom within each column.
             frames.sorted { left, right in
@@ -1364,6 +1387,33 @@ extension WindowManagerEngine {
                     return left.maxX < right.maxX
                 }
                 return left.maxX < right.maxX
+            }
+        }
+        private func moveEverythingRetileFramesOrderedFromCenter(_ frames: [CGRect]) -> [CGRect] {
+            // Sort frames from center outward: the most important/active window
+            // gets the center position, radiating outward.
+            guard !frames.isEmpty else { return frames }
+            let allMinX = frames.map(\.minX).min() ?? 0
+            let allMaxX = frames.map(\.maxX).max() ?? 0
+            let allMinY = frames.map(\.minY).min() ?? 0
+            let allMaxY = frames.map(\.maxY).max() ?? 0
+            let centerX = (allMinX + allMaxX) / 2
+            let centerY = (allMinY + allMaxY) / 2
+            return frames.sorted { left, right in
+                let leftCenterX = left.midX
+                let leftCenterY = left.midY
+                let rightCenterX = right.midX
+                let rightCenterY = right.midY
+                let leftDist = abs(leftCenterX - centerX) + abs(leftCenterY - centerY)
+                let rightDist = abs(rightCenterX - centerX) + abs(rightCenterY - centerY)
+                if abs(leftDist - rightDist) > 1 {
+                    return leftDist < rightDist
+                }
+                // Tiebreaker: left-to-right
+                if abs(left.minX - right.minX) > 1 {
+                    return left.minX < right.minX
+                }
+                return left.minY > right.minY
             }
         }
         func undoLastMoveEverythingRetile() -> Bool {
@@ -4349,6 +4399,11 @@ extension WindowManagerEngine {
                 return false
             }
 
+            // Allow override (e.g. mux kill for tmux sessions) before default AX close
+            if let override = onCloseWindowOverride, override(managedWindow.key) {
+                return true
+            }
+
             if managedWindow.pid == ProcessInfo.processInfo.processIdentifier,
                let ownWindow = ownWindow(for: managedWindow) {
                 ownWindow.performClose(nil)
@@ -4423,6 +4478,19 @@ extension WindowManagerEngine {
             guard let focusedWindow = focusedWindow() else {
                 return false
             }
+
+            // Check for mux session override via key lookup
+            if let override = onCloseWindowOverride {
+                var pid: pid_t = 0
+                AXUIElementGetPid(focusedWindow, &pid)
+                if let windowNumber = resolvedAXWindowNumber(for: focusedWindow) {
+                    let key = "\(pid)-\(windowNumber)"
+                    if override(key) {
+                        return true
+                    }
+                }
+            }
+
             return closeAccessibilityWindow(focusedWindow)
         }
         func hideFocusedWindowOutsideMoveEverythingMode() -> Bool {

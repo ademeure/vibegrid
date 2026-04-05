@@ -120,6 +120,14 @@ final class AppState {
         windowManager.isMoveEverythingAlwaysOnTopEnabledProvider = { [weak self] in
             self?.moveEverythingAlwaysOnTop ?? false
         }
+        windowManager.onCloseWindowOverride = { [weak self] key in
+            guard let self,
+                  let sessionName = self.iTermSessionNameCache[key],
+                  AppState.isMuxSessionName(sessionName) else {
+                return false
+            }
+            return AppState.muxKill(sessionName: sessionName)
+        }
         windowManager.onMoveEverythingModeChanged = { [weak self] isActive in
             DispatchQueue.main.async {
                 guard let self else {
@@ -584,6 +592,120 @@ final class AppState {
     @discardableResult
     func closeMoveEverythingWindow(withKey key: String) -> Bool {
         windowManager.closeMoveEverythingWindow(withKey: key)
+    }
+
+    /// Matches mux session naming convention: machine-number[-name] (e.g. "local-0-dev", "neb-1-train").
+    static func isMuxSessionName(_ name: String) -> Bool {
+        name.range(of: #"^[a-zA-Z][a-zA-Z0-9]*-\d+"#, options: .regularExpression) != nil
+    }
+
+    /// Extract a repository group name from iTerm window metadata.
+    /// Checks session name, badge text, window title, and iTerm window name
+    /// for path-like patterns (e.g. "~/github/vibegrid") or known naming conventions.
+    static func extractRepositoryGroup(
+        sessionName: String?,
+        badgeText: String?,
+        windowTitle: String?,
+        iTermWindowName: String?
+    ) -> String? {
+        // Try each candidate in priority order
+        let candidates = [sessionName, badgeText, windowTitle, iTermWindowName]
+            .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        for candidate in candidates {
+            if let repo = extractRepoFromString(candidate) {
+                return repo
+            }
+        }
+        return nil
+    }
+
+    private static func extractRepoFromString(_ text: String) -> String? {
+        // 1. Mux session name: "machine-number-reponame" → "reponame"
+        if isMuxSessionName(text) {
+            let parts = text.split(separator: "-", maxSplits: 2)
+            if parts.count >= 3 {
+                return String(parts[2...].joined(separator: "-")).lowercased()
+            }
+        }
+
+        // 2. Path-like pattern: extract last meaningful component
+        //    Handles ~/github/repo, /Users/x/github/repo, ~/repo, repo — path/to/dir
+        let pathPattern = #"(?:^|[\s—\-|:])(?:~|/\w[\w/]*?)/([\w][\w.\-]*?)(?:\s|$|—|\||:)"#
+        if let match = text.range(of: pathPattern, options: .regularExpression) {
+            let matchStr = String(text[match])
+            // Extract the last path component
+            let cleaned = matchStr.trimmingCharacters(in: .whitespacesAndNewlines)
+                .trimmingCharacters(in: CharacterSet(charactersIn: "—|: "))
+            let components = cleaned.split(separator: "/").map(String.init)
+            if let last = components.last, !last.isEmpty {
+                return last.lowercased()
+            }
+        }
+
+        // 3. Simple path: if the whole string looks like a path
+        if text.contains("/") {
+            let components = text.split(separator: "/").map(String.init)
+            if let last = components.last?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !last.isEmpty,
+               last.range(of: #"^[\w][\w.\-]*$"#, options: .regularExpression) != nil {
+                return last.lowercased()
+            }
+        }
+
+        // 4. Claude Code session title often shows: "reponame (claude)" or just "reponame"
+        let claudePattern = #"^([\w][\w.\-]*)\s*(?:\(claude\)|\(codex\))?\s*$"#
+        if let match = text.range(of: claudePattern, options: [.regularExpression, .caseInsensitive]) {
+            let repo = String(text[match])
+                .replacingOccurrences(of: #"\s*\((?:claude|codex)\)\s*$"#, with: "", options: .regularExpression)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            if !repo.isEmpty, repo.count > 1 {
+                return repo.lowercased()
+            }
+        }
+
+        return nil
+    }
+
+    /// Run `mux kill <sessionName>` to cleanly terminate a mux session and its iTerm window.
+    @discardableResult
+    static func muxKill(sessionName: String) -> Bool {
+        guard let muxBin = findMuxBinary() else {
+            NSLog("VibeGrid: mux binary not found, falling back to AX close")
+            return false
+        }
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: muxBin)
+        process.arguments = ["kill", sessionName]
+        do {
+            try process.run()
+            process.waitUntilExit()
+            if process.terminationStatus == 0 {
+                NSLog("VibeGrid: mux kill succeeded for session %@", sessionName)
+                return true
+            } else {
+                NSLog("VibeGrid: mux kill exited with status %d for session %@", process.terminationStatus, sessionName)
+                return false
+            }
+        } catch {
+            NSLog("VibeGrid: mux kill failed for session %@: %@", sessionName, error.localizedDescription)
+            return false
+        }
+    }
+
+    private static func findMuxBinary() -> String? {
+        // Same search order as the Python worker
+        let candidates = [
+            "/usr/local/bin/mux",
+            NSString("~/github/mux/mux").expandingTildeInPath,
+        ]
+        for path in candidates {
+            if FileManager.default.isExecutableFile(atPath: path) {
+                return path
+            }
+        }
+        return nil
     }
 
     @discardableResult
@@ -1453,6 +1575,35 @@ final class AppState {
                 self.iTermActivityProfileCache = newProfileCache
                 self.iTermRuntimeWindowIDBySnapshotKey = newRuntimeWindowIDBySnapshotKey
                 self.windowManager.iTermLastActiveAtBySnapshotKey = self.iTermLastActiveAt
+
+                // Compute repository groups from session/badge/title metadata
+                var repoGroups: [String: String] = [:]
+                for (key, sessionName) in newSessionNameCache {
+                    if let repo = AppState.extractRepositoryGroup(
+                        sessionName: sessionName,
+                        badgeText: newBadgeCache[key],
+                        windowTitle: nil,
+                        iTermWindowName: nil
+                    ) {
+                        repoGroups[key] = repo
+                    }
+                }
+                // Also check windows not in session cache but in badge/title
+                for snapshot in currentInventory.visible + currentInventory.hidden {
+                    guard repoGroups[snapshot.key] == nil else { continue }
+                    let appName = snapshot.appName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+                    guard appName.contains("iterm") else { continue }
+                    if let repo = AppState.extractRepositoryGroup(
+                        sessionName: newSessionNameCache[snapshot.key],
+                        badgeText: newBadgeCache[snapshot.key],
+                        windowTitle: snapshot.title,
+                        iTermWindowName: snapshot.iTermWindowName
+                    ) {
+                        repoGroups[snapshot.key] = repo
+                    }
+                }
+                self.windowManager.iTermRepositoryGroupBySnapshotKey = repoGroups
+
                 WindowListDebugLogger.log(
                     "iterm-activity",
                     "poll done generation=\(pollGeneration): matched=\(newCache.keys.sorted()) " +

@@ -4,6 +4,7 @@ import CoreGraphics
 protocol WindowManagerEngineProtocol: AnyObject {
     var isMoveEverythingAlwaysOnTopEnabledProvider: (() -> Bool)? { get set }
     var onMoveEverythingModeChanged: ((Bool) -> Void)? { get set }
+    var onCloseWindowOverride: ((_ key: String) -> Bool)? { get set }
     var onMoveEverythingInventoryRefreshed: (() -> Void)? { get set }
     var onMoveEverythingNameWindowRequested: ((String) -> Void)? { get set }
     var onMoveEverythingQuickViewRequested: (() -> Void)? { get set }
@@ -11,6 +12,7 @@ protocol WindowManagerEngineProtocol: AnyObject {
     var isMoveEverythingActive: Bool { get }
     var moveEverythingHoveredWindowKey: String? { get }
     var iTermLastActiveAtBySnapshotKey: [String: Date] { get set }
+    var iTermRepositoryGroupBySnapshotKey: [String: String] { get set }
 
     func applyConfig(_ config: AppConfig)
     func requestAccessibility(prompt: Bool) -> Bool

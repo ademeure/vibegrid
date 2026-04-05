@@ -365,7 +365,18 @@
                 Window List Refresh (sec)
                 <input id="moveEverythingBackgroundRefreshIntervalSetting" type="number" min="0.5" max="30" step="0.1" />
               </label>
+              <label>
+                Retile Order
+                <select id="moveEverythingRetileOrderSetting">
+                  <option value="leftToRight">Left to Right</option>
+                  <option value="innermostFirst">Innermost First</option>
+                </select>
+              </label>
             </div>
+            <label class="toggle-line move-everything-modal-toggle" style="margin-top: 8px;">
+              <input id="moveEverythingITermGroupByRepositorySetting" type="checkbox" />
+              Group iTerm windows by repository when retiling
+            </label>
           </div>
           <div class="settings-section">
             <h4>iTerm2 Integration</h4>

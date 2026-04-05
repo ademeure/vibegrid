@@ -213,6 +213,8 @@ const ids = {
   moveEverythingExcludePinnedWindowsSetting: document.getElementById("moveEverythingExcludePinnedWindowsSetting"),
   moveEverythingMiniRetileWidthPercentSetting: document.getElementById("moveEverythingMiniRetileWidthPercentSetting"),
   moveEverythingBackgroundRefreshIntervalSetting: document.getElementById("moveEverythingBackgroundRefreshIntervalSetting"),
+  moveEverythingRetileOrderSetting: document.getElementById("moveEverythingRetileOrderSetting"),
+  moveEverythingITermGroupByRepositorySetting: document.getElementById("moveEverythingITermGroupByRepositorySetting"),
   moveEverythingITermRecentActivityTimeoutSetting: document.getElementById("moveEverythingITermRecentActivityTimeoutSetting"),
   moveEverythingITermRecentActivityBufferSetting: document.getElementById("moveEverythingITermRecentActivityBufferSetting"),
   moveEverythingITermRecentActivityActiveTextSetting: document.getElementById("moveEverythingITermRecentActivityActiveTextSetting"),
@@ -1044,6 +1046,12 @@ function renderMoveEverythingModal() {
       30
     );
   }
+  if (ids.moveEverythingRetileOrderSetting) {
+    ids.moveEverythingRetileOrderSetting.value = settings.moveEverythingRetileOrder || "leftToRight";
+  }
+  if (ids.moveEverythingITermGroupByRepositorySetting) {
+    ids.moveEverythingITermGroupByRepositorySetting.checked = settings.moveEverythingITermGroupByRepository !== false;
+  }
   if (ids.moveEverythingITermRecentActivityTimeoutSetting) {
     ids.moveEverythingITermRecentActivityTimeoutSetting.value = clampNumber(
       Number(settings.moveEverythingITermRecentActivityTimeout ?? 1),
@@ -1868,6 +1876,12 @@ function updateMoveEverythingSettings() {
       0.5,
       30
     );
+  }
+  if (ids.moveEverythingRetileOrderSetting) {
+    settings.moveEverythingRetileOrder = ids.moveEverythingRetileOrderSetting.value || "leftToRight";
+  }
+  if (ids.moveEverythingITermGroupByRepositorySetting) {
+    settings.moveEverythingITermGroupByRepository = Boolean(ids.moveEverythingITermGroupByRepositorySetting.checked);
   }
   if (ids.moveEverythingITermRecentActivityTimeoutSetting) {
     settings.moveEverythingITermRecentActivityTimeout = clampNumber(
@@ -5572,6 +5586,18 @@ function normalizeMoveEverythingOverlayMode(value) {
   return defaultMoveEverythingOverlayMode;
 }
 
+function normalizeMoveEverythingRetileOrder(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  switch (normalized) {
+    case "lefttoright":
+      return "leftToRight";
+    case "innermostfirst":
+      return "innermostFirst";
+    default:
+      return "leftToRight";
+  }
+}
+
 function normalizeMoveEverythingMoveOnSelectionMode(value) {
   const normalized = String(value || "").trim();
   switch (normalized.toLowerCase()) {
@@ -5642,6 +5668,10 @@ function normalizeSettings(settings) {
         source.moveEverythingExcludeControlCenter ??
         defaults.moveEverythingExcludePinnedWindows
     ),
+    moveEverythingRetileOrder: normalizeMoveEverythingRetileOrder(
+      source.moveEverythingRetileOrder ?? defaults.moveEverythingRetileOrder
+    ),
+    moveEverythingITermGroupByRepository: source.moveEverythingITermGroupByRepository !== false,
     moveEverythingMiniRetileWidthPercent: clampNumber(
       Number(source.moveEverythingMiniRetileWidthPercent ?? defaults.moveEverythingMiniRetileWidthPercent),
       5,
@@ -6006,6 +6036,8 @@ function createDefaultConfig() {
       moveEverythingStickyHoverStealFocus: false,
       moveEverythingCloseHideHotkeysOutsideMode: false,
       moveEverythingExcludePinnedWindows: false,
+      moveEverythingRetileOrder: "leftToRight",
+      moveEverythingITermGroupByRepository: true,
       moveEverythingMiniRetileWidthPercent: 25,
       moveEverythingBackgroundRefreshInterval: 5,
       moveEverythingITermRecentActivityTimeout: 1,
@@ -6710,6 +6742,8 @@ function wireEvents() {
   on(ids.moveEverythingStickyHoverStealFocusSetting, "change", updateMoveEverythingSettings);
   on(ids.moveEverythingExcludePinnedWindowsSetting, "change", updateMoveEverythingSettings);
   on(ids.moveEverythingMiniRetileWidthPercentSetting, "change", updateMoveEverythingSettings);
+  on(ids.moveEverythingRetileOrderSetting, "change", updateMoveEverythingSettings);
+  on(ids.moveEverythingITermGroupByRepositorySetting, "change", updateMoveEverythingSettings);
   on(ids.moveEverythingBackgroundRefreshIntervalSetting, "change", updateMoveEverythingSettings);
   on(ids.moveEverythingBackgroundRefreshIntervalSetting, "input", updateMoveEverythingSettings);
   on(ids.moveEverythingITermRecentActivityTimeoutSetting, "change", updateMoveEverythingSettings);

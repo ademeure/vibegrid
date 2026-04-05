@@ -163,6 +163,32 @@ struct Settings: Codable {
         case timed
     }
 
+    enum MoveEverythingRetileOrder: String, Codable {
+        case leftToRight
+        case innermostFirst
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.singleValueContainer()
+            let rawValue = (try? container.decode(String.self))?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased() ?? ""
+
+            switch rawValue {
+            case "lefttoright":
+                self = .leftToRight
+            case "innermostfirst":
+                self = .innermostFirst
+            default:
+                self = .leftToRight
+            }
+        }
+
+        func encode(to encoder: Encoder) throws {
+            var container = encoder.singleValueContainer()
+            try container.encode(rawValue)
+        }
+    }
+
     enum MoveEverythingMoveOnSelectionMode: String, Codable {
         case never
         case miniControlCenterOnTop
@@ -215,6 +241,8 @@ struct Settings: Codable {
     var moveEverythingStickyHoverStealFocus: Bool
     var moveEverythingCloseHideHotkeysOutsideMode: Bool
     var moveEverythingExcludePinnedWindows: Bool
+    var moveEverythingRetileOrder: MoveEverythingRetileOrder
+    var moveEverythingITermGroupByRepository: Bool
     var moveEverythingMiniRetileWidthPercent: Double
     var moveEverythingBackgroundRefreshInterval: Double
     var moveEverythingITermRecentActivityTimeout: Double
@@ -275,6 +303,8 @@ struct Settings: Codable {
             moveEverythingStickyHoverStealFocus: false,
             moveEverythingCloseHideHotkeysOutsideMode: false,
             moveEverythingExcludePinnedWindows: false,
+            moveEverythingRetileOrder: .leftToRight,
+            moveEverythingITermGroupByRepository: true,
             moveEverythingMiniRetileWidthPercent: 25,
             moveEverythingBackgroundRefreshInterval: 2,
             moveEverythingITermRecentActivityTimeout: 1,
@@ -336,6 +366,8 @@ struct Settings: Codable {
         moveEverythingStickyHoverStealFocus: Bool = false,
         moveEverythingCloseHideHotkeysOutsideMode: Bool = false,
         moveEverythingExcludePinnedWindows: Bool = false,
+        moveEverythingRetileOrder: MoveEverythingRetileOrder = .leftToRight,
+        moveEverythingITermGroupByRepository: Bool = true,
         moveEverythingMiniRetileWidthPercent: Double = 25,
         moveEverythingBackgroundRefreshInterval: Double = 2,
         moveEverythingITermRecentActivityTimeout: Double = 1,
@@ -394,6 +426,8 @@ struct Settings: Codable {
         self.moveEverythingStickyHoverStealFocus = moveEverythingStickyHoverStealFocus
         self.moveEverythingCloseHideHotkeysOutsideMode = moveEverythingCloseHideHotkeysOutsideMode
         self.moveEverythingExcludePinnedWindows = moveEverythingExcludePinnedWindows
+        self.moveEverythingRetileOrder = moveEverythingRetileOrder
+        self.moveEverythingITermGroupByRepository = moveEverythingITermGroupByRepository
         self.moveEverythingMiniRetileWidthPercent = moveEverythingMiniRetileWidthPercent
         self.moveEverythingBackgroundRefreshInterval = moveEverythingBackgroundRefreshInterval
         self.moveEverythingITermRecentActivityTimeout = moveEverythingITermRecentActivityTimeout
@@ -455,6 +489,8 @@ struct Settings: Codable {
         case moveEverythingStickyHoverStealFocus
         case moveEverythingCloseHideHotkeysOutsideMode
         case moveEverythingExcludePinnedWindows
+        case moveEverythingRetileOrder
+        case moveEverythingITermGroupByRepository
         case moveEverythingMiniRetileWidthPercent
         case moveEverythingBackgroundRefreshInterval
         case moveEverythingITermRecentActivityTimeout
@@ -521,6 +557,14 @@ struct Settings: Codable {
             forKey: .moveEverythingCloseHideHotkeysOutsideMode
         ) ?? false
         moveEverythingExcludePinnedWindows = try container.decodeIfPresent(Bool.self, forKey: .moveEverythingExcludePinnedWindows) ?? false
+        moveEverythingRetileOrder = try container.decodeIfPresent(
+            MoveEverythingRetileOrder.self,
+            forKey: .moveEverythingRetileOrder
+        ) ?? .leftToRight
+        moveEverythingITermGroupByRepository = try container.decodeIfPresent(
+            Bool.self,
+            forKey: .moveEverythingITermGroupByRepository
+        ) ?? true
         moveEverythingMiniRetileWidthPercent = try container.decodeIfPresent(Double.self, forKey: .moveEverythingMiniRetileWidthPercent) ?? 25
         moveEverythingBackgroundRefreshInterval = try container.decodeIfPresent(Double.self, forKey: .moveEverythingBackgroundRefreshInterval) ?? 2
         moveEverythingITermRecentActivityTimeout = try container.decodeIfPresent(
@@ -672,6 +716,8 @@ struct Settings: Codable {
             forKey: .moveEverythingCloseHideHotkeysOutsideMode
         )
         try container.encode(moveEverythingExcludePinnedWindows, forKey: .moveEverythingExcludePinnedWindows)
+        try container.encode(moveEverythingRetileOrder, forKey: .moveEverythingRetileOrder)
+        try container.encode(moveEverythingITermGroupByRepository, forKey: .moveEverythingITermGroupByRepository)
         try container.encode(moveEverythingMiniRetileWidthPercent, forKey: .moveEverythingMiniRetileWidthPercent)
         try container.encode(moveEverythingBackgroundRefreshInterval, forKey: .moveEverythingBackgroundRefreshInterval)
         try container.encode(moveEverythingITermRecentActivityTimeout, forKey: .moveEverythingITermRecentActivityTimeout)

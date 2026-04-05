@@ -113,7 +113,11 @@ final class WindowManagerEngine: WindowManagerEngineProtocol {
     var isMoveEverythingActive = false
     var onMoveEverythingModeChanged: ((Bool) -> Void)?
 
+    /// Called before the default AX close. Returns true if the window was handled (e.g. mux kill).
+    var onCloseWindowOverride: ((_ key: String) -> Bool)?
+
     var iTermLastActiveAtBySnapshotKey: [String: Date] = [:]
+    var iTermRepositoryGroupBySnapshotKey: [String: String] = [:]
     var windowLastGenuineFocusAt: [String: Date] = [:]
     var shortcutsByID: [String: ShortcutConfig] = [:]
     var registeredHotkeyActionsByID: [String: RegisteredHotkeyAction] = [:]
