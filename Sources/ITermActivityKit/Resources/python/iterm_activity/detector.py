@@ -122,13 +122,19 @@ class Detector:
             ):
                 next_state.meaningful_change_streak = 0
                 detail = self._summarize_semantic_line(recent_input_rule_match.line)
-                next_state.active_hold = ActiveHold(
-                    reason=f"input:{recent_input_rule_match.id}",
-                    detail=detail,
-                    expires_at=now + (active_hold_override if active_hold_override is not None else profile.activity_tuning.input_hold_seconds),
+                next_state.active_hold = None
+                status = "idle"
+                reason = f"input:{recent_input_rule_match.id}"
+            elif meaningful_body_changed and recent_input_rule_match:
+                # Body changed while user is at a prompt — likely just typing
+                next_state.meaningful_change_streak = 0
+                next_state.active_hold = None
+                status = "idle"
+                reason = "input-body-change"
+                detail = self._semantic_line_change_summary(
+                    previous_state.last_semantic_lines,
+                    semantic_lines,
                 )
-                status = "active"
-                reason = next_state.active_hold.reason
             elif meaningful_body_changed:
                 next_state.meaningful_change_streak += 1
                 if (

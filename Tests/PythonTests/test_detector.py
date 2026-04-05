@@ -457,7 +457,7 @@ class DetectorTests(unittest.TestCase):
         self.assertEqual(result["iterm-window-1"].status, "active")
         self.assertEqual(result["iterm-window-1"].profile_id, "codex")
 
-    def test_codex_prompt_edit_activates_without_tty_output(self) -> None:
+    def test_codex_prompt_edit_stays_idle(self) -> None:
         detector = Detector()
         detector.resolve([
             make_poll_entry(
@@ -483,10 +483,10 @@ class DetectorTests(unittest.TestCase):
                 ],
             )
         ])
-        self.assertEqual(result["iterm-window-1"].status, "active")
+        self.assertEqual(result["iterm-window-1"].status, "idle")
         self.assertEqual(result["iterm-window-1"].reason, "input:prompt-edit")
 
-    def test_claude_prompt_edit_activates_without_tty_output(self) -> None:
+    def test_claude_prompt_edit_stays_idle(self) -> None:
         detector = Detector()
         detector.resolve([
             make_poll_entry(
@@ -516,8 +516,88 @@ class DetectorTests(unittest.TestCase):
                 ],
             )
         ])
-        self.assertEqual(result["iterm-window-1"].status, "active")
+        self.assertEqual(result["iterm-window-1"].status, "idle")
         self.assertEqual(result["iterm-window-1"].reason, "input:prompt-edit")
+
+    def test_continued_typing_at_prompt_stays_idle(self) -> None:
+        """Each keystroke at the prompt triggers a new input rule match — all stay idle."""
+        detector = Detector()
+        # Baseline: user at empty prompt
+        detector.resolve([
+            make_poll_entry(
+                tty_active=False,
+                session_name="✳ Claude Code",
+                presentation_name="✳ Claude Code",
+                command_line="claude --dangerously-skip-permissions",
+                non_empty_lines_from_bottom=claude_window(
+                    semantic_body_from_bottom=["❯ "],
+                ),
+            )
+        ])
+        # User starts typing — input rule triggers (idle)
+        second = detector.resolve([
+            make_poll_entry(
+                tty_active=False,
+                session_name="✳ Claude Code",
+                presentation_name="✳ Claude Code",
+                command_line="claude --dangerously-skip-permissions",
+                non_empty_lines_from_bottom=claude_window(
+                    semantic_body_from_bottom=["❯ explain the cohere mismatch"],
+                ),
+            )
+        ])
+        # User keeps typing - new input rule match (different line text)
+        third = detector.resolve([
+            make_poll_entry(
+                tty_active=False,
+                session_name="✳ Claude Code",
+                presentation_name="✳ Claude Code",
+                command_line="claude --dangerously-skip-permissions",
+                non_empty_lines_from_bottom=claude_window(
+                    semantic_body_from_bottom=["❯ explain the cohere mismatch in detail please"],
+                ),
+            )
+        ])
+        self.assertEqual(second["iterm-window-1"].status, "idle")
+        self.assertEqual(second["iterm-window-1"].reason, "input:prompt-edit")
+        self.assertEqual(third["iterm-window-1"].status, "idle")
+        self.assertEqual(third["iterm-window-1"].reason, "input:prompt-edit")
+
+    def test_body_change_while_at_prompt_stays_idle(self) -> None:
+        """If body changes while the prompt is visible (same prompt text), stay idle."""
+        detector = Detector()
+        # Baseline: user at prompt with typed text + some output above
+        detector.resolve([
+            make_poll_entry(
+                tty_active=False,
+                session_name="✳ Claude Code",
+                presentation_name="✳ Claude Code",
+                command_line="claude --dangerously-skip-permissions",
+                non_empty_lines_from_bottom=claude_window(
+                    semantic_body_from_bottom=[
+                        "❯ explain the cohere mismatch",
+                        "Some output line above the prompt",
+                    ],
+                ),
+            )
+        ])
+        # Same prompt text, but output above changes (e.g. buddy animation)
+        result = detector.resolve([
+            make_poll_entry(
+                tty_active=False,
+                session_name="✳ Claude Code",
+                presentation_name="✳ Claude Code",
+                command_line="claude --dangerously-skip-permissions",
+                non_empty_lines_from_bottom=claude_window(
+                    semantic_body_from_bottom=[
+                        "❯ explain the cohere mismatch",
+                        "Some DIFFERENT output line above the prompt",
+                    ],
+                ),
+            )
+        ])
+        self.assertEqual(result["iterm-window-1"].status, "idle")
+        self.assertEqual(result["iterm-window-1"].reason, "input-body-change")
 
     def test_quillnook_buddy_prompt_does_not_trigger_prompt_edit_activity(self) -> None:
         detector = Detector()
