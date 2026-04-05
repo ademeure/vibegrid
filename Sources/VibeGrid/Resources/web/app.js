@@ -2764,8 +2764,14 @@ function resolveMoveEverythingDisplayedWindowTitle(windowItem) {
       return badge;
     }
   }
-  // Use the iTerm session/tmux name if available (e.g. "neb-2-x2" for tmux,
-  // "claude" for presentationName). Falls back to the iTerm API window name.
+  // Prefer the stripped raw AX title — it contains the full context
+  // (e.g. "[global] window overlay") rather than just the bare session name.
+  const rawTitle = String(windowItem?.title || "");
+  const strippedTitle = stripMoveEverythingStatusMarkersForDisplay(rawTitle, windowItem);
+  if (strippedTitle.length && strippedTitle !== "Untitled Window") {
+    return strippedTitle;
+  }
+  // Fall back to session/tmux name or iTerm API window name
   const sessionName = String(windowItem?.iTermSessionName || "").trim();
   if (sessionName.length) {
     return sessionName;
@@ -2774,8 +2780,7 @@ function resolveMoveEverythingDisplayedWindowTitle(windowItem) {
   if (iTermName.length) {
     return iTermName;
   }
-  const rawTitle = String(windowItem?.title || "");
-  return stripMoveEverythingStatusMarkersForDisplay(rawTitle, windowItem);
+  return strippedTitle;
 }
 
 function resolveMoveEverythingWindowSubtitle(windowItem) {
@@ -2798,8 +2803,10 @@ function resolveMoveEverythingWindowSubtitle(windowItem) {
         String(windowItem?.title || ""), windowItem
       ),
     ];
+    const lowerTitle = displayedTitle.toLowerCase();
     for (const candidate of candidates) {
-      if (candidate.length && candidate !== displayedTitle && candidate !== "Untitled Window") {
+      if (candidate.length && candidate !== displayedTitle && candidate !== "Untitled Window"
+          && !lowerTitle.includes(candidate.toLowerCase())) {
         return candidate;
       }
     }
