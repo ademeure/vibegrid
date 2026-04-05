@@ -1776,12 +1776,18 @@ extension WindowManagerEngine {
         }
         func pinMoveEverythingWindow(withKey key: String) {
             moveEverythingPinnedWindowKeys.insert(key)
+            refreshMoveEverythingPinnedOverlays()
         }
         func unpinMoveEverythingWindow(withKey key: String) {
             moveEverythingPinnedWindowKeys.remove(key)
+            refreshMoveEverythingPinnedOverlays()
         }
         func moveEverythingPinnedKeys() -> Set<String> {
             moveEverythingPinnedWindowKeys
+        }
+        func setMoveEverythingPinMode(_ enabled: Bool) {
+            moveEverythingPinMode = enabled
+            refreshMoveEverythingPinnedOverlays()
         }
         func setMoveEverythingNarrowMode(_ enabled: Bool) {
             guard moveEverythingNarrowMode != enabled else {
