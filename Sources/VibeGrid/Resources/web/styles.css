@@ -772,12 +772,15 @@ input[type="number"] {
   align-self: center;
 }
 
+.move-everything-sticky-toggle {
+  margin-left: auto;
+}
+
 .move-everything-native-controls {
   display: flex;
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
-  margin-left: auto;
 }
 
 .move-everything-bulk-btn {
