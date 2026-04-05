@@ -1211,6 +1211,7 @@ extension WindowManagerEngine {
             moveEverythingRunState = runState
             invalidateMoveEverythingResolvedInventoryCache()
             requestMoveEverythingInventoryRefreshIfNeeded(force: true)
+            raiseCenteredPinnedWindows()
             if moveEverythingPinMode {
                 refreshMoveEverythingPinnedOverlays()
             }
@@ -1585,6 +1586,7 @@ extension WindowManagerEngine {
             moveEverythingRunState = runState
             invalidateMoveEverythingResolvedInventoryCache()
             requestMoveEverythingInventoryRefreshIfNeeded(force: true)
+            raiseCenteredPinnedWindows()
             if moveEverythingPinMode {
                 refreshMoveEverythingPinnedOverlays()
             }
@@ -1732,6 +1734,7 @@ extension WindowManagerEngine {
             moveEverythingRunState = runState
             invalidateMoveEverythingResolvedInventoryCache()
             requestMoveEverythingInventoryRefreshIfNeeded(force: true)
+            raiseCenteredPinnedWindows()
             if moveEverythingPinMode {
                 refreshMoveEverythingPinnedOverlays()
             }
@@ -3307,6 +3310,27 @@ extension WindowManagerEngine {
                 return moveEverythingDontMoveVibeGrid
             }
             return moveEverythingPinnedWindowKeys.contains(managedWindow.key)
+        }
+        /// Raise pinned windows that span the center of their screen so they
+        /// appear on top of freshly-retiled/placed windows.  Only windows whose
+        /// frame crosses the screen midpoint are raised — edge-docked pinned
+        /// windows are left alone since they already have reserved space.
+        func raiseCenteredPinnedWindows() {
+            guard let runState = moveEverythingRunState else { return }
+            let screens = sortedScreens()
+            for key in moveEverythingPinnedWindowKeys {
+                guard let window = runState.windows.first(where: { $0.key == key }),
+                      let frame = currentWindowRect(for: window.window),
+                      frame.width > 0, frame.height > 0 else {
+                    continue
+                }
+                let screen = screens.first(where: { $0.frame.intersects(frame) }) ?? NSScreen.main
+                guard let visibleFrame = screen?.visibleFrame else { continue }
+                let midX = visibleFrame.minX + visibleFrame.width / 2
+                guard frame.minX < midX && frame.maxX > midX else { continue }
+                applyAXMessagingTimeout(to: window.window, timeout: axFocusMessagingTimeout)
+                AXUIElementPerformAction(window.window, kAXRaiseAction as CFString)
+            }
         }
         @discardableResult
         func focusMoveEverythingWindow(
