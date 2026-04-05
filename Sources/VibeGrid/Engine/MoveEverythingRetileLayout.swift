@@ -27,6 +27,14 @@ struct MoveEverythingRetileLayout {
             return normalizedAvailable
         }
 
+        // If the window spans both halves of the available area (i.e. it
+        // crosses the center), it's a centered/spanning window — don't
+        // carve out space for it.
+        let midX = normalizedAvailable.minX + normalizedAvailable.width / 2
+        if intersection.minX < midX && intersection.maxX > midX {
+            return normalizedAvailable
+        }
+
         if intersection.minX <= normalizedAvailable.minX + edgeTolerance {
             let minX = min(max(intersection.maxX, normalizedAvailable.minX), normalizedAvailable.maxX)
             let width = normalizedAvailable.maxX - minX
