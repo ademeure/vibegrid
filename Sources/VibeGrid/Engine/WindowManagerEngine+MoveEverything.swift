@@ -1293,8 +1293,8 @@ extension WindowManagerEngine {
         func moveEverythingRetileOrderedWindows(
             from windows: [MoveEverythingManagedWindow]
         ) -> [MoveEverythingManagedWindow] {
-            let recencyRankByKey = moveEverythingRetileRecencyRankByWindowKey(for: windows)
             let activityTimes = iTermLastActiveAtBySnapshotKey
+            let focusTimes = windowLastGenuineFocusAt
             return windows.sorted { left, right in
                 let leftIsITerm = moveEverythingManagedWindowLooksLikeITerm(left)
                 let rightIsITerm = moveEverythingManagedWindowLooksLikeITerm(right)
@@ -1310,11 +1310,13 @@ extension WindowManagerEngine {
                         return leftTime > rightTime
                     }
                 }
-                // Fall back to z-order recency
-                let leftRank = recencyRankByKey[left.key] ?? Int.max
-                let rightRank = recencyRankByKey[right.key] ?? Int.max
-                if leftRank != rightRank {
-                    return leftRank < rightRank
+                // Among non-iTerm windows, sort by last genuine focus (most recent first)
+                if !leftIsITerm && !rightIsITerm {
+                    let leftFocus = focusTimes[left.key]?.timeIntervalSinceReferenceDate ?? 0
+                    let rightFocus = focusTimes[right.key]?.timeIntervalSinceReferenceDate ?? 0
+                    if leftFocus != rightFocus {
+                        return leftFocus > rightFocus
+                    }
                 }
                 return moveEverythingRetileSortPredicate(left, right)
             }
@@ -1349,15 +1351,17 @@ extension WindowManagerEngine {
             return rankByKey
         }
         func moveEverythingRetileFramesOrderedByRecency(_ frames: [CGRect]) -> [CGRect] {
+            // Cocoa coordinates: Y increases upward. Sort column-first:
+            // left-to-right, then top-to-bottom within each column.
             frames.sorted { left, right in
-                if abs(left.minY - right.minY) > 1 {
-                    return left.minY < right.minY
-                }
                 if abs(left.minX - right.minX) > 1 {
                     return left.minX < right.minX
                 }
-                if abs(left.maxY - right.maxY) > 1 {
-                    return left.maxY < right.maxY
+                if abs(left.minY - right.minY) > 1 {
+                    return left.minY > right.minY
+                }
+                if abs(left.maxX - right.maxX) > 1 {
+                    return left.maxX < right.maxX
                 }
                 return left.maxX < right.maxX
             }
@@ -2993,7 +2997,11 @@ extension WindowManagerEngine {
             // changes OS focus as a side-effect. The pre-hover key is restored
             // when hover ends, and normal polling resumes immediately.
             if moveEverythingHoveredWindowKey != nil { return }
-            moveEverythingFocusedWindowKey = moveEverythingFocusedWindowKey(in: runState.windows)
+            let newFocusedKey = moveEverythingFocusedWindowKey(in: runState.windows)
+            if let key = newFocusedKey, key != moveEverythingFocusedWindowKey {
+                windowLastGenuineFocusAt[key] = Date()
+            }
+            moveEverythingFocusedWindowKey = newFocusedKey
         }
         func moveEverythingFocusedWindowKey(in windows: [MoveEverythingManagedWindow]) -> String? {
             if let focusedAXWindow = focusedWindow() {

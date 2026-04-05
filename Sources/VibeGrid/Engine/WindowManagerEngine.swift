@@ -114,6 +114,7 @@ final class WindowManagerEngine: WindowManagerEngineProtocol {
     var onMoveEverythingModeChanged: ((Bool) -> Void)?
 
     var iTermLastActiveAtBySnapshotKey: [String: Date] = [:]
+    var windowLastGenuineFocusAt: [String: Date] = [:]
     var shortcutsByID: [String: ShortcutConfig] = [:]
     var registeredHotkeyActionsByID: [String: RegisteredHotkeyAction] = [:]
 
