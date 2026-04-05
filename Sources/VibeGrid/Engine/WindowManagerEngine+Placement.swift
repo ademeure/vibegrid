@@ -115,7 +115,7 @@ extension WindowManagerEngine {
         }
 
         let isControlCenter = ownFocusedWindow.map(isControlCenterWindow) ?? false
-        let excludeCC = !isControlCenter && !shortcut.ignoreExcludeControlCenter
+        let excludeCC = !isControlCenter && !shortcut.ignoreExcludePinnedWindows
         let targetRect = makeTargetRect(normalizedRect: normalizedRect, on: screen, excludeControlCenter: excludeCC)
         let didMove: Bool
         let movementTarget: HotkeyWindowMovementTarget?
@@ -311,7 +311,7 @@ extension WindowManagerEngine {
             return true
         }
 
-        let ignoreExclude = shortcutsByID[shortcutID]?.ignoreExcludeControlCenter ?? false
+        let ignoreExclude = shortcutsByID[shortcutID]?.ignoreExcludePinnedWindows ?? false
         let targetRect = makeTargetRect(normalizedRect: normalizedRect, on: screen, excludeControlCenter: !ignoreExclude)
         guard setMoveEverythingWindowFrame(managedWindow, cocoaRect: targetRect) else {
             NSLog("VibeGrid: failed to move selected Window List window for shortcut '%@'", shortcutID)
@@ -789,16 +789,18 @@ extension WindowManagerEngine {
         )
 
         var available = screen.visibleFrame
-        if excludeControlCenter, isMoveEverythingActive, config.settings.moveEverythingExcludeControlCenter {
-            let controlCenterFrame = currentControlCenterFrameForMoveEverything()
-            let edgeTolerance: CGFloat = moveEverythingNarrowMode
-                ? max(controlCenterFrame?.width ?? 24, 24)
-                : 24
-            available = MoveEverythingRetileLayout.availableFrame(
-                within: available,
-                excluding: controlCenterFrame,
-                edgeTolerance: edgeTolerance
-            )
+        if excludeControlCenter, isMoveEverythingActive, config.settings.moveEverythingExcludePinnedWindows {
+            let pinnedFrames = allPinnedWindowFrames()
+            for pinnedFrame in pinnedFrames {
+                let edgeTolerance: CGFloat = moveEverythingNarrowMode
+                    ? max(pinnedFrame.width, 24)
+                    : 24
+                available = MoveEverythingRetileLayout.availableFrame(
+                    within: available,
+                    excluding: pinnedFrame,
+                    edgeTolerance: edgeTolerance
+                )
+            }
         }
         var target = CGRect(
             x: available.minX + (clamped.origin.x * available.width),

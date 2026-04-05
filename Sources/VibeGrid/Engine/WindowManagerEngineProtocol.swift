@@ -45,6 +45,9 @@ protocol WindowManagerEngineProtocol: AnyObject {
     func setMoveEverythingShowOverlays(_ enabled: Bool)
     func setMoveEverythingMoveToBottom(_ enabled: Bool)
     func setMoveEverythingDontMoveVibeGrid(_ enabled: Bool)
+    func pinMoveEverythingWindow(withKey key: String)
+    func unpinMoveEverythingWindow(withKey key: String)
+    func moveEverythingPinnedKeys() -> Set<String>
     func setMoveEverythingNarrowMode(_ enabled: Bool)
     func setMoveEverythingHoveredWindow(withKey key: String?) -> Bool
 }

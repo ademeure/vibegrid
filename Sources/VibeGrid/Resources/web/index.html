@@ -86,8 +86,8 @@
               </label>
 
               <label class="toggle-line">
-                <input id="ignoreExcludeControlCenter" type="checkbox" />
-                Ignore control center exclusion (use full screen area)
+                <input id="ignoreExcludePinnedWindows" type="checkbox" />
+                Ignore pinned window exclusion (use full screen area)
               </label>
 
               <div class="toggle-line retile-designation">
@@ -158,10 +158,13 @@
                     <span id="moveEverythingMoveToBottomLabel">Move To Bottom</span>
                   </label>
                 </div>
-                <label class="toggle-line move-everything-top-toggle move-everything-sticky-toggle">
+                <label class="toggle-line move-everything-top-toggle move-everything-pin-cc-toggle">
                   <input id="moveEverythingDontMoveVibeGrid" type="checkbox" />
-                  Sticky
+                  Pin CC
                 </label>
+                <button id="moveEverythingPinModeBtn" class="btn tiny move-everything-bulk-btn move-everything-pin-mode-btn" type="button">
+                  Pin Windows
+                </button>
               </div>
             </div>
             <div id="moveEverythingWindowList" class="move-everything-window-list"></div>
@@ -350,8 +353,8 @@
               Sticky hover steals Control Center focus
             </label>
             <label class="toggle-line move-everything-modal-toggle">
-              <input id="moveEverythingExcludeControlCenterSetting" type="checkbox" />
-              Exclude Control Center area from placements
+              <input id="moveEverythingExcludePinnedWindowsSetting" type="checkbox" />
+              Exclude pinned windows from placement area
             </label>
             <div class="settings-grid" style="margin-top: 8px;">
               <label>

@@ -777,8 +777,17 @@ input[type="number"] {
   align-self: center;
 }
 
-.move-everything-sticky-toggle {
+.move-everything-pin-cc-toggle {
   margin-left: auto;
+}
+
+.move-everything-pin-mode-btn.active {
+  background: var(--accent);
+  color: #fff;
+}
+
+.pinned-window {
+  opacity: 0.65;
 }
 
 .move-everything-native-controls {

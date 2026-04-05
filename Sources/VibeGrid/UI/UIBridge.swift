@@ -439,6 +439,22 @@ final class UIBridge: NSObject, WKScriptMessageHandler {
             let enabled = (body["payload"] as? [String: Any])?["enabled"] as? Bool ?? false
             appState.setMoveEverythingNarrowMode(enabled: enabled)
 
+        case "pinMoveEverythingWindow":
+            let key = ((body["payload"] as? [String: Any])?["key"] as? String)?
+                .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            if !key.isEmpty {
+                appState.pinMoveEverythingWindow(withKey: key)
+                pushStateToWeb(forceMoveEverythingWindowRefresh: false)
+            }
+
+        case "unpinMoveEverythingWindow":
+            let key = ((body["payload"] as? [String: Any])?["key"] as? String)?
+                .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            if !key.isEmpty {
+                appState.unpinMoveEverythingWindow(withKey: key)
+                pushStateToWeb(forceMoveEverythingWindowRefresh: false)
+            }
+
         case "moveEverythingHoverWindow":
             let rawKey = (body["payload"] as? [String: Any])?["key"] as? String
             let key = rawKey?.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -546,6 +562,7 @@ final class UIBridge: NSObject, WKScriptMessageHandler {
             "moveEverythingAlwaysOnTop": appState.moveEverythingAlwaysOnTopEnabled(),
             "moveEverythingMoveToBottom": appState.moveEverythingMoveToBottomEnabled(),
             "moveEverythingDontMoveVibeGrid": appState.moveEverythingDontMoveVibeGridEnabled(),
+            "moveEverythingPinnedWindowKeys": Array(appState.moveEverythingPinnedKeys()),
             "moveEverythingShowOverlays": appState.moveEverythingShowOverlaysEnabled(),
             "permissions": [
                 "accessibility": appState.accessibilityGranted()

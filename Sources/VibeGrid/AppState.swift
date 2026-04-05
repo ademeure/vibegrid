@@ -986,6 +986,18 @@ final class AppState {
         windowManager.setMoveEverythingDontMoveVibeGrid(effective)
     }
 
+    func pinMoveEverythingWindow(withKey key: String) {
+        windowManager.pinMoveEverythingWindow(withKey: key)
+    }
+
+    func unpinMoveEverythingWindow(withKey key: String) {
+        windowManager.unpinMoveEverythingWindow(withKey: key)
+    }
+
+    func moveEverythingPinnedKeys() -> Set<String> {
+        windowManager.moveEverythingPinnedKeys()
+    }
+
     func setMoveEverythingNarrowMode(enabled: Bool) {
         windowManager.setMoveEverythingNarrowMode(enabled)
     }

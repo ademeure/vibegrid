@@ -83,6 +83,8 @@ const state = {
   moveEverythingAlwaysOnTop: false,
   moveEverythingMoveToBottom: false,
   moveEverythingDontMoveVibeGrid: false,
+  moveEverythingPinnedWindowKeys: new Set(),
+  moveEverythingPinMode: false,
   moveEverythingRuntimeTogglePending: {
     alwaysOnTop: null,
     moveToBottom: null,
@@ -133,7 +135,7 @@ const ids = {
   toggleShortcutEnabledBtn: document.getElementById("toggleShortcutEnabledBtn"),
   cycleDisplaysOnWrap: document.getElementById("cycleDisplaysOnWrap"),
   controlCenterOnly: document.getElementById("controlCenterOnly"),
-  ignoreExcludeControlCenter: document.getElementById("ignoreExcludeControlCenter"),
+  ignoreExcludePinnedWindows: document.getElementById("ignoreExcludePinnedWindows"),
   placementTitle: document.getElementById("placementTitle"),
   displayTarget: document.getElementById("displayTarget"),
   removePlacementBtn: document.getElementById("removePlacementBtn"),
@@ -187,6 +189,7 @@ const ids = {
   moveEverythingMoveToBottom: document.getElementById("moveEverythingMoveToBottom"),
   moveEverythingMoveToBottomLabel: document.getElementById("moveEverythingMoveToBottomLabel"),
   moveEverythingDontMoveVibeGrid: document.getElementById("moveEverythingDontMoveVibeGrid"),
+  moveEverythingPinModeBtn: document.getElementById("moveEverythingPinModeBtn"),
   settingsBtn: document.getElementById("settingsBtn"),
   hideBtn: document.getElementById("hideBtn"),
   confirmModal: document.getElementById("confirmModal"),
@@ -207,7 +210,7 @@ const ids = {
   moveEverythingRequirementsHint: document.getElementById("moveEverythingRequirementsHint"),
   moveEverythingStartAlwaysOnTopSetting: document.getElementById("moveEverythingStartAlwaysOnTopSetting"),
   moveEverythingStickyHoverStealFocusSetting: document.getElementById("moveEverythingStickyHoverStealFocusSetting"),
-  moveEverythingExcludeControlCenterSetting: document.getElementById("moveEverythingExcludeControlCenterSetting"),
+  moveEverythingExcludePinnedWindowsSetting: document.getElementById("moveEverythingExcludePinnedWindowsSetting"),
   moveEverythingMiniRetileWidthPercentSetting: document.getElementById("moveEverythingMiniRetileWidthPercentSetting"),
   moveEverythingBackgroundRefreshIntervalSetting: document.getElementById("moveEverythingBackgroundRefreshIntervalSetting"),
   moveEverythingITermRecentActivityTimeoutSetting: document.getElementById("moveEverythingITermRecentActivityTimeoutSetting"),
@@ -511,6 +514,9 @@ function receiveState(payload) {
   state.moveEverythingDontMoveVibeGrid = resolveMoveEverythingRuntimeToggleValue(
     "dontMoveVibeGrid",
     Boolean(payload?.moveEverythingDontMoveVibeGrid)
+  );
+  state.moveEverythingPinnedWindowKeys = new Set(
+    Array.isArray(payload?.moveEverythingPinnedWindowKeys) ? payload.moveEverythingPinnedWindowKeys : []
   );
   state.moveEverythingWindows = normalizeMoveEverythingWindowInventory(payload?.moveEverythingWindows);
   state.moveEverythingFocusedWindowKey = String(payload?.moveEverythingFocusedWindowKey || "").trim() || null;
@@ -945,8 +951,8 @@ function renderMoveEverythingModal() {
     if (ids.moveEverythingStickyHoverStealFocusSetting && ids.moveEverythingStickyHoverStealFocusSetting.parentElement) {
       ids.moveEverythingStickyHoverStealFocusSetting.parentElement.style.display = "none";
     }
-    if (ids.moveEverythingExcludeControlCenterSetting && ids.moveEverythingExcludeControlCenterSetting.parentElement) {
-      ids.moveEverythingExcludeControlCenterSetting.parentElement.style.display = "none";
+    if (ids.moveEverythingExcludePinnedWindowsSetting && ids.moveEverythingExcludePinnedWindowsSetting.parentElement) {
+      ids.moveEverythingExcludePinnedWindowsSetting.parentElement.style.display = "none";
     }
     if (ids.moveEverythingITermRecentActivityTimeoutSetting && ids.moveEverythingITermRecentActivityTimeoutSetting.parentElement) {
       ids.moveEverythingITermRecentActivityTimeoutSetting.parentElement.style.display = "none";
@@ -982,9 +988,9 @@ function renderMoveEverythingModal() {
     ids.moveEverythingStickyHoverStealFocusSetting.checked = Boolean(
       settings.moveEverythingStickyHoverStealFocus
     );
-    if (ids.moveEverythingExcludeControlCenterSetting) {
-      ids.moveEverythingExcludeControlCenterSetting.checked = Boolean(
-        settings.moveEverythingExcludeControlCenter
+    if (ids.moveEverythingExcludePinnedWindowsSetting) {
+      ids.moveEverythingExcludePinnedWindowsSetting.checked = Boolean(
+        settings.moveEverythingExcludePinnedWindows
       );
     }
     if (ids.moveEverythingITermRecentActivityTimeoutSetting && ids.moveEverythingITermRecentActivityTimeoutSetting.parentElement) {
@@ -1331,6 +1337,17 @@ function performMoveEverythingWindowAction(action, key, options = {}) {
 
   if (action === "max") {
     sendToNative("moveEverythingMaximizeWindow", { key });
+    return;
+  }
+
+  if (action === "pin") {
+    pinMoveEverythingWindow(key);
+    return;
+  }
+
+  if (action === "unpin") {
+    unpinMoveEverythingWindow(key);
+    return;
   }
 }
 
@@ -1535,6 +1552,32 @@ function updateMoveEverythingDontMoveVibeGrid(enabled) {
   if (ids.moveEverythingDontMoveVibeGrid) {
     ids.moveEverythingDontMoveVibeGrid.checked = Boolean(enabled);
   }
+}
+
+function toggleMoveEverythingPinMode() {
+  state.moveEverythingPinMode = !state.moveEverythingPinMode;
+  syncMoveEverythingPinModeButton();
+  pubsub.publish("moveEverything");
+}
+
+function syncMoveEverythingPinModeButton() {
+  if (ids.moveEverythingPinModeBtn) {
+    ids.moveEverythingPinModeBtn.classList.toggle("active", state.moveEverythingPinMode);
+  }
+}
+
+function pinMoveEverythingWindow(key) {
+  if (!key) return;
+  state.moveEverythingPinnedWindowKeys.add(key);
+  sendToNative("pinMoveEverythingWindow", { key });
+  pubsub.publish("moveEverything");
+}
+
+function unpinMoveEverythingWindow(key) {
+  if (!key) return;
+  state.moveEverythingPinnedWindowKeys.delete(key);
+  sendToNative("unpinMoveEverythingWindow", { key });
+  pubsub.publish("moveEverything");
 }
 
 function saveCurrentMoveEverythingAsDefaults() {
@@ -1807,9 +1850,9 @@ function updateMoveEverythingSettings() {
   settings.moveEverythingCloseHideHotkeysOutsideMode = Boolean(
     ids.moveEverythingCloseHideOutsideMode.checked
   );
-  if (ids.moveEverythingExcludeControlCenterSetting) {
-    settings.moveEverythingExcludeControlCenter = Boolean(
-      ids.moveEverythingExcludeControlCenterSetting.checked
+  if (ids.moveEverythingExcludePinnedWindowsSetting) {
+    settings.moveEverythingExcludePinnedWindows = Boolean(
+      ids.moveEverythingExcludePinnedWindowsSetting.checked
     );
   }
   if (ids.moveEverythingMiniRetileWidthPercentSetting) {
@@ -2054,10 +2097,10 @@ function renderShortcutEditor() {
   ids.toggleShortcutEnabledBtn.classList.toggle("ghost", shortcut.enabled);
   ids.cycleDisplaysOnWrap.checked = Boolean(shortcut.cycleDisplaysOnWrap);
   ids.controlCenterOnly.checked = Boolean(shortcut.controlCenterOnly);
-  const excludeCCEnabled = Boolean(state.config.settings.moveEverythingExcludeControlCenter);
-  ids.ignoreExcludeControlCenter.checked = Boolean(shortcut.ignoreExcludeControlCenter);
-  ids.ignoreExcludeControlCenter.disabled = !excludeCCEnabled;
-  ids.ignoreExcludeControlCenter.closest("label").classList.toggle("disabled", !excludeCCEnabled);
+  const excludePinnedEnabled = Boolean(state.config.settings.moveEverythingExcludePinnedWindows);
+  ids.ignoreExcludePinnedWindows.checked = Boolean(shortcut.ignoreExcludePinnedWindows);
+  ids.ignoreExcludePinnedWindows.disabled = !excludePinnedEnabled;
+  ids.ignoreExcludePinnedWindows.closest("label").classList.toggle("disabled", !excludePinnedEnabled);
   const useForRetilingSelect = document.getElementById("useForRetiling");
   if (useForRetilingSelect) {
     useForRetilingSelect.value = shortcut.useForRetiling || "no";
@@ -2234,6 +2277,7 @@ function renderMoveEverythingWorkspace() {
     if (ids.moveEverythingDontMoveVibeGrid) {
       ids.moveEverythingDontMoveVibeGrid.checked = Boolean(state.moveEverythingDontMoveVibeGrid);
     }
+    syncMoveEverythingPinModeButton();
   }
 
   const inventory = state.moveEverythingWindows || { visible: [], hidden: [] };
@@ -3220,7 +3264,26 @@ function buildMoveEverythingWindowRow(windowItem, options = {}) {
       actions.classList.add("compact");
     }
 
-    if (hidden) {
+    const isPinned = state.moveEverythingPinnedWindowKeys.has(windowItem.key);
+
+    if (isPinned) {
+      row.classList.add("pinned-window");
+      const unpinBtn = document.createElement("button");
+      unpinBtn.type = "button";
+      unpinBtn.className = "btn tiny move-everything";
+      unpinBtn.textContent = "Unpin";
+      unpinBtn.dataset.meWindowAction = "unpin";
+      unpinBtn.dataset.meWindowKey = windowItem.key;
+      actions.appendChild(unpinBtn);
+    } else if (!hidden && state.moveEverythingPinMode) {
+      const pinBtn = document.createElement("button");
+      pinBtn.type = "button";
+      pinBtn.className = "btn tiny primary";
+      pinBtn.textContent = "Pin";
+      pinBtn.dataset.meWindowAction = "pin";
+      pinBtn.dataset.meWindowKey = windowItem.key;
+      actions.appendChild(pinBtn);
+    } else if (hidden) {
       const showBtn = document.createElement("button");
       showBtn.type = "button";
       showBtn.className = "btn tiny move-everything";
@@ -4035,7 +4098,7 @@ function addShortcut() {
     hotkey: { key: "left", modifiers: ["cmd", "alt"] },
     cycleDisplaysOnWrap: Boolean(state.config.settings.defaultCycleDisplaysOnWrap),
     controlCenterOnly: false,
-    ignoreExcludeControlCenter: false,
+    ignoreExcludePinnedWindows: false,
     placements: [defaultGridPlacement()],
   };
 
@@ -4646,13 +4709,13 @@ function updateControlCenterOnly(value) {
   renderShortcutList();
 }
 
-function updateIgnoreExcludeControlCenter(value) {
+function updateIgnoreExcludePinnedWindows(value) {
   const shortcut = selectedShortcut();
   if (!shortcut) {
     return;
   }
 
-  shortcut.ignoreExcludeControlCenter = Boolean(value);
+  shortcut.ignoreExcludePinnedWindows = Boolean(value);
   markDirty();
 }
 
@@ -5574,9 +5637,10 @@ function normalizeSettings(settings) {
       source.moveEverythingCloseHideHotkeysOutsideMode ??
         defaults.moveEverythingCloseHideHotkeysOutsideMode
     ),
-    moveEverythingExcludeControlCenter: Boolean(
-      source.moveEverythingExcludeControlCenter ??
-        defaults.moveEverythingExcludeControlCenter
+    moveEverythingExcludePinnedWindows: Boolean(
+      source.moveEverythingExcludePinnedWindows ??
+        source.moveEverythingExcludeControlCenter ??
+        defaults.moveEverythingExcludePinnedWindows
     ),
     moveEverythingMiniRetileWidthPercent: clampNumber(
       Number(source.moveEverythingMiniRetileWidthPercent ?? defaults.moveEverythingMiniRetileWidthPercent),
@@ -5941,7 +6005,7 @@ function createDefaultConfig() {
       moveEverythingAdvancedControlCenterHover: true,
       moveEverythingStickyHoverStealFocus: false,
       moveEverythingCloseHideHotkeysOutsideMode: false,
-      moveEverythingExcludeControlCenter: false,
+      moveEverythingExcludePinnedWindows: false,
       moveEverythingMiniRetileWidthPercent: 25,
       moveEverythingBackgroundRefreshInterval: 5,
       moveEverythingITermRecentActivityTimeout: 1,
@@ -6230,6 +6294,7 @@ function wireEvents() {
   on(ids.moveEverythingDontMoveVibeGrid, "change", (event) =>
     updateMoveEverythingDontMoveVibeGrid(event.target.checked)
   );
+  on(ids.moveEverythingPinModeBtn, "click", toggleMoveEverythingPinMode);
   on(ids.moveEverythingRetileBtn, "click", retileVisibleMoveEverythingWindows);
   on(ids.moveEverythingMiniRetileBtn, "click", miniRetileVisibleMoveEverythingWindows);
   on(ids.moveEverythingHybridRetileBtn, "click", hybridRetileVisibleMoveEverythingWindows);
@@ -6447,7 +6512,7 @@ function wireEvents() {
   ids.displayTarget.addEventListener("change", (event) => updateDisplayTarget(event.target.value));
   ids.cycleDisplaysOnWrap.addEventListener("change", (event) => updateCycleDisplaysOnWrap(event.target.checked));
   ids.controlCenterOnly.addEventListener("change", (event) => updateControlCenterOnly(event.target.checked));
-  ids.ignoreExcludeControlCenter.addEventListener("change", (event) => updateIgnoreExcludeControlCenter(event.target.checked));
+  ids.ignoreExcludePinnedWindows.addEventListener("change", (event) => updateIgnoreExcludePinnedWindows(event.target.checked));
   document.getElementById("useForRetiling").addEventListener("change", (event) => updateUseForRetiling(event.target.value));
   ids.settingGridCols.addEventListener("input", updateSettings);
   ids.settingGridRows.addEventListener("input", updateSettings);
@@ -6643,7 +6708,7 @@ function wireEvents() {
   on(ids.moveEverythingCloseHideOutsideMode, "change", updateMoveEverythingSettings);
   on(ids.moveEverythingStartAlwaysOnTopSetting, "change", updateMoveEverythingSettings);
   on(ids.moveEverythingStickyHoverStealFocusSetting, "change", updateMoveEverythingSettings);
-  on(ids.moveEverythingExcludeControlCenterSetting, "change", updateMoveEverythingSettings);
+  on(ids.moveEverythingExcludePinnedWindowsSetting, "change", updateMoveEverythingSettings);
   on(ids.moveEverythingMiniRetileWidthPercentSetting, "change", updateMoveEverythingSettings);
   on(ids.moveEverythingBackgroundRefreshIntervalSetting, "change", updateMoveEverythingSettings);
   on(ids.moveEverythingBackgroundRefreshIntervalSetting, "input", updateMoveEverythingSettings);

@@ -1085,10 +1085,10 @@ extension WindowManagerEngine {
             clearMoveEverythingHoveredWindowLock()
 
             let managedWindows = moveEverythingRetileOrderedWindows(
-                from: runState.windows.filter { !isMoveEverythingControlCenterWindow($0) }
+                from: runState.windows.filter { !isMoveEverythingWindowPinned($0) && !isMoveEverythingControlCenterWindow($0) }
             )
             let freshVisibleWindowCount = freshInventory.visible.filter {
-                !isMoveEverythingControlCenterWindow($0)
+                !isMoveEverythingControlCenterWindow($0) && !moveEverythingPinnedWindowKeys.contains($0.key)
             }.count
             if managedWindows.count != freshVisibleWindowCount {
                 WindowListDebugLogger.log(
@@ -1724,6 +1724,15 @@ extension WindowManagerEngine {
             }
             focusMoveEverythingControlCenterForStickyHoverIfNeeded()
         }
+        func pinMoveEverythingWindow(withKey key: String) {
+            moveEverythingPinnedWindowKeys.insert(key)
+        }
+        func unpinMoveEverythingWindow(withKey key: String) {
+            moveEverythingPinnedWindowKeys.remove(key)
+        }
+        func moveEverythingPinnedKeys() -> Set<String> {
+            moveEverythingPinnedWindowKeys
+        }
         func setMoveEverythingNarrowMode(_ enabled: Bool) {
             guard moveEverythingNarrowMode != enabled else {
                 return
@@ -1975,6 +1984,7 @@ extension WindowManagerEngine {
             moveEverythingLastRetileUndoRecord = nil
             moveEverythingControlCenterFocusedLastKnown = false
             moveEverythingMoveToBottom = false
+            moveEverythingPinnedWindowKeys.removeAll()
             hideMoveEverythingOverlay()
             invalidateMoveEverythingResolvedInventoryCache(clearCachedWindows: true)
 
@@ -3205,6 +3215,30 @@ extension WindowManagerEngine {
                 return nil
             }
             return frame
+        }
+        func allPinnedWindowFrames() -> [CGRect] {
+            var frames: [CGRect] = []
+            if moveEverythingDontMoveVibeGrid, let ccFrame = currentControlCenterFrameForMoveEverything() {
+                frames.append(ccFrame)
+            }
+            guard let runState = moveEverythingRunState else {
+                return frames
+            }
+            for key in moveEverythingPinnedWindowKeys {
+                guard let window = runState.windows.first(where: { $0.key == key }),
+                      let frame = currentWindowRect(for: window.window),
+                      frame.width > 0, frame.height > 0 else {
+                    continue
+                }
+                frames.append(frame)
+            }
+            return frames
+        }
+        func isMoveEverythingWindowPinned(_ managedWindow: MoveEverythingManagedWindow) -> Bool {
+            if isMoveEverythingControlCenterWindow(managedWindow) {
+                return moveEverythingDontMoveVibeGrid
+            }
+            return moveEverythingPinnedWindowKeys.contains(managedWindow.key)
         }
         @discardableResult
         func focusMoveEverythingWindow(
@@ -4585,15 +4619,19 @@ extension WindowManagerEngine {
                 return nil
             }
 
-            let available = screen.visibleFrame.integral
-            let edgeTolerance: CGFloat = moveEverythingNarrowMode
-                ? max(controlCenterFrame?.width ?? 24, 24)
-                : 24
-            return MoveEverythingRetileLayout.availableFrame(
-                within: available,
-                excluding: controlCenterFrame,
-                edgeTolerance: edgeTolerance
-            )
+            var available = screen.visibleFrame.integral
+            let pinnedFrames = allPinnedWindowFrames()
+            for pinnedFrame in pinnedFrames {
+                let edgeTolerance: CGFloat = moveEverythingNarrowMode
+                    ? max(pinnedFrame.width, 24)
+                    : 24
+                available = MoveEverythingRetileLayout.availableFrame(
+                    within: available,
+                    excluding: pinnedFrame,
+                    edgeTolerance: edgeTolerance
+                )
+            }
+            return available
         }
         func moveEverythingRetileSortPredicate(
             _ left: MoveEverythingManagedWindow,
