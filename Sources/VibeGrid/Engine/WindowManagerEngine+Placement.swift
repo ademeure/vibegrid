@@ -341,6 +341,9 @@ extension WindowManagerEngine {
         moveEverythingRunState = runState
 
         clearMoveEverythingExternalFocusOverlayState()
+        if moveEverythingPinMode {
+            refreshMoveEverythingPinnedOverlays()
+        }
         refreshMoveEverythingOverlayPresentation()
         notifyMoveEverythingModeChanged()
         return true
@@ -528,6 +531,9 @@ extension WindowManagerEngine {
         runState.statesByWindowKey[managedWindow.key] = state
         moveEverythingRunState = runState
         clearMoveEverythingExternalFocusOverlayState()
+        if moveEverythingPinMode {
+            refreshMoveEverythingPinnedOverlays()
+        }
         refreshMoveEverythingOverlayPresentation()
         notifyMoveEverythingModeChanged()
     }

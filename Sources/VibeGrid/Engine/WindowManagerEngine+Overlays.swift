@@ -278,6 +278,14 @@ extension WindowManagerEngine {
             hideMoveEverythingOverlay()
             return
         }
+
+        // Refresh pinned overlays regardless of whether a primary overlay
+        // target exists — pinned windows may have moved even when nothing
+        // is hovered.
+        if moveEverythingPinMode {
+            refreshMoveEverythingPinnedOverlays()
+        }
+
         guard let managedWindow = moveEverythingOverlayTargetWindow(from: runState) else {
             hideMoveEverythingOverlayVisualOnly()
             return
@@ -320,10 +328,6 @@ extension WindowManagerEngine {
         }
 
         refreshMoveEverythingSupplementalOverlays(for: managedWindow)
-
-        if moveEverythingPinMode {
-            refreshMoveEverythingPinnedOverlays()
-        }
     }
 }
 
