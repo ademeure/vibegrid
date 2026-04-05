@@ -2656,10 +2656,35 @@ function stripMoveEverythingStatusMarkersForDisplay(rawTitle, windowItem) {
     }
 
     if (!stripped) {
-      const next = current.replace(/^\s*\[[^\]]{1,32}\]\s*/u, "").trimStart();
-      if (next !== current) {
-        current = next;
-        stripped = true;
+      // Balanced-bracket handling for nested brackets like [[mux] move focus]
+      const trimmed = current.trimStart();
+      if (trimmed.startsWith("[")) {
+        let depth = 0;
+        let end = -1;
+        let hasNested = false;
+        for (let j = 0; j < trimmed.length && j < 64; j++) {
+          if (trimmed[j] === "[") {
+            depth++;
+            if (depth > 1) hasNested = true;
+          } else if (trimmed[j] === "]") {
+            depth--;
+            if (depth === 0) { end = j; break; }
+          }
+        }
+        if (end > 0) {
+          if (hasNested) {
+            // Nested: unwrap outer [] only → [[mux] focus] becomes [mux] focus
+            current = (trimmed.slice(1, end) + trimmed.slice(end + 1)).trimStart();
+            break; // inner content is real title, stop stripping
+          } else {
+            // Simple marker like [ACTIVE]: strip entirely
+            const next = trimmed.slice(end + 1).trimStart();
+            if (next !== current) {
+              current = next;
+              stripped = true;
+            }
+          }
+        }
       }
     }
 
@@ -2750,23 +2775,21 @@ function resolveMoveEverythingWindowSubtitle(windowItem) {
 
   const appName = String(windowItem?.appName || "App").trim() || "App";
   if (isLikelyITermWindow(windowItem)) {
-    const lastLine = String(windowItem?.iTermLastLine || "").trim();
-    if (lastLine.length) {
-      return lastLine;
+    // Show something complementary to the title, not a repeat of it.
+    const displayedTitle = resolveMoveEverythingDisplayedWindowTitle(windowItem);
+    const candidates = [
+      String(windowItem?.iTermSessionName || "").trim(),
+      String(windowItem?.iTermWindowName || "").trim(),
+      stripMoveEverythingStatusMarkersForDisplay(
+        String(windowItem?.title || ""), windowItem
+      ),
+    ];
+    for (const candidate of candidates) {
+      if (candidate.length && candidate !== displayedTitle && candidate !== "Untitled Window") {
+        return candidate;
+      }
     }
-    const sessionName = String(windowItem?.iTermSessionName || "").trim();
-    if (sessionName.length) {
-      return sessionName;
-    }
-    const iTermName = String(windowItem?.iTermWindowName || "").trim();
-    if (iTermName.length) {
-      return iTermName;
-    }
-    const fallbackTitle = String(windowItem?.title || "").trim();
-    if (fallbackTitle.length) {
-      return stripMoveEverythingStatusMarkersForDisplay(fallbackTitle, windowItem);
-    }
-    return String(windowItem?.key || "");
+    return "";
   }
 
   return `${appName} • ${String(windowItem?.key || "")}`;
