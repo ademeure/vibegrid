@@ -1786,10 +1786,12 @@ extension WindowManagerEngine {
         func pinMoveEverythingWindow(withKey key: String) {
             moveEverythingPinnedWindowKeys.insert(key)
             refreshMoveEverythingPinnedOverlays()
+            persistPinnedWindowDescriptors()
         }
         func unpinMoveEverythingWindow(withKey key: String) {
             moveEverythingPinnedWindowKeys.remove(key)
             refreshMoveEverythingPinnedOverlays()
+            persistPinnedWindowDescriptors()
         }
         func moveEverythingPinnedKeys() -> Set<String> {
             moveEverythingPinnedWindowKeys
@@ -2004,6 +2006,7 @@ extension WindowManagerEngine {
             moveEverythingPendingHideVisibleSuppressionByKey.removeAll()
             isMoveEverythingActive = true
             moveEverythingControlCenterFocusedLastKnown = isMoveEverythingControlCenterFocused()
+            restorePinnedWindowsFromStore()
 
             if !hotkeysSuspendedForCapture {
                 registerEnabledHotkeys()
@@ -3307,6 +3310,44 @@ extension WindowManagerEngine {
                 return moveEverythingDontMoveVibeGrid
             }
             return moveEverythingPinnedWindowKeys.contains(managedWindow.key)
+        }
+        func descriptorForManagedWindow(_ managedWindow: MoveEverythingManagedWindow) -> PinnedWindowDescriptor {
+            PinnedWindowDescriptor(
+                bundleIdentifier: managedWindow.bundleIdentifier,
+                appName: managedWindow.appName,
+                title: managedWindow.title,
+                iTermWindowName: managedWindow.iTermWindowName
+            )
+        }
+        func persistPinnedWindowDescriptors() {
+            guard let runState = moveEverythingRunState else { return }
+            let descriptors: [PinnedWindowDescriptor] = moveEverythingPinnedWindowKeys.compactMap { key in
+                guard let window = runState.windows.first(where: { $0.key == key }),
+                      !isMoveEverythingControlCenterWindow(window) else {
+                    return nil
+                }
+                return descriptorForManagedWindow(window)
+            }
+            PinnedWindowStore().save(descriptors)
+        }
+        func restorePinnedWindowsFromStore() {
+            let saved = PinnedWindowStore().load()
+            guard !saved.isEmpty, let runState = moveEverythingRunState else { return }
+            var matchedKeys: Set<String> = []
+            for descriptor in saved {
+                let candidates = runState.windows.filter { window in
+                    !isMoveEverythingControlCenterWindow(window) &&
+                    !matchedKeys.contains(window.key) &&
+                    descriptor.matches(descriptorForManagedWindow(window))
+                }
+                if candidates.count == 1, let match = candidates.first {
+                    matchedKeys.insert(match.key)
+                }
+            }
+            if !matchedKeys.isEmpty {
+                moveEverythingPinnedWindowKeys.formUnion(matchedKeys)
+                NSLog("VibeGrid: restored %d pinned window(s) from saved state", matchedKeys.count)
+            }
         }
         @discardableResult
         func focusMoveEverythingWindow(
