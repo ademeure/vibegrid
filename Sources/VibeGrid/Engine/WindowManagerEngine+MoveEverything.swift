@@ -1211,6 +1211,9 @@ extension WindowManagerEngine {
             moveEverythingRunState = runState
             invalidateMoveEverythingResolvedInventoryCache()
             requestMoveEverythingInventoryRefreshIfNeeded(force: true)
+            if moveEverythingPinMode {
+                refreshMoveEverythingPinnedOverlays()
+            }
             notifyMoveEverythingModeChanged()
             return true
         }
@@ -1582,6 +1585,9 @@ extension WindowManagerEngine {
             moveEverythingRunState = runState
             invalidateMoveEverythingResolvedInventoryCache()
             requestMoveEverythingInventoryRefreshIfNeeded(force: true)
+            if moveEverythingPinMode {
+                refreshMoveEverythingPinnedOverlays()
+            }
             notifyMoveEverythingModeChanged()
             return true
         }
@@ -1726,6 +1732,9 @@ extension WindowManagerEngine {
             moveEverythingRunState = runState
             invalidateMoveEverythingResolvedInventoryCache()
             requestMoveEverythingInventoryRefreshIfNeeded(force: true)
+            if moveEverythingPinMode {
+                refreshMoveEverythingPinnedOverlays()
+            }
             notifyMoveEverythingModeChanged()
             ensureControlCenterWindowVisibleForMoveEverything()
             return true
@@ -1787,6 +1796,9 @@ extension WindowManagerEngine {
         }
         func setMoveEverythingPinMode(_ enabled: Bool) {
             moveEverythingPinMode = enabled
+            if enabled, isMoveEverythingActive {
+                startMoveEverythingOverlaySyncTimerIfNeeded()
+            }
             refreshMoveEverythingPinnedOverlays()
         }
         func setMoveEverythingNarrowMode(_ enabled: Bool) {
