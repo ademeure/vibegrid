@@ -651,23 +651,51 @@ final class AppState {
     }
 
     private static func extractRepoFromString(_ text: String) -> String? {
-        // 1. Mux session name: "machine-number-reponame" → "reponame"
+        // 1. Bracket/angle-bracket prefix: "[vgrid] task name (tmux)" → "vgrid"
+        //    Also handles "<cli> task (tmux)" → "cli"
+        let bracketPattern = #"^\[([^\]]+)\]"#
+        if let match = text.range(of: bracketPattern, options: .regularExpression) {
+            let inner = String(text[match])
+                .trimmingCharacters(in: CharacterSet(charactersIn: "[]"))
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased()
+            if !inner.isEmpty {
+                return inner
+            }
+        }
+        let anglePattern = #"^<([^>]+)>"#
+        if let match = text.range(of: anglePattern, options: .regularExpression) {
+            let inner = String(text[match])
+                .trimmingCharacters(in: CharacterSet(charactersIn: "<>"))
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased()
+            if !inner.isEmpty {
+                return inner
+            }
+        }
+
+        // 2. Mux session name: "machine-number-reponame" → "reponame"
         //    If the session has no repo suffix (e.g. "local-79"), return nil
         //    immediately — don't fall through to generic patterns.
-        if isMuxSessionName(text) {
-            let parts = text.split(separator: "-", maxSplits: 2)
+        let trimmedForMux = text.replacingOccurrences(of: #"\s*\(tmux\)\s*$"#, with: "", options: .regularExpression)
+        if isMuxSessionName(trimmedForMux) {
+            let parts = trimmedForMux.split(separator: "-", maxSplits: 2)
             if parts.count >= 3 {
                 return String(parts[2...].joined(separator: "-")).lowercased()
             }
             return nil
         }
 
-        // 2. Path-like pattern: extract last meaningful component
+        // 3. Claude session IDs: "cs-XXXXXXXX (tmux)" — no repo info extractable
+        if trimmedForMux.range(of: #"^cs-[0-9a-f]+"#, options: [.regularExpression, .caseInsensitive]) != nil {
+            return nil
+        }
+
+        // 4. Path-like pattern: extract last meaningful component
         //    Handles ~/github/repo, /Users/x/github/repo, ~/repo, repo — path/to/dir
         let pathPattern = #"(?:^|[\s—\-|:])(?:~|/\w[\w/]*?)/([\w][\w.\-]*?)(?:\s|$|—|\||:)"#
         if let match = text.range(of: pathPattern, options: .regularExpression) {
             let matchStr = String(text[match])
-            // Extract the last path component
             let cleaned = matchStr.trimmingCharacters(in: .whitespacesAndNewlines)
                 .trimmingCharacters(in: CharacterSet(charactersIn: "—|: "))
             let components = cleaned.split(separator: "/").map(String.init)
@@ -676,7 +704,7 @@ final class AppState {
             }
         }
 
-        // 3. Simple path: if the whole string looks like a path
+        // 5. Simple path: if the whole string looks like a path
         if text.contains("/") {
             let components = text.split(separator: "/").map(String.init)
             if let last = components.last?.trimmingCharacters(in: .whitespacesAndNewlines),
@@ -686,14 +714,13 @@ final class AppState {
             }
         }
 
-        // 4. Claude Code session title often shows: "reponame (claude)" or just "reponame"
+        // 6. Claude Code session title often shows: "reponame (claude)" or just "reponame"
         let claudePattern = #"^([\w][\w.\-]*)\s*(?:\(claude\)|\(codex\))?\s*$"#
         if let match = text.range(of: claudePattern, options: [.regularExpression, .caseInsensitive]) {
             var repo = String(text[match])
                 .replacingOccurrences(of: #"\s*\((?:claude|codex)\)\s*$"#, with: "", options: .regularExpression)
                 .trimmingCharacters(in: .whitespacesAndNewlines)
                 .lowercased()
-            // Strip trailing digits so "vibegrid1", "vibegrid2" group with "vibegrid"
             let stripped = repo.replacingOccurrences(of: #"\d+$"#, with: "", options: .regularExpression)
             if !stripped.isEmpty, stripped.count > 1 {
                 repo = stripped
@@ -1663,6 +1690,12 @@ final class AppState {
                     }
                 }
                 self.windowManager.iTermRepositoryGroupBySnapshotKey = repoGroups
+                if !repoGroups.isEmpty {
+                    WindowListDebugLogger.log(
+                        "iterm-repo-groups",
+                        "groups=\(repoGroups.sorted(by: { $0.key < $1.key }).map { "\($0.key)=\($0.value)" }.joined(separator: ", "))"
+                    )
+                }
 
                 WindowListDebugLogger.log(
                     "iterm-activity",
