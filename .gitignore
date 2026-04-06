@@ -18,6 +18,9 @@ packaging/*.provisionprofile
 # Local Codex app metadata
 .codex/
 
+# Claude Code local settings
+.claude/
+
 # Shared web UI files copied into the Windows Go embed dir at build time.
 # The canonical copies live at Sources/VibeGrid/Resources/web/.
 windows/vibegrid-win11/web/app.js
