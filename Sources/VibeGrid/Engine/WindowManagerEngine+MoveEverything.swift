@@ -1380,22 +1380,23 @@ extension WindowManagerEngine {
         private func moveEverythingRetileFramesOrderedLeftToRight(_ frames: [CGRect]) -> [CGRect] {
             // Cocoa coordinates: Y increases upward. Sort column-first:
             // left-to-right, then top-to-bottom within each column.
+            // Uses rounded values to avoid floating-point tolerance issues
+            // while maintaining a strict weak ordering.
             frames.sorted { left, right in
-                if abs(left.minX - right.minX) > 1 {
-                    return left.minX < right.minX
-                }
-                if abs(left.minY - right.minY) > 1 {
-                    return left.minY > right.minY
-                }
-                if abs(left.maxX - right.maxX) > 1 {
-                    return left.maxX < right.maxX
-                }
-                return left.maxX < right.maxX
+                let lx = left.minX.rounded(), rx = right.minX.rounded()
+                if lx != rx { return lx < rx }
+                let ly = left.minY.rounded(), ry = right.minY.rounded()
+                if ly != ry { return ly > ry }  // Cocoa Y: higher = top
+                let lw = left.maxX.rounded(), rw = right.maxX.rounded()
+                return lw < rw
             }
         }
         private func moveEverythingRetileFramesOrderedFromCenter(_ frames: [CGRect]) -> [CGRect] {
             // Sort frames from center outward: the most important/active window
             // gets the center position, radiating outward.
+            // Uses rounded values to guarantee a strict weak ordering —
+            // tolerance-based comparisons (abs(a-b) > threshold) can violate
+            // transitivity when overlapping equivalence classes form cycles.
             guard !frames.isEmpty else { return frames }
             let allMinX = frames.map(\.minX).min() ?? 0
             let allMaxX = frames.map(\.maxX).max() ?? 0
@@ -1404,20 +1405,14 @@ extension WindowManagerEngine {
             let centerX = (allMinX + allMaxX) / 2
             let centerY = (allMinY + allMaxY) / 2
             return frames.sorted { left, right in
-                let leftCenterX = left.midX
-                let leftCenterY = left.midY
-                let rightCenterX = right.midX
-                let rightCenterY = right.midY
-                let leftDist = abs(leftCenterX - centerX) + abs(leftCenterY - centerY)
-                let rightDist = abs(rightCenterX - centerX) + abs(rightCenterY - centerY)
-                if abs(leftDist - rightDist) > 1 {
-                    return leftDist < rightDist
-                }
-                // Tiebreaker: left-to-right
-                if abs(left.minX - right.minX) > 1 {
-                    return left.minX < right.minX
-                }
-                return left.minY > right.minY
+                let leftDist = (abs(left.midX - centerX) + abs(left.midY - centerY)).rounded()
+                let rightDist = (abs(right.midX - centerX) + abs(right.midY - centerY)).rounded()
+                if leftDist != rightDist { return leftDist < rightDist }
+                // Tiebreaker: left-to-right, then top-to-bottom
+                let lx = left.minX.rounded(), rx = right.minX.rounded()
+                if lx != rx { return lx < rx }
+                let ly = left.minY.rounded(), ry = right.minY.rounded()
+                return ly > ry  // Cocoa Y: higher = top
             }
         }
         func undoLastMoveEverythingRetile() -> Bool {
