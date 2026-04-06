@@ -1744,7 +1744,7 @@ final class AppState {
             let profileID = iTermActivityProfileCache[snapshot.key] ?? ""
             let isClaudeOrCodex = profileID.hasPrefix("claude-code") || profileID.hasPrefix("codex")
             let isNamed = hasITermNameOverride(for: snapshot)
-            guard (isClaudeOrCodex || isNamed) && (!colorizeNamedOnly || isNamed),
+            guard !colorizeNamedOnly || isClaudeOrCodex || isNamed,
                   let frameSnapshot = snapshot.frame else {
                 continue
             }
@@ -1816,7 +1816,7 @@ final class AppState {
             let profileID = iTermActivityProfileCache[snapshot.key] ?? ""
             let isClaudeOrCodex = profileID.hasPrefix("claude-code") || profileID.hasPrefix("codex")
             let isNamed = hasITermNameOverride(for: snapshot)
-            guard (isClaudeOrCodex || isNamed) && (!colorizeNamedOnly || isNamed),
+            guard !colorizeNamedOnly || isClaudeOrCodex || isNamed,
                   let windowID = iTermRuntimeWindowIDBySnapshotKey[snapshot.key] else {
                 continue
             }

@@ -260,6 +260,12 @@ struct YAMLConfigCodec {
                             lineNumber: line.number,
                             field: "moveEverythingCloseHideHotkeysOutsideMode"
                         )
+                    case "moveEverythingCloseMuxKill":
+                        config.settings.moveEverythingCloseMuxKill = try parseBoolean(
+                            effectiveValue,
+                            lineNumber: line.number,
+                            field: "moveEverythingCloseMuxKill"
+                        )
                     case "moveEverythingExcludePinnedWindows", "moveEverythingExcludeControlCenter":
                         config.settings.moveEverythingExcludePinnedWindows = try parseBoolean(
                             effectiveValue,
@@ -670,6 +676,7 @@ struct YAMLConfigCodec {
         lines.append(
             "  moveEverythingCloseHideHotkeysOutsideMode: \(normalized.settings.moveEverythingCloseHideHotkeysOutsideMode ? "true" : "false")  # close/hide hotkeys work outside Window List mode"
         )
+        lines.append("  moveEverythingCloseMuxKill: \(normalized.settings.moveEverythingCloseMuxKill ? "true" : "false")  # kill mux session when closing iTerm windows")
         lines.append("  moveEverythingExcludePinnedWindows: \(normalized.settings.moveEverythingExcludePinnedWindows ? "true" : "false")")
         lines.append("  moveEverythingMiniRetileWidthPercent: \(formatDouble(normalized.settings.moveEverythingMiniRetileWidthPercent))  # width % for mini retile")
         lines.append("  moveEverythingBackgroundRefreshInterval: \(formatDouble(normalized.settings.moveEverythingBackgroundRefreshInterval))  # window list refresh interval (sec)")

@@ -269,6 +269,7 @@ struct Settings: Codable {
     var moveEverythingAdvancedControlCenterHover: Bool
     var moveEverythingStickyHoverStealFocus: Bool
     var moveEverythingCloseHideHotkeysOutsideMode: Bool
+    var moveEverythingCloseMuxKill: Bool
     var moveEverythingExcludePinnedWindows: Bool
     var moveEverythingRetileOrder: MoveEverythingRetileOrder
     var moveEverythingITermGroupByRepository: Bool
@@ -332,6 +333,7 @@ struct Settings: Codable {
             moveEverythingAdvancedControlCenterHover: true,
             moveEverythingStickyHoverStealFocus: false,
             moveEverythingCloseHideHotkeysOutsideMode: false,
+            moveEverythingCloseMuxKill: true,
             moveEverythingExcludePinnedWindows: false,
             moveEverythingRetileOrder: .leftToRight,
             moveEverythingITermGroupByRepository: true,
@@ -396,6 +398,7 @@ struct Settings: Codable {
         moveEverythingAdvancedControlCenterHover: Bool = true,
         moveEverythingStickyHoverStealFocus: Bool = false,
         moveEverythingCloseHideHotkeysOutsideMode: Bool = false,
+        moveEverythingCloseMuxKill: Bool = true,
         moveEverythingExcludePinnedWindows: Bool = false,
         moveEverythingRetileOrder: MoveEverythingRetileOrder = .leftToRight,
         moveEverythingITermGroupByRepository: Bool = true,
@@ -457,6 +460,7 @@ struct Settings: Codable {
         self.moveEverythingAdvancedControlCenterHover = moveEverythingAdvancedControlCenterHover
         self.moveEverythingStickyHoverStealFocus = moveEverythingStickyHoverStealFocus
         self.moveEverythingCloseHideHotkeysOutsideMode = moveEverythingCloseHideHotkeysOutsideMode
+        self.moveEverythingCloseMuxKill = moveEverythingCloseMuxKill
         self.moveEverythingExcludePinnedWindows = moveEverythingExcludePinnedWindows
         self.moveEverythingRetileOrder = moveEverythingRetileOrder
         self.moveEverythingITermGroupByRepository = moveEverythingITermGroupByRepository
@@ -521,6 +525,7 @@ struct Settings: Codable {
         case moveEverythingAdvancedControlCenterHover
         case moveEverythingStickyHoverStealFocus
         case moveEverythingCloseHideHotkeysOutsideMode
+        case moveEverythingCloseMuxKill
         case moveEverythingExcludePinnedWindows
         case moveEverythingRetileOrder
         case moveEverythingITermGroupByRepository
@@ -590,6 +595,7 @@ struct Settings: Codable {
             Bool.self,
             forKey: .moveEverythingCloseHideHotkeysOutsideMode
         ) ?? false
+        moveEverythingCloseMuxKill = try container.decodeIfPresent(Bool.self, forKey: .moveEverythingCloseMuxKill) ?? true
         moveEverythingExcludePinnedWindows = try container.decodeIfPresent(Bool.self, forKey: .moveEverythingExcludePinnedWindows) ?? false
         moveEverythingRetileOrder = try container.decodeIfPresent(
             MoveEverythingRetileOrder.self,
@@ -753,6 +759,7 @@ struct Settings: Codable {
             moveEverythingCloseHideHotkeysOutsideMode,
             forKey: .moveEverythingCloseHideHotkeysOutsideMode
         )
+        try container.encode(moveEverythingCloseMuxKill, forKey: .moveEverythingCloseMuxKill)
         try container.encode(moveEverythingExcludePinnedWindows, forKey: .moveEverythingExcludePinnedWindows)
         try container.encode(moveEverythingRetileOrder, forKey: .moveEverythingRetileOrder)
         try container.encode(moveEverythingITermGroupByRepository, forKey: .moveEverythingITermGroupByRepository)

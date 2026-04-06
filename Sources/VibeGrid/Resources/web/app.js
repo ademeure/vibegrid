@@ -210,6 +210,7 @@ const ids = {
   moveEverythingRequirementsHint: document.getElementById("moveEverythingRequirementsHint"),
   moveEverythingStartAlwaysOnTopSetting: document.getElementById("moveEverythingStartAlwaysOnTopSetting"),
   moveEverythingStickyHoverStealFocusSetting: document.getElementById("moveEverythingStickyHoverStealFocusSetting"),
+  moveEverythingCloseMuxKillSetting: document.getElementById("moveEverythingCloseMuxKillSetting"),
   moveEverythingExcludePinnedWindowsSetting: document.getElementById("moveEverythingExcludePinnedWindowsSetting"),
   moveEverythingMiniRetileWidthPercentSetting: document.getElementById("moveEverythingMiniRetileWidthPercentSetting"),
   moveEverythingBackgroundRefreshIntervalSetting: document.getElementById("moveEverythingBackgroundRefreshIntervalSetting"),
@@ -963,6 +964,9 @@ function renderMoveEverythingModal() {
     if (ids.moveEverythingStickyHoverStealFocusSetting && ids.moveEverythingStickyHoverStealFocusSetting.parentElement) {
       ids.moveEverythingStickyHoverStealFocusSetting.parentElement.style.display = "none";
     }
+    if (ids.moveEverythingCloseMuxKillSetting && ids.moveEverythingCloseMuxKillSetting.parentElement) {
+      ids.moveEverythingCloseMuxKillSetting.parentElement.style.display = "none";
+    }
     if (ids.moveEverythingExcludePinnedWindowsSetting && ids.moveEverythingExcludePinnedWindowsSetting.parentElement) {
       ids.moveEverythingExcludePinnedWindowsSetting.parentElement.style.display = "none";
     }
@@ -1000,6 +1004,11 @@ function renderMoveEverythingModal() {
     ids.moveEverythingStickyHoverStealFocusSetting.checked = Boolean(
       settings.moveEverythingStickyHoverStealFocus
     );
+    if (ids.moveEverythingCloseMuxKillSetting) {
+      ids.moveEverythingCloseMuxKillSetting.checked = Boolean(
+        settings.moveEverythingCloseMuxKill ?? true
+      );
+    }
     if (ids.moveEverythingExcludePinnedWindowsSetting) {
       ids.moveEverythingExcludePinnedWindowsSetting.checked = Boolean(
         settings.moveEverythingExcludePinnedWindows
@@ -1876,6 +1885,11 @@ function updateMoveEverythingSettings() {
   settings.moveEverythingCloseHideHotkeysOutsideMode = Boolean(
     ids.moveEverythingCloseHideOutsideMode.checked
   );
+  if (ids.moveEverythingCloseMuxKillSetting) {
+    settings.moveEverythingCloseMuxKill = Boolean(
+      ids.moveEverythingCloseMuxKillSetting.checked
+    );
+  }
   if (ids.moveEverythingExcludePinnedWindowsSetting) {
     settings.moveEverythingExcludePinnedWindows = Boolean(
       ids.moveEverythingExcludePinnedWindowsSetting.checked
@@ -5732,6 +5746,7 @@ function normalizeSettings(settings) {
       source.moveEverythingCloseHideHotkeysOutsideMode ??
         defaults.moveEverythingCloseHideHotkeysOutsideMode
     ),
+    moveEverythingCloseMuxKill: source.moveEverythingCloseMuxKill ?? defaults.moveEverythingCloseMuxKill,
     moveEverythingExcludePinnedWindows: Boolean(
       source.moveEverythingExcludePinnedWindows ??
         source.moveEverythingExcludeControlCenter ??
@@ -6107,6 +6122,7 @@ function createDefaultConfig() {
       moveEverythingAdvancedControlCenterHover: true,
       moveEverythingStickyHoverStealFocus: false,
       moveEverythingCloseHideHotkeysOutsideMode: false,
+      moveEverythingCloseMuxKill: true,
       moveEverythingExcludePinnedWindows: false,
       moveEverythingQuickViewVerticalMode: "fromCursor",
       moveEverythingRetileOrder: "leftToRight",
@@ -6813,6 +6829,7 @@ function wireEvents() {
   on(ids.moveEverythingCloseHideOutsideMode, "change", updateMoveEverythingSettings);
   on(ids.moveEverythingStartAlwaysOnTopSetting, "change", updateMoveEverythingSettings);
   on(ids.moveEverythingStickyHoverStealFocusSetting, "change", updateMoveEverythingSettings);
+  on(ids.moveEverythingCloseMuxKillSetting, "change", updateMoveEverythingSettings);
   on(ids.moveEverythingExcludePinnedWindowsSetting, "change", updateMoveEverythingSettings);
   on(ids.moveEverythingMiniRetileWidthPercentSetting, "change", updateMoveEverythingSettings);
   on(ids.moveEverythingRetileOrderSetting, "change", updateMoveEverythingSettings);
