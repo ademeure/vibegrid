@@ -122,6 +122,7 @@ final class AppState {
         }
         windowManager.onCloseWindowOverride = { [weak self] key in
             guard let self,
+                  self.config.settings.moveEverythingCloseMuxKill,
                   let sessionName = self.iTermSessionNameCache[key],
                   AppState.isMuxSessionName(sessionName) else {
                 return false
@@ -714,17 +715,14 @@ final class AppState {
             }
         }
 
-        // 6. Claude Code session title often shows: "reponame (claude)" or just "reponame"
-        let claudePattern = #"^([\w][\w.\-]*)\s*(?:\(claude\)|\(codex\))?\s*$"#
+        // 6. Claude Code session title: "reponame (claude)" or "reponame (codex)"
+        //    The suffix is REQUIRED — without it, bare words like "osascript" would false-positive.
+        let claudePattern = #"^([\w][\w.\-]*)\s+\((?:claude|codex)\)\s*$"#
         if let match = text.range(of: claudePattern, options: [.regularExpression, .caseInsensitive]) {
-            var repo = String(text[match])
+            let repo = String(text[match])
                 .replacingOccurrences(of: #"\s*\((?:claude|codex)\)\s*$"#, with: "", options: .regularExpression)
                 .trimmingCharacters(in: .whitespacesAndNewlines)
                 .lowercased()
-            let stripped = repo.replacingOccurrences(of: #"\d+$"#, with: "", options: .regularExpression)
-            if !stripped.isEmpty, stripped.count > 1 {
-                repo = stripped
-            }
             if !repo.isEmpty, repo.count > 1 {
                 return repo
             }
