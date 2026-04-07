@@ -40,6 +40,7 @@ def _query_tmux_pane_info(session_name: str) -> tuple[str, str]:
     return info
 
 
+
 async def _capture_screen_lines(
     session,
     connection,
