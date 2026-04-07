@@ -223,7 +223,7 @@ CLAUDE_CODE_BASE_PROFILE = ProfileDefinition(
         activates_immediately_on_visible_active_rule=True,
         active_rule_hold_seconds=6.0,
         input_hold_seconds=1.2,
-        meaningful_change_hold_seconds=2.0,
+        meaningful_change_hold_seconds=4.0,
     ),
 )
 

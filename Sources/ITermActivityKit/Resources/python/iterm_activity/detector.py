@@ -120,11 +120,25 @@ class Detector:
                 recent_input_rule_match,
                 previous_state,
             ):
-                next_state.meaningful_change_streak = 0
-                detail = self._summarize_semantic_line(recent_input_rule_match.line)
-                next_state.active_hold = None
-                status = "idle"
-                reason = f"input:{recent_input_rule_match.id}"
+                # Input detected (user at prompt). Clear body-change holds
+                # (agent finished) but respect active-rule holds (spinner visible).
+                has_rule_hold = (
+                    has_active_hold
+                    and previous_state.active_hold is not None
+                    and previous_state.active_hold.reason.startswith("rule:")
+                )
+                if has_rule_hold:
+                    next_state.meaningful_change_streak = 0
+                    next_state.active_hold = previous_state.active_hold
+                    status = "active"
+                    reason = f"hold:{previous_state.active_hold.reason}"
+                    detail = previous_state.active_hold.detail
+                else:
+                    next_state.meaningful_change_streak = 0
+                    detail = self._summarize_semantic_line(recent_input_rule_match.line)
+                    next_state.active_hold = None
+                    status = "idle"
+                    reason = f"input:{recent_input_rule_match.id}"
             elif meaningful_body_changed and recent_input_rule_match and not recent_active_rule_match and not has_active_hold:
                 # Body changed while user is at a prompt (no active rule visible,
                 # no active hold) — likely just typing
