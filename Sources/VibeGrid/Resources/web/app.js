@@ -5949,6 +5949,18 @@ function normalizeSettings(settings) {
         defaults.moveEverythingITermRecentActivityIdleColorLight,
       defaultMoveEverythingITermRecentActivityIdleColorLight
     ),
+    moveEverythingWindowListActiveColor: normalizeHexColor(
+      source.moveEverythingWindowListActiveColor ?? defaults.moveEverythingWindowListActiveColor, "#2F8F4E"
+    ),
+    moveEverythingWindowListIdleColor: normalizeHexColor(
+      source.moveEverythingWindowListIdleColor ?? defaults.moveEverythingWindowListIdleColor, "#BA4D4D"
+    ),
+    moveEverythingWindowListActiveColorLight: normalizeHexColor(
+      source.moveEverythingWindowListActiveColorLight ?? defaults.moveEverythingWindowListActiveColorLight, "#1A7535"
+    ),
+    moveEverythingWindowListIdleColorLight: normalizeHexColor(
+      source.moveEverythingWindowListIdleColorLight ?? defaults.moveEverythingWindowListIdleColorLight, "#A03030"
+    ),
     moveEverythingITermBadgeTopMargin: clampInt(
       Number(
         source.moveEverythingITermBadgeTopMargin ??
@@ -6234,6 +6246,10 @@ function createDefaultConfig() {
       moveEverythingITermRecentActivityIdleColor: "#BA4D4D",
       moveEverythingITermRecentActivityActiveColorLight: "#1A7535",
       moveEverythingITermRecentActivityIdleColorLight: "#A03030",
+      moveEverythingWindowListActiveColor: "#2F8F4E",
+      moveEverythingWindowListIdleColor: "#BA4D4D",
+      moveEverythingWindowListActiveColorLight: "#1A7535",
+      moveEverythingWindowListIdleColorLight: "#A03030",
       moveEverythingOverlayMode: "persistent",
       moveEverythingOverlayDuration: 2,
       moveEverythingCloseWindowHotkey: null,
