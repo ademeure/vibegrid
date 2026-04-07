@@ -169,6 +169,9 @@ INTERACTIVE_PROMPT_RULES = [
 
 _CLAUDE_CODE_VERSION_FOOTER_RE = re.compile(r"current:\s*\d+\.\d+\.\d+\s*·\s*latest:\s*\d+\.\d+\.\d+")
 _CLAUDE_CODE_TOKEN_INDICATOR_RE = re.compile(r"[↓↑]\s*[\d.]+k?\s*tokens")
+# tmux reports the resolved binary name (e.g. "2.1.92") not the "claude" symlink.
+# Match a bare semver string as a tmux pane command — it's the Claude Code binary.
+_CLAUDE_CODE_PANE_COMMAND_RE = re.compile(r"^\d+\.\d+\.\d+$")
 
 
 def _lines_match_claude_code(normalized_lines: list[str]) -> bool:
@@ -205,6 +208,8 @@ CLAUDE_CODE_BASE_PROFILE = ProfileDefinition(
         or "(claude)" in entry.session_name.lower()
         or "claude code" in entry.presentation_name.lower()
         or command_line_contains_command(entry.command_line.lower(), "claude")
+        or command_line_contains_command(entry.tmux_pane_command.lower(), "claude")
+        or _CLAUDE_CODE_PANE_COMMAND_RE.match(entry.tmux_pane_command.strip())
         or _lines_match_claude_code(normalized_lines)
     ),
     chrome_rules=GENERIC_CHROME_RULES + CLAUDE_CHROME_RULES,
@@ -229,6 +234,7 @@ CODEX_BASE_PROFILE = ProfileDefinition(
         "(codex" in entry.session_name.lower()
         or "codex" in entry.presentation_name.lower()
         or command_line_contains_command(entry.command_line.lower(), "codex")
+        or command_line_contains_command(entry.tmux_pane_command.lower(), "codex")
     ),
     chrome_rules=GENERIC_CHROME_RULES + CODEX_CHROME_RULES,
     active_rules=CODEX_ACTIVE_RULES + GENERIC_ACTIVE_RULES,

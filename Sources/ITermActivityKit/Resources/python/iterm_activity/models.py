@@ -14,6 +14,7 @@ class PollEntry:
     session_name: str = ""
     presentation_name: str = ""
     command_line: str = ""
+    tmux_pane_command: str = ""
     last_line: str = ""
     non_empty_lines_from_bottom: list[str] = field(default_factory=list)
     tty_active: bool = False
@@ -37,6 +38,7 @@ class PollEntry:
             "session_name": self.session_name,
             "presentation_name": self.presentation_name,
             "command_line": self.command_line,
+            "tmux_pane_command": self.tmux_pane_command,
             "last_line": self.last_line,
             "non_empty_lines_from_bottom": list(self.non_empty_lines_from_bottom),
             "background_color_r": self.background_color_r,
@@ -61,6 +63,7 @@ class PollEntry:
             session_name=str(value.get("session_name", "") or "").strip(),
             presentation_name=str(value.get("presentation_name", "") or "").strip(),
             command_line=str(value.get("command_line", "") or "").strip(),
+            tmux_pane_command=str(value.get("tmux_pane_command", "") or "").strip(),
             last_line=str(value.get("last_line", "") or "").strip(),
             non_empty_lines_from_bottom=[
                 str(item).strip()

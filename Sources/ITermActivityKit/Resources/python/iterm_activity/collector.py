@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import subprocess
 import time
 
 import iterm2
@@ -9,6 +10,28 @@ from .models import PollEntry
 
 
 TMUX_SESSION_PATTERN = re.compile(r"tmux\s+(?:attach|a|new|new-session)\s+.*?-t\s+\W*(\w[\w-]*)")
+
+# Cache tmux pane commands to avoid shelling out every poll cycle.
+_tmux_pane_command_cache: dict[str, tuple[str, float]] = {}
+_TMUX_PANE_COMMAND_CACHE_TTL = 5.0
+
+
+def _query_tmux_pane_command(session_name: str) -> str:
+    """Query the foreground command of a tmux session's active pane."""
+    now = time.monotonic()
+    cached = _tmux_pane_command_cache.get(session_name)
+    if cached and now - cached[1] < _TMUX_PANE_COMMAND_CACHE_TTL:
+        return cached[0]
+    try:
+        result = subprocess.run(
+            ["tmux", "list-panes", "-t", session_name, "-F", "#{pane_current_command}"],
+            capture_output=True, text=True, timeout=2,
+        )
+        cmd = result.stdout.strip().split("\n")[0].strip() if result.returncode == 0 else ""
+    except Exception:
+        cmd = ""
+    _tmux_pane_command_cache[session_name] = (cmd, now)
+    return cmd
 
 
 async def _capture_screen_lines(
@@ -56,12 +79,14 @@ async def _fetch_metadata(session) -> dict[str, str]:
     except Exception:
         pass
 
+    tmux_pane_command = ""
     try:
         command_line = str(await session.async_get_variable("commandLine") or "").strip()
         presentation_name = str(await session.async_get_variable("presentationName") or "").strip()
         match = TMUX_SESSION_PATTERN.search(command_line)
         if match:
             session_name = match.group(1)
+            tmux_pane_command = _query_tmux_pane_command(session_name)
         elif presentation_name and presentation_name not in {"-zsh", "zsh", "bash", "-bash", "fish", "login"}:
             session_name = presentation_name
     except Exception:
@@ -70,6 +95,7 @@ async def _fetch_metadata(session) -> dict[str, str]:
     return {
         "badge_text": badge_text,
         "command_line": command_line,
+        "tmux_pane_command": tmux_pane_command,
         "presentation_name": presentation_name,
         "session_name": session_name,
     }
@@ -137,7 +163,7 @@ async def collect_window_snapshots(
             if metadata_cache is not None:
                 metadata_cache.put(window_id, metadata)
         if metadata is None:
-            metadata = {"badge_text": "", "command_line": "", "presentation_name": "", "session_name": ""}
+            metadata = {"badge_text": "", "command_line": "", "tmux_pane_command": "", "presentation_name": "", "session_name": ""}
 
         # Background color is populated by the worker from the profile list cache
         bg_r, bg_g, bg_b = 0, 0, 0
@@ -177,6 +203,7 @@ async def collect_window_snapshots(
                 session_name=metadata["session_name"],
                 presentation_name=metadata["presentation_name"],
                 command_line=metadata["command_line"],
+                tmux_pane_command=metadata.get("tmux_pane_command", ""),
                 last_line=last_line,
                 non_empty_lines_from_bottom=non_empty_lines,
                 background_color_r=bg_r,
