@@ -705,6 +705,7 @@ final class UIBridge: NSObject, WKScriptMessageHandler {
         let profileCache = appState.iTermActivityProfileCache
         let paneCommandCache = appState.iTermPaneCommandCache
         let panePathCache = appState.iTermPanePathCache
+        let repoGroupCache = appState.iTermRepoGroups()
         var statusByKey: [String: String] = [:]
 
         for snapshot in inventory.visible + inventory.hidden {
@@ -744,6 +745,9 @@ final class UIBridge: NSObject, WKScriptMessageHandler {
                 }
                 if let panePath = panePathCache[key] {
                     w["iTermPanePath"] = panePath
+                }
+                if let repoGroup = repoGroupCache[key] {
+                    w["iTermRepoGroup"] = repoGroup
                 }
                 return w
             }

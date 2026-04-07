@@ -3297,12 +3297,18 @@ function compareMoveEverythingVisibleWindowsByAppThenTitle(leftWindow, rightWind
     return appNameComparison;
   }
 
-  // Within same app (iTerm): claude-code first, then codex, then others
+  // Within same app (iTerm): claude-code first, then codex, then others; then group by repo
   if (isLikelyITermWindow(leftWindow) && isLikelyITermWindow(rightWindow)) {
     const leftPriority = moveEverythingProfileSortPriority(leftWindow);
     const rightPriority = moveEverythingProfileSortPriority(rightWindow);
     if (leftPriority !== rightPriority) {
       return leftPriority - rightPriority;
+    }
+    const leftRepo = String(leftWindow?.iTermRepoGroup || "");
+    const rightRepo = String(rightWindow?.iTermRepoGroup || "");
+    if (leftRepo !== rightRepo) {
+      if (!leftRepo !== !rightRepo) return leftRepo ? -1 : 1;
+      return leftRepo.localeCompare(rightRepo, undefined, { sensitivity: "base" });
     }
   }
 
@@ -6083,6 +6089,7 @@ function normalizeMoveEverythingWindow(value) {
     iTermProfileID,
     iTermPaneCommand,
     iTermPanePath,
+    iTermRepoGroup: typeof value.iTermRepoGroup === "string" ? value.iTermRepoGroup.trim() || null : null,
   };
 }
 

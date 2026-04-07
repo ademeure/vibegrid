@@ -639,10 +639,11 @@ final class AppState {
         sessionName: String?,
         badgeText: String?,
         windowTitle: String?,
-        iTermWindowName: String?
+        iTermWindowName: String?,
+        panePath: String? = nil
     ) -> String? {
         // Try each candidate in priority order
-        let candidates = [sessionName, badgeText, windowTitle, iTermWindowName]
+        let candidates = [sessionName, badgeText, windowTitle, iTermWindowName, panePath]
             .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
 
@@ -1208,6 +1209,10 @@ final class AppState {
         windowManager.moveEverythingPinnedKeys()
     }
 
+    func iTermRepoGroups() -> [String: String] {
+        windowManager.iTermRepositoryGroupBySnapshotKey
+    }
+
     func setMoveEverythingPinMode(enabled: Bool) {
         windowManager.setMoveEverythingPinMode(enabled)
     }
@@ -1748,7 +1753,8 @@ final class AppState {
                         sessionName: sessionName,
                         badgeText: newBadgeCache[key],
                         windowTitle: nil,
-                        iTermWindowName: overrideTitle
+                        iTermWindowName: overrideTitle,
+                        panePath: newPanePathCache[key]
                     ) {
                         repoGroups[key] = repo
                     }
@@ -1771,7 +1777,8 @@ final class AppState {
                         sessionName: newSessionNameCache[snapshot.key],
                         badgeText: newBadgeCache[snapshot.key],
                         windowTitle: snapshot.title,
-                        iTermWindowName: overrideTitle ?? snapshot.iTermWindowName
+                        iTermWindowName: overrideTitle ?? snapshot.iTermWindowName,
+                        panePath: newPanePathCache[snapshot.key]
                     ) {
                         repoGroups[snapshot.key] = repo
                     }
