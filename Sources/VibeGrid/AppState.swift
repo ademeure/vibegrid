@@ -1709,6 +1709,7 @@ final class AppState {
                     }
                 }
                 self.windowManager.iTermRepositoryGroupBySnapshotKey = repoGroups
+                self.windowManager.iTermActivityProfileCache = newProfileCache
                 if !repoGroups.isEmpty {
                     WindowListDebugLogger.log(
                         "iterm-repo-groups",
@@ -1759,7 +1760,7 @@ final class AppState {
             }
         }
 
-        let colorizeNamedOnly = config.settings.moveEverythingITermRecentActivityColorizeNamedOnly
+
         var trackedWindows: [ITermActivityOverlayController.TrackedWindow] = []
         for snapshot in inventory.visible + inventory.hidden {
             let profileID = iTermActivityProfileCache[snapshot.key] ?? ""
@@ -1827,7 +1828,7 @@ final class AppState {
         let idleRGBDark = Self.parseHexColor(config.settings.moveEverythingITermRecentActivityIdleColor) ?? (r: 186, g: 77, b: 77)
         let activeRGBLight = Self.parseHexColor(config.settings.moveEverythingITermRecentActivityActiveColorLight) ?? (r: 26, g: 117, b: 53)
         let idleRGBLight = Self.parseHexColor(config.settings.moveEverythingITermRecentActivityIdleColorLight) ?? (r: 160, g: 48, b: 48)
-        let colorizeNamedOnly = config.settings.moveEverythingITermRecentActivityColorizeNamedOnly
+
         let inputCutoff = Date().addingTimeInterval(-config.settings.moveEverythingITermActivityHoldSeconds)
 
         var activeWindowIDs = Set<String>()

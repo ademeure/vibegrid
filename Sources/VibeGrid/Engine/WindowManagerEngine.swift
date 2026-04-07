@@ -118,6 +118,7 @@ final class WindowManagerEngine: WindowManagerEngineProtocol {
 
     var iTermLastActiveAtBySnapshotKey: [String: Date] = [:]
     var iTermRepositoryGroupBySnapshotKey: [String: String] = [:]
+    var iTermActivityProfileCache: [String: String] = [:]
     var windowLastGenuineFocusAt: [String: Date] = [:]
     var shortcutsByID: [String: ShortcutConfig] = [:]
     var registeredHotkeyActionsByID: [String: RegisteredHotkeyAction] = [:]

@@ -1301,6 +1301,7 @@ extension WindowManagerEngine {
             let focusTimes = windowLastGenuineFocusAt
             let repoGroups = iTermRepositoryGroupBySnapshotKey
             let groupByRepo = config.settings.moveEverythingITermGroupByRepository
+            let profileCache = iTermActivityProfileCache
             return windows.sorted { left, right in
                 let leftIsITerm = moveEverythingManagedWindowLooksLikeITerm(left)
                 let rightIsITerm = moveEverythingManagedWindowLooksLikeITerm(right)
@@ -1308,20 +1309,27 @@ extension WindowManagerEngine {
                 if leftIsITerm != rightIsITerm {
                     return leftIsITerm
                 }
-                // Among iTerm windows: group by repository first (when enabled),
-                // then sort by last activity time within each group
+                // Among iTerm windows: claude-code first, then codex, then others
                 if leftIsITerm && rightIsITerm {
+                    let leftProfile = profileCache[left.key] ?? ""
+                    let rightProfile = profileCache[right.key] ?? ""
+                    let leftPriority = leftProfile.hasPrefix("claude-code") ? 0 : leftProfile.hasPrefix("codex") ? 1 : 2
+                    let rightPriority = rightProfile.hasPrefix("claude-code") ? 0 : rightProfile.hasPrefix("codex") ? 1 : 2
+                    if leftPriority != rightPriority {
+                        return leftPriority < rightPriority
+                    }
+                    // Then group by repository (when enabled)
                     if groupByRepo {
                         let leftRepo = repoGroups[left.key] ?? ""
                         let rightRepo = repoGroups[right.key] ?? ""
                         if leftRepo != rightRepo {
-                            // Windows with a known repo come before unknown ones
                             if leftRepo.isEmpty != rightRepo.isEmpty {
                                 return !leftRepo.isEmpty
                             }
                             return leftRepo.localizedStandardCompare(rightRepo) == .orderedAscending
                         }
                     }
+                    // Then by last activity time
                     let leftTime = activityTimes[left.key]?.timeIntervalSinceReferenceDate ?? 0
                     let rightTime = activityTimes[right.key]?.timeIntervalSinceReferenceDate ?? 0
                     if leftTime != rightTime {

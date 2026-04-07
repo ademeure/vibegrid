@@ -13,6 +13,7 @@ protocol WindowManagerEngineProtocol: AnyObject {
     var moveEverythingHoveredWindowKey: String? { get }
     var iTermLastActiveAtBySnapshotKey: [String: Date] { get set }
     var iTermRepositoryGroupBySnapshotKey: [String: String] { get set }
+    var iTermActivityProfileCache: [String: String] { get set }
 
     func applyConfig(_ config: AppConfig)
     func requestAccessibility(prompt: Bool) -> Bool

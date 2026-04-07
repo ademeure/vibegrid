@@ -3249,6 +3249,14 @@ function hasMoveEverythingCustomWindowTitle(windowItem) {
   return false;
 }
 
+function moveEverythingProfileSortPriority(windowItem) {
+  const profileID = String(windowItem?.iTermProfileID || "").trim().toLowerCase();
+  const base = profileID.split("+")[0];
+  if (base === "claude-code") return 0;
+  if (base === "codex") return 1;
+  return 2;
+}
+
 function compareMoveEverythingVisibleWindowsByAppThenTitle(leftWindow, rightWindow) {
   const leftAppName = String(leftWindow?.appName || "").trim();
   const rightAppName = String(rightWindow?.appName || "").trim();
@@ -3258,6 +3266,15 @@ function compareMoveEverythingVisibleWindowsByAppThenTitle(leftWindow, rightWind
   });
   if (appNameComparison !== 0) {
     return appNameComparison;
+  }
+
+  // Within same app (iTerm): claude-code first, then codex, then others
+  if (isLikelyITermWindow(leftWindow) && isLikelyITermWindow(rightWindow)) {
+    const leftPriority = moveEverythingProfileSortPriority(leftWindow);
+    const rightPriority = moveEverythingProfileSortPriority(rightWindow);
+    if (leftPriority !== rightPriority) {
+      return leftPriority - rightPriority;
+    }
   }
 
   const leftTitle = String(resolveMoveEverythingDisplayedWindowTitle(leftWindow) || "").trim();
