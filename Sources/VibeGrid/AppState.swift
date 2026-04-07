@@ -1686,15 +1686,24 @@ final class AppState {
                     }
                     let tmuxLines = Self.captureTmuxPaneLines(session: sessionName)
                     guard !tmuxLines.isEmpty else { continue }
-                    let hasActiveIndicator = tmuxLines.contains { line in
+                    // Check for Claude Code active indicators in tmux pane content.
+                    // "bypass permissions on" is always visible when CC is running.
+                    // The spinner line (e.g. "· Canoodling…") uses varied words,
+                    // so we check for the "esc to interrupt" footer instead.
+                    let hasCCFooter = tmuxLines.contains { line in
                         let lower = line.lowercased()
-                        return (lower.contains("working") && lower.contains("esc to interrupt"))
-                            || (lower.contains("running") && lower.contains("bash command"))
-                            || lower.contains("deliberating")
-                            || lower.contains("cogitat")
-                            || lower.contains("cooking")
-                            || lower.contains("fluttering")
-                            || lower.contains("wandering")
+                        return lower.contains("bypass permissions on")
+                            || lower.contains("esc to interrupt")
+                    }
+                    // If CC footer is present, check if it's actively working
+                    // (not just sitting at the prompt).
+                    let hasActiveIndicator = hasCCFooter && tmuxLines.contains { line in
+                        let lower = line.lowercased()
+                        return (lower.contains("running") && lower.contains("bash command"))
+                            || (lower.contains("reading") && lower.contains("file"))
+                            || lower.contains("working")
+                            || lower.contains("thinking with")
+                            || lower.range(of: #"[·✻✳✶✢⏺⏵] \w+…"#, options: .regularExpression) != nil
                     }
                     if hasActiveIndicator {
                         newCache[key] = "active"

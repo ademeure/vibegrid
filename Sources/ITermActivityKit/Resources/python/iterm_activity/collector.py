@@ -41,6 +41,29 @@ def _query_tmux_pane_info(session_name: str) -> tuple[str, str]:
 
 
 
+_tmux_sessions_cache: tuple[list[str], float] = ([], 0.0)
+_TMUX_SESSIONS_CACHE_TTL = 5.0
+
+
+def _find_tmux_session_by_suffix(suffix: str) -> str | None:
+    """Find a tmux session whose name ends with the given suffix."""
+    global _tmux_sessions_cache
+    now = time.monotonic()
+    sessions, cached_at = _tmux_sessions_cache
+    if not sessions or now - cached_at > _TMUX_SESSIONS_CACHE_TTL:
+        try:
+            result = subprocess.run(
+                ["tmux", "list-sessions", "-F", "#{session_name}"],
+                capture_output=True, text=True, timeout=2,
+            )
+            sessions = result.stdout.strip().split("\n") if result.returncode == 0 else []
+            _tmux_sessions_cache = (sessions, now)
+        except Exception:
+            sessions = []
+    matches = [s for s in sessions if s.endswith(suffix)]
+    return matches[0] if len(matches) == 1 else None
+
+
 async def _capture_screen_lines(
     session,
     connection,
@@ -95,6 +118,18 @@ async def _fetch_metadata(session) -> dict[str, str]:
         if match:
             session_name = match.group(1)
             tmux_pane_command, tmux_pane_path = _query_tmux_pane_info(session_name)
+            # If the outer session runs a shell, try finding a nested tmux
+            # session by matching the presentationName suffix against all sessions.
+            if tmux_pane_command in {"zsh", "-zsh", "bash", "-bash", "fish", "login", "tmux", ""}:
+                pres_base = re.sub(r"\s*\(tmux\)\s*$", "", presentation_name).strip()
+                if pres_base and pres_base != session_name:
+                    nested = _find_tmux_session_by_suffix(pres_base)
+                    if nested:
+                        nested_cmd, nested_path = _query_tmux_pane_info(nested)
+                        if nested_cmd and nested_cmd not in {"zsh", "-zsh", "bash", "-bash", "fish", "login", "tmux", ""}:
+                            tmux_pane_command = nested_cmd
+                            tmux_pane_path = nested_path
+                            session_name = nested
         elif presentation_name and presentation_name not in {"-zsh", "zsh", "bash", "-bash", "fish", "login"}:
             session_name = presentation_name
     except Exception:
