@@ -125,8 +125,9 @@ class Detector:
                 next_state.active_hold = None
                 status = "idle"
                 reason = f"input:{recent_input_rule_match.id}"
-            elif meaningful_body_changed and recent_input_rule_match:
-                # Body changed while user is at a prompt — likely just typing
+            elif meaningful_body_changed and recent_input_rule_match and not recent_active_rule_match and not has_active_hold:
+                # Body changed while user is at a prompt (no active rule visible,
+                # no active hold) — likely just typing
                 next_state.meaningful_change_streak = 0
                 next_state.active_hold = None
                 status = "idle"

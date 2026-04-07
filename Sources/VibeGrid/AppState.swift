@@ -759,6 +759,28 @@ final class AppState {
         }
     }
 
+    static func captureTmuxPaneLines(session: String, maxLines: Int = 30) -> [String] {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+        process.arguments = ["tmux", "capture-pane", "-t", session, "-p"]
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = FileHandle.nullDevice
+        do {
+            try process.run()
+            process.waitUntilExit()
+            guard process.terminationStatus == 0 else { return [] }
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            guard let output = String(data: data, encoding: .utf8) else { return [] }
+            return output.split(separator: "\n", omittingEmptySubsequences: true)
+                .suffix(maxLines)
+                .map { $0.trimmingCharacters(in: .whitespaces) }
+                .filter { !$0.isEmpty }
+        } catch {
+            return []
+        }
+    }
+
     private static func findMuxBinary() -> String? {
         // Same search order as the Python worker
         let candidates = [
@@ -1654,6 +1676,35 @@ final class AppState {
                 for key in self.iTermLastActiveAt.keys where newCache[key] == nil {
                     self.iTermLastActiveAt.removeValue(forKey: key)
                 }
+                // Fallback: for idle claude-code/codex windows with a tmux session,
+                // try tmux capture-pane to detect activity from actual pane content.
+                for (key, status) in newCache where status == "idle" {
+                    let sessionName = newSessionNameCache[key] ?? ""
+                    let profileID = newProfileCache[key] ?? ""
+                    guard !sessionName.isEmpty, profileID.hasPrefix("claude-code") || profileID.hasPrefix("codex") else {
+                        continue
+                    }
+                    let tmuxLines = Self.captureTmuxPaneLines(session: sessionName)
+                    guard !tmuxLines.isEmpty else { continue }
+                    let hasActiveIndicator = tmuxLines.contains { line in
+                        let lower = line.lowercased()
+                        return (lower.contains("working") && lower.contains("esc to interrupt"))
+                            || (lower.contains("running") && lower.contains("bash command"))
+                            || lower.contains("deliberating")
+                            || lower.contains("cogitat")
+                            || lower.contains("cooking")
+                            || lower.contains("fluttering")
+                            || lower.contains("wandering")
+                    }
+                    if hasActiveIndicator {
+                        newCache[key] = "active"
+                        WindowListDebugLogger.log(
+                            "iterm-activity",
+                            "key=\(key) tmux-fallback session=\(sessionName) lines=\(tmuxLines.count) active=true"
+                        )
+                    }
+                }
+
                 self.iTermActivityCache = newCache
                 self.iTermBadgeTextCache = newBadgeCache
                 self.iTermSessionNameCache = newSessionNameCache
