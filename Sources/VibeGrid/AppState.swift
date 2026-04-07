@@ -67,6 +67,7 @@ final class AppState {
     private(set) var iTermActivityProfileCache: [String: String] = [:]  // snapshot key → profile id (e.g. "claude-code", "codex")
     private(set) var iTermPaneCommandCache: [String: String] = [:]  // snapshot key → tmux pane foreground command
     private(set) var iTermPanePathCache: [String: String] = [:]  // snapshot key → tmux pane current path
+    private var iTermTmuxFallbackLastActiveAt: [String: Date] = [:]  // snapshot key → last time tmux fallback saw active
     private var iTermRuntimeWindowIDBySnapshotKey: [String: String] = [:]  // snapshot key → pty-... runtime id
     private let iTermActivityOverlayController = ITermActivityOverlayController()
     private struct OriginalBackground {
@@ -1705,10 +1706,18 @@ final class AppState {
                             || (lower.contains("reading") && lower.contains("file"))
                     }
                     if hasActiveIndicator {
+                        self.iTermTmuxFallbackLastActiveAt[key] = Date()
                         newCache[key] = "active"
                         WindowListDebugLogger.log(
                             "iterm-activity",
                             "key=\(key) tmux-fallback session=\(sessionName) lines=\(tmuxLines.count) active=true"
+                        )
+                    } else if let lastActive = self.iTermTmuxFallbackLastActiveAt[key],
+                              Date().timeIntervalSince(lastActive) < 3.0 {
+                        newCache[key] = "active"
+                        WindowListDebugLogger.log(
+                            "iterm-activity",
+                            "key=\(key) tmux-fallback session=\(sessionName) lines=\(tmuxLines.count) active=grace"
                         )
                     }
                 }
