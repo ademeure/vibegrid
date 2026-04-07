@@ -2821,7 +2821,25 @@ function resolveMoveEverythingWindowSubtitle(windowItem) {
 
   const appName = String(windowItem?.appName || "App").trim() || "App";
   if (isLikelyITermWindow(windowItem)) {
-    // Show something complementary to the title, not a repeat of it.
+    const profileID = String(windowItem?.iTermProfileID || "").trim().toLowerCase();
+    const baseProfile = profileID.split("+")[0];
+    if (baseProfile === "claude-code") {
+      return "Claude Code";
+    }
+    if (baseProfile === "codex") {
+      return "Codex";
+    }
+    // Show the foreground binary, or cwd for idle shells
+    const paneCommand = String(windowItem?.iTermPaneCommand || "").trim();
+    const panePath = String(windowItem?.iTermPanePath || "").trim();
+    if (paneCommand && !["zsh", "-zsh", "bash", "-bash", "fish", "login"].includes(paneCommand)) {
+      return paneCommand;
+    }
+    if (panePath) {
+      const home = panePath.startsWith("/Users/") ? "~" + panePath.slice(panePath.indexOf("/", 7)) : panePath;
+      return home;
+    }
+    // Fallback: show something complementary to the title
     const displayedTitle = resolveMoveEverythingDisplayedWindowTitle(windowItem);
     const candidates = [
       String(windowItem?.iTermSessionName || "").trim(),

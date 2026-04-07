@@ -429,6 +429,10 @@ public final class ITermActivityWorkerClient {
                     .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
                     .filter { !$0.isEmpty },
                 detail: (dict["detail"] as? String)?
+                    .trimmingCharacters(in: .whitespacesAndNewlines) ?? "",
+                tmuxPaneCommand: (dict["tmux_pane_command"] as? String)?
+                    .trimmingCharacters(in: .whitespacesAndNewlines) ?? "",
+                tmuxPanePath: (dict["tmux_pane_path"] as? String)?
                     .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             )
         }

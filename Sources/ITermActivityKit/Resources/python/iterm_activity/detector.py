@@ -206,6 +206,8 @@ class Detector:
                 profile_id=profile.profile_id,
                 reason=reason,
                 detail=detail,
+                tmux_pane_command=entry.tmux_pane_command,
+                tmux_pane_path=entry.tmux_pane_path,
                 semantic_lines=semantic_lines,
             )
             del detail

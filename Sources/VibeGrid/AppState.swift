@@ -65,6 +65,8 @@ final class AppState {
     private(set) var iTermSessionNameCache: [String: String] = [:]  // snapshot key → session/tmux name
     private(set) var iTermLastLineCache: [String: String] = [:]  // snapshot key → last non-empty screen line
     private(set) var iTermActivityProfileCache: [String: String] = [:]  // snapshot key → profile id (e.g. "claude-code", "codex")
+    private(set) var iTermPaneCommandCache: [String: String] = [:]  // snapshot key → tmux pane foreground command
+    private(set) var iTermPanePathCache: [String: String] = [:]  // snapshot key → tmux pane current path
     private var iTermRuntimeWindowIDBySnapshotKey: [String: String] = [:]  // snapshot key → pty-... runtime id
     private let iTermActivityOverlayController = ITermActivityOverlayController()
     private struct OriginalBackground {
@@ -1559,6 +1561,8 @@ final class AppState {
                 var newSessionNameCache: [String: String] = [:]
                 var newLastLineCache: [String: String] = [:]
                 var newProfileCache: [String: String] = [:]
+                var newPaneCommandCache: [String: String] = [:]
+                var newPanePathCache: [String: String] = [:]
                 var newRuntimeWindowIDBySnapshotKey: [String: String] = [:]
                 let desktopHeight = NSScreen.screens.reduce(CGRect.null) { $0.union($1.frame) }.height
                 var unmatchedEntries = Array(activityEntries.enumerated())
@@ -1596,6 +1600,12 @@ final class AppState {
                         }
                         if let profileID = activity?.profileID, !profileID.isEmpty {
                             newProfileCache[snapshot.key] = profileID
+                        }
+                        if let paneCmd = activity?.tmuxPaneCommand, !paneCmd.isEmpty {
+                            newPaneCommandCache[snapshot.key] = paneCmd
+                        }
+                        if let panePath = activity?.tmuxPanePath, !panePath.isEmpty {
+                            newPanePathCache[snapshot.key] = panePath
                         }
                         if let activity {
                             WindowListDebugLogger.log(
@@ -1640,6 +1650,8 @@ final class AppState {
                 self.iTermSessionNameCache = newSessionNameCache
                 self.iTermLastLineCache = newLastLineCache
                 self.iTermActivityProfileCache = newProfileCache
+                self.iTermPaneCommandCache = newPaneCommandCache
+                self.iTermPanePathCache = newPanePathCache
                 self.iTermRuntimeWindowIDBySnapshotKey = newRuntimeWindowIDBySnapshotKey
                 self.windowManager.iTermLastActiveAtBySnapshotKey = self.iTermLastActiveAt
 

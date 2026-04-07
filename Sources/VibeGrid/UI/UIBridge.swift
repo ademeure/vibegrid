@@ -702,6 +702,9 @@ final class UIBridge: NSObject, WKScriptMessageHandler {
         let badgeTextCache = appState.iTermBadgeTextCache
         let sessionNameCache = appState.iTermSessionNameCache
         let lastLineCache = appState.iTermLastLineCache
+        let profileCache = appState.iTermActivityProfileCache
+        let paneCommandCache = appState.iTermPaneCommandCache
+        let panePathCache = appState.iTermPanePathCache
         var statusByKey: [String: String] = [:]
 
         for snapshot in inventory.visible + inventory.hidden {
@@ -732,6 +735,15 @@ final class UIBridge: NSObject, WKScriptMessageHandler {
                 }
                 if let lastLine = lastLineCache[key] {
                     w["iTermLastLine"] = lastLine
+                }
+                if let profileID = profileCache[key] {
+                    w["iTermProfileID"] = profileID
+                }
+                if let paneCommand = paneCommandCache[key] {
+                    w["iTermPaneCommand"] = paneCommand
+                }
+                if let panePath = panePathCache[key] {
+                    w["iTermPanePath"] = panePath
                 }
                 return w
             }
