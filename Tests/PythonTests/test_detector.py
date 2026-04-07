@@ -304,11 +304,12 @@ class DetectorTests(unittest.TestCase):
                 non_empty_lines_from_bottom=claude_thinking_window("✳ Considering… (5m19s · thinking with max effort)"),
             )
         ])
-        self.assertEqual(first["iterm-window-1"].status, "idle")
+        # First poll: "thinking with max effort" matches the thinking-effort active
+        # rule, and activates_immediately_on_visible_active_rule is True.
+        self.assertEqual(first["iterm-window-1"].status, "active")
         self.assertEqual(second["iterm-window-1"].status, "active")
-        self.assertEqual(second["iterm-window-1"].reason, "meaningful-body-change")
 
-    def test_stale_claude_thinking_line_does_not_force_active_without_recent_change(self) -> None:
+    def test_stale_claude_thinking_line_held_active_by_thinking_hold(self) -> None:
         detector = Detector()
         baseline = make_poll_entry(
             tty_active=True,
@@ -317,10 +318,15 @@ class DetectorTests(unittest.TestCase):
             command_line="claude --dangerously-skip-permissions",
             non_empty_lines_from_bottom=claude_thinking_window("✻ Considering… (5m18s · thinking with max effort)"),
         )
-        detector.resolve([baseline])
-        result = detector.resolve([baseline])
-        self.assertEqual(result["iterm-window-1"].status, "idle")
-        self.assertEqual(result["iterm-window-1"].reason, "steady")
+        detector.resolve([baseline], now=0.0)
+        # Second poll with same content: still active due to THINKING_HOLD_SECONDS (15s)
+        held = detector.resolve([baseline], now=1.0)
+        self.assertEqual(held["iterm-window-1"].status, "active")
+        self.assertEqual(held["iterm-window-1"].reason, "hold:rule:thinking-effort")
+        # After hold expires (>15s): drops to idle
+        expired = detector.resolve([baseline], now=20.0)
+        self.assertEqual(expired["iterm-window-1"].status, "idle")
+        self.assertEqual(expired["iterm-window-1"].reason, "steady")
 
     def test_tty_signal_no_longer_controls_cooldown(self) -> None:
         detector = Detector()

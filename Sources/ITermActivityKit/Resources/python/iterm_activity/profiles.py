@@ -119,7 +119,6 @@ GENERIC_CHROME_RULES = [
     contains_rule("permission-footer", ["bypass permissions on", "shift+tab to cycle"]),
     contains_rule("dialog-dismissed", ["status dialog dismissed"]),
     contains_rule("companion-muted", ["companion muted"]),
-    contains_rule("quillnook-footer", ["quillnook"]),
     contains_rule("compacted-tip", ["compacted tip:"]),
     contains_rule("conversation-compacted", ["conversation compacted"]),
     contains_rule("version-footer", ["current:", "latest:"]),
@@ -131,7 +130,7 @@ GENERIC_CHROME_RULES = [
 
 CLAUDE_CHROME_RULES = [
     contains_rule("model-confirmation", ["set model to"]),
-    contains_rule("buddy-command", ["/buddy", "quillnook"]),
+    contains_rule("buddy-command", ["/buddy"]),
     contains_rule("background-hint", ["ctrl+b to run in background"]),
     regex_rule("claude-buddy-prompt", r"^[❯›>]\s*(?:.*\s)?\(\s*[✦*•oO\-. ]+\s*\)$"),
     regex_rule("claude-transient-prompt-fragment", r"^(?:[.,:;'\"`]?>|[oO])$"),
@@ -169,19 +168,20 @@ INTERACTIVE_PROMPT_RULES = [
 
 
 _CLAUDE_CODE_VERSION_FOOTER_RE = re.compile(r"current:\s*\d+\.\d+\.\d+\s*·\s*latest:\s*\d+\.\d+\.\d+")
+_CLAUDE_CODE_TOKEN_INDICATOR_RE = re.compile(r"[↓↑]\s*[\d.]+k?\s*tokens")
 
 
 def _lines_match_claude_code(normalized_lines: list[str]) -> bool:
     """Detect Claude Code from visible screen content (e.g. inside tmux)."""
     for line in normalized_lines:
         if (
-            "quillnook" in line
-            or "/buddy" in line
+            "/buddy" in line
             or "compacting conversation" in line
             or "conversation compacted" in line
             or "bypass permissions on" in line
-            or "esc to interrupt" in line
+            or "ctrl+b to run in background" in line
             or _CLAUDE_CODE_VERSION_FOOTER_RE.search(line) is not None
+            or _CLAUDE_CODE_TOKEN_INDICATOR_RE.search(line) is not None
         ):
             return True
     return False
@@ -265,11 +265,21 @@ BASE_PROFILES = [CLAUDE_CODE_BASE_PROFILE, CODEX_BASE_PROFILE, DEFAULT_BASE_PROF
 OVERLAY_PROFILES = [TMUX_OVERLAY_PROFILE]
 
 
-def resolved_profile_for_entry(entry: PollEntry, normalized_lines: list[str]) -> ResolvedProfile:
+def resolved_profile_for_entry(
+    entry: PollEntry,
+    normalized_lines: list[str],
+    sticky_base_id: str | None = None,
+) -> ResolvedProfile:
     base_profile = next(
         (profile for profile in BASE_PROFILES if profile.matches_entry(entry, normalized_lines)),
         DEFAULT_BASE_PROFILE,
     )
+    # Sticky profile: if detection fell back to default but we previously
+    # detected a more specific profile, keep using it.
+    if base_profile.id == "default" and sticky_base_id and sticky_base_id != "default":
+        sticky_base = next((p for p in BASE_PROFILES if p.id == sticky_base_id), None)
+        if sticky_base is not None:
+            base_profile = sticky_base
     overlays = [profile for profile in OVERLAY_PROFILES if profile.matches_entry(entry, normalized_lines)]
     overlay_ids = [profile.id for profile in overlays]
     profile_id = "+".join([base_profile.id] + overlay_ids)

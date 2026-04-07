@@ -34,6 +34,7 @@ class WindowState:
     last_recent_input_rule_match: Optional[RuleMatch] = None
     meaningful_change_streak: int = 0
     active_hold: Optional[ActiveHold] = None
+    sticky_base_profile_id: Optional[str] = None
 
     def __post_init__(self) -> None:
         if self.last_semantic_lines is None:
@@ -56,7 +57,11 @@ class Detector:
         for entry in entries:
             normalized_lines = self._normalized_non_empty_lines(entry.non_empty_lines_from_bottom)
             normalized_lowercased_lines = [line.lower() for line in normalized_lines]
-            profile = resolved_profile_for_entry(entry, normalized_lowercased_lines)
+            previous_state = self._state_by_window_id.get(entry.window_id, WindowState())
+            profile = resolved_profile_for_entry(
+                entry, normalized_lowercased_lines,
+                sticky_base_id=previous_state.sticky_base_profile_id,
+            )
             recent_lines = normalized_lowercased_lines[: profile.activity_tuning.active_rule_lookback_lines]
             recent_active_rule_match = self._first_matching_rule(recent_lines, profile.first_active_rule)
             recent_input_candidate_lines = [
@@ -69,7 +74,6 @@ class Detector:
                 profile.first_input_rule,
             )
             semantic_lines = self._semantic_body_lines(normalized_lines, profile)
-            previous_state = self._state_by_window_id.get(entry.window_id, WindowState())
             next_state = WindowState(
                 has_seen_window=previous_state.has_seen_window,
                 last_semantic_lines=list(previous_state.last_semantic_lines),
@@ -77,6 +81,7 @@ class Detector:
                 last_recent_input_rule_match=previous_state.last_recent_input_rule_match,
                 meaningful_change_streak=previous_state.meaningful_change_streak,
                 active_hold=previous_state.active_hold,
+                sticky_base_profile_id=profile.base_id if profile.base_id != "default" else previous_state.sticky_base_profile_id,
             )
 
             has_semantic_body = bool(semantic_lines)
