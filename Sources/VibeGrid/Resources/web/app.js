@@ -791,12 +791,13 @@ function moveEverythingThemeIsDark() {
   return document.documentElement.getAttribute("data-theme") === "dark";
 }
 
-function resolveMoveEverythingWindowActivityColorPair(baseHex) {
-  const parsed = parseHexColor(baseHex);
+function resolveMoveEverythingWindowActivityColorPair(darkHex, lightHex) {
+  const darkTheme = moveEverythingThemeIsDark();
+  const hex = darkTheme ? darkHex : (lightHex || darkHex);
+  const parsed = parseHexColor(hex);
   if (!parsed) {
     return null;
   }
-  const darkTheme = moveEverythingThemeIsDark();
   if (darkTheme) {
     const darkSurface = { red: 13, green: 19, blue: 23 };
     return {
@@ -3380,11 +3381,13 @@ function buildMoveEverythingWindowRow(windowItem, options = {}) {
   const baseProfile = profileID.split("+")[0];
   const isClaudeOrCodex = baseProfile === "claude-code" || baseProfile === "codex";
   if (activityColorizeEnabled && isClaudeOrCodex && (activityStatus === "active" || activityStatus === "idle")) {
-    const isDark = moveEverythingThemeIsDark();
-    const baseColor = activityStatus === "active"
-      ? (isDark ? settings.moveEverythingWindowListActiveColor : settings.moveEverythingWindowListActiveColorLight)
-      : (isDark ? settings.moveEverythingWindowListIdleColor : settings.moveEverythingWindowListIdleColorLight);
-    const colorPair = resolveMoveEverythingWindowActivityColorPair(baseColor);
+    const darkColor = activityStatus === "active"
+      ? settings.moveEverythingWindowListActiveColor
+      : settings.moveEverythingWindowListIdleColor;
+    const lightColor = activityStatus === "active"
+      ? settings.moveEverythingWindowListActiveColorLight
+      : settings.moveEverythingWindowListIdleColorLight;
+    const colorPair = resolveMoveEverythingWindowActivityColorPair(darkColor, lightColor);
     if (colorPair) {
       row.classList.add("activity-status-box", `activity-status-${activityStatus}`);
       row.style.setProperty("--activity-status-border-color", colorPair.border);
