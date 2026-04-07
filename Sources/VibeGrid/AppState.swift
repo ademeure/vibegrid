@@ -1686,24 +1686,20 @@ final class AppState {
                     }
                     let tmuxLines = Self.captureTmuxPaneLines(session: sessionName)
                     guard !tmuxLines.isEmpty else { continue }
-                    // Check for Claude Code active indicators in tmux pane content.
-                    // "bypass permissions on" is always visible when CC is running.
-                    // The spinner line (e.g. "· Canoodling…") uses varied words,
-                    // so we check for the "esc to interrupt" footer instead.
-                    let hasCCFooter = tmuxLines.contains { line in
-                        let lower = line.lowercased()
-                        return lower.contains("bypass permissions on")
-                            || lower.contains("esc to interrupt")
-                    }
-                    // If CC footer is present, check if it's actively working
-                    // (not just sitting at the prompt).
-                    let hasActiveIndicator = hasCCFooter && tmuxLines.contains { line in
-                        let lower = line.lowercased()
+                    // Check if Claude Code is actively working (not idle at prompt).
+                    // Active spinners end with "…" (e.g. "· Canoodling…", "✻ Thinking…").
+                    // Completed spinners do NOT end with "…" (e.g. "✽ Cooked for 3m 0s").
+                    let hasActiveIndicator = tmuxLines.contains { line in
+                        let trimmed = line.trimmingCharacters(in: .whitespaces)
+                        // Active spinner: Unicode char + word + ends with "…"
+                        if trimmed.hasSuffix("…"),
+                           trimmed.range(of: #"^[·✻✳✶✢⏺⏵●◆▸▹►▶⬤☉◉❖] "#, options: .regularExpression) != nil {
+                            return true
+                        }
+                        let lower = trimmed.lowercased()
                         return (lower.contains("running") && lower.contains("bash command"))
                             || (lower.contains("reading") && lower.contains("file"))
-                            || lower.contains("working")
-                            || lower.contains("thinking with")
-                            || lower.range(of: #"[·✻✳✶✢⏺⏵] \w+…"#, options: .regularExpression) != nil
+                            || lower.contains("esc to interrupt")
                     }
                     if hasActiveIndicator {
                         newCache[key] = "active"
