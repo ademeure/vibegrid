@@ -3331,7 +3331,10 @@ function buildMoveEverythingWindowRow(windowItem, options = {}) {
     state.moveEverythingCustomITermWindowTitlesByKey[windowKey] ||
     state.moveEverythingCustomWindowTitlesByKey[windowKey]
   );
-  if (activityColorizeEnabled && (!activityColorizeNamedOnly || windowIsNamed) && (activityStatus === "active" || activityStatus === "idle")) {
+  const profileID = String(windowItem?.iTermProfileID || "").trim().toLowerCase();
+  const baseProfile = profileID.split("+")[0];
+  const isClaudeOrCodex = baseProfile === "claude-code" || baseProfile === "codex";
+  if (activityColorizeEnabled && isClaudeOrCodex && (activityStatus === "active" || activityStatus === "idle")) {
     const baseColor = activityStatus === "active"
       ? settings.moveEverythingITermRecentActivityActiveColor
       : settings.moveEverythingITermRecentActivityIdleColor;
