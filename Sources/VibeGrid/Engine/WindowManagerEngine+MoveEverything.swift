@@ -966,35 +966,30 @@ extension WindowManagerEngine {
                 let iTermWindows = managedWindows.filter(moveEverythingManagedWindowLooksLikeITerm)
                 let nonITermWindows = managedWindows.filter { !moveEverythingManagedWindowLooksLikeITerm($0) }
 
+                // iTerm: use sequence placement (same as iTerm retile button)
+                let iTermTargets: [String: CGRect]?
                 if iTermWindows.isEmpty {
-                    let miniFrame = moveEverythingRetileSlice(
-                        within: fullAvailableFrame,
-                        widthFraction: baseMiniWidthFraction,
-                        controlCenterIsOnRight: controlCenterIsOnRight
+                    iTermTargets = [:]
+                } else if let seq = retileSequence(for: "iterm") {
+                    iTermTargets = moveEverythingRetileUsingSequence(
+                        seq, for: iTermWindows, availableFrame: fullAvailableFrame, gap: gap
                     )
-                    return moveEverythingRetileTargetFramesByKey(
-                        for: nonITermWindows,
-                        availableFrame: miniFrame,
-                        aspectRatio: 1,
-                        gap: gap
-                    )
-                }
-                if nonITermWindows.isEmpty {
-                    return moveEverythingRetileTargetFramesByKey(
+                } else {
+                    iTermTargets = moveEverythingRetileTargetFramesByKey(
                         for: iTermWindows,
                         availableFrame: fullAvailableFrame,
                         aspectRatio: 1,
                         gap: gap
                     )
                 }
+                guard let iTermTargets else { return nil }
 
+                // Non-iTerm: mini retile in a slice
+                if nonITermWindows.isEmpty {
+                    return iTermTargets
+                }
                 let miniWidthFraction = min(max(baseMiniWidthFraction, 0.05), 0.95)
                 let miniFrame = moveEverythingRetileSlice(
-                    within: fullAvailableFrame,
-                    widthFraction: miniWidthFraction,
-                    controlCenterIsOnRight: controlCenterIsOnRight
-                )
-                let remainingFrame = moveEverythingRetileRemainingSlice(
                     within: fullAvailableFrame,
                     widthFraction: miniWidthFraction,
                     controlCenterIsOnRight: controlCenterIsOnRight
@@ -1004,17 +999,11 @@ extension WindowManagerEngine {
                     availableFrame: miniFrame,
                     aspectRatio: 1,
                     gap: gap
-                ),
-                let iTermTargets = moveEverythingRetileTargetFramesByKey(
-                    for: iTermWindows,
-                    availableFrame: remainingFrame,
-                    aspectRatio: 1,
-                    gap: gap
                 ) else {
                     return nil
                 }
 
-                return nonITermTargets.merging(iTermTargets) { current, _ in current }
+                return iTermTargets.merging(nonITermTargets) { current, _ in current }
             }
         }
 
