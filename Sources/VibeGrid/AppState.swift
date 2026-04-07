@@ -1694,8 +1694,10 @@ final class AppState {
                         // Active spinner: Unicode char + word containing "…"
                         // e.g. "· Canoodling…" or "· Perambulating… (thinking with high effort)"
                         // But NOT completed: "✽ Cooked for 3m 0s" (no "…")
-                        if trimmed.contains("…"),
-                           trimmed.range(of: #"^[·✻✳✶✢⏺⏵●◆▸▹►▶⬤☉◉❖] "#, options: .regularExpression) != nil {
+                        // Active spinner: single Unicode char + word ending in "…"
+                        // e.g. "· Canoodling…" or "✻ Thinking… (5m)"
+                        // NOT: "⏺ Fixed ... some text with … in it"
+                        if trimmed.range(of: #"^[·✻✳✶✢●◆☉◉❖] \S+…"#, options: .regularExpression) != nil {
                             return true
                         }
                         let lower = trimmed.lowercased()
