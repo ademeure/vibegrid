@@ -702,13 +702,13 @@ final class AppState {
             }
         }
 
-        // 5. Worktree path: .claude/worktrees/fork-xxx → use the repo containing .claude/
+        // 5. Worktree path: .claude/worktrees/fork-xxx → use the repo containing .claude/ + "⑂"
         if let worktreeRange = text.range(of: ".claude/worktrees/") {
             let repoPath = String(text[text.startIndex..<worktreeRange.lowerBound])
                 .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
             let components = repoPath.split(separator: "/").map(String.init)
             if let last = components.last, !last.isEmpty {
-                return last.lowercased()
+                return "\(last.lowercased()) ⑂"
             }
         }
 
