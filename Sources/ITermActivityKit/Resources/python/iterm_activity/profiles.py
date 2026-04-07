@@ -268,18 +268,11 @@ OVERLAY_PROFILES = [TMUX_OVERLAY_PROFILE]
 def resolved_profile_for_entry(
     entry: PollEntry,
     normalized_lines: list[str],
-    sticky_base_id: str | None = None,
 ) -> ResolvedProfile:
     base_profile = next(
         (profile for profile in BASE_PROFILES if profile.matches_entry(entry, normalized_lines)),
         DEFAULT_BASE_PROFILE,
     )
-    # Sticky profile: if detection fell back to default but we previously
-    # detected a more specific profile, keep using it.
-    if base_profile.id == "default" and sticky_base_id and sticky_base_id != "default":
-        sticky_base = next((p for p in BASE_PROFILES if p.id == sticky_base_id), None)
-        if sticky_base is not None:
-            base_profile = sticky_base
     overlays = [profile for profile in OVERLAY_PROFILES if profile.matches_entry(entry, normalized_lines)]
     overlay_ids = [profile.id for profile in overlays]
     profile_id = "+".join([base_profile.id] + overlay_ids)
