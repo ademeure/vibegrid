@@ -248,6 +248,7 @@ async def collect_window_snapshots(
                 presentation_name=metadata["presentation_name"],
                 command_line=metadata["command_line"],
                 tmux_pane_command=metadata.get("tmux_pane_command", ""),
+                tmux_pane_path=metadata.get("tmux_pane_path", ""),
                 last_line=last_line,
                 non_empty_lines_from_bottom=non_empty_lines,
                 background_color_r=bg_r,

@@ -1750,6 +1750,11 @@ final class AppState {
                         panePath: newPanePathCache[key]
                     ) {
                         repoGroups[key] = repo
+                    } else {
+                        WindowListDebugLogger.log(
+                            "iterm-repo-groups",
+                            "no-group key=\(key) session=\(sessionName) panePath=\(newPanePathCache[key] ?? "nil")"
+                        )
                     }
                 }
                 // Also check windows not in session cache but in badge/title/override
