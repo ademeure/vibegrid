@@ -702,7 +702,17 @@ final class AppState {
             }
         }
 
-        // 5. Simple path: if the whole string looks like a path
+        // 5. Worktree path: .claude/worktrees/fork-xxx → use the repo containing .claude/
+        if let worktreeRange = text.range(of: ".claude/worktrees/") {
+            let repoPath = String(text[text.startIndex..<worktreeRange.lowerBound])
+                .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+            let components = repoPath.split(separator: "/").map(String.init)
+            if let last = components.last, !last.isEmpty {
+                return last.lowercased()
+            }
+        }
+
+        // 6. Simple path: if the whole string looks like a path
         if text.contains("/") {
             let components = text.split(separator: "/").map(String.init)
             if let last = components.last?.trimmingCharacters(in: .whitespacesAndNewlines),
