@@ -2852,11 +2852,12 @@ function resolveMoveEverythingWindowSubtitle(windowItem) {
   if (isLikelyITermWindow(windowItem)) {
     const profileID = String(windowItem?.iTermProfileID || "").trim().toLowerCase();
     const baseProfile = profileID.split("+")[0];
+    const repoGroup = String(windowItem?.iTermRepoGroup || "").trim();
     if (baseProfile === "claude-code") {
-      return "Claude Code";
+      return repoGroup ? `Claude Code · ${repoGroup}` : "Claude Code";
     }
     if (baseProfile === "codex") {
-      return "Codex";
+      return repoGroup ? `Codex · ${repoGroup}` : "Codex";
     }
     const displayedTitle = resolveMoveEverythingDisplayedWindowTitle(windowItem);
     const lowerTitle = displayedTitle.toLowerCase();
