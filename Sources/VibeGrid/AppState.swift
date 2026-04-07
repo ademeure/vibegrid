@@ -1691,8 +1691,10 @@ final class AppState {
                     // Completed spinners do NOT end with "…" (e.g. "✽ Cooked for 3m 0s").
                     let hasActiveIndicator = tmuxLines.contains { line in
                         let trimmed = line.trimmingCharacters(in: .whitespaces)
-                        // Active spinner: Unicode char + word + ends with "…"
-                        if trimmed.hasSuffix("…"),
+                        // Active spinner: Unicode char + word containing "…"
+                        // e.g. "· Canoodling…" or "· Perambulating… (thinking with high effort)"
+                        // But NOT completed: "✽ Cooked for 3m 0s" (no "…")
+                        if trimmed.contains("…"),
                            trimmed.range(of: #"^[·✻✳✶✢⏺⏵●◆▸▹►▶⬤☉◉❖] "#, options: .regularExpression) != nil {
                             return true
                         }
