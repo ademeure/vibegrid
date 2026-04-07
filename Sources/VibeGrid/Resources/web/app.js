@@ -2829,6 +2829,8 @@ function resolveMoveEverythingWindowSubtitle(windowItem) {
     if (baseProfile === "codex") {
       return "Codex";
     }
+    const displayedTitle = resolveMoveEverythingDisplayedWindowTitle(windowItem);
+    const lowerTitle = displayedTitle.toLowerCase();
     const paneCommand = String(windowItem?.iTermPaneCommand || "").trim();
     const panePath = String(windowItem?.iTermPanePath || "").trim();
     const shortPath = panePath.startsWith("/Users/") ? "~" + panePath.slice(panePath.indexOf("/", 7)) : panePath;
@@ -2842,8 +2844,7 @@ function resolveMoveEverythingWindowSubtitle(windowItem) {
     if (shortPath) {
       return shortPath;
     }
-    // Fallback: show something complementary to the title
-    const displayedTitle = resolveMoveEverythingDisplayedWindowTitle(windowItem);
+    // Fallback: show something complementary to the title, not a repeat of it
     const candidates = [
       String(windowItem?.iTermSessionName || "").trim(),
       String(windowItem?.iTermWindowName || "").trim(),
@@ -2851,10 +2852,10 @@ function resolveMoveEverythingWindowSubtitle(windowItem) {
         String(windowItem?.title || ""), windowItem
       ),
     ];
-    const lowerTitle = displayedTitle.toLowerCase();
     for (const candidate of candidates) {
       if (candidate.length && candidate !== displayedTitle && candidate !== "Untitled Window"
-          && !lowerTitle.includes(candidate.toLowerCase())) {
+          && !lowerTitle.includes(candidate.toLowerCase())
+          && !candidate.toLowerCase().includes(lowerTitle)) {
         return candidate;
       }
     }

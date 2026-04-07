@@ -1628,6 +1628,15 @@ final class AppState {
                         if let existingLastLine = self.iTermLastLineCache[snapshot.key] {
                             newLastLineCache[snapshot.key] = existingLastLine
                         }
+                        if let existingProfile = self.iTermActivityProfileCache[snapshot.key] {
+                            newProfileCache[snapshot.key] = existingProfile
+                        }
+                        if let existingPaneCmd = self.iTermPaneCommandCache[snapshot.key] {
+                            newPaneCommandCache[snapshot.key] = existingPaneCmd
+                        }
+                        if let existingPanePath = self.iTermPanePathCache[snapshot.key] {
+                            newPanePathCache[snapshot.key] = existingPanePath
+                        }
                         WindowListDebugLogger.log(
                             "iterm-activity",
                             "key=\(snapshot.key) unmatched runtime window; forcing idle"
