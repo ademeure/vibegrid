@@ -958,7 +958,12 @@ extension WindowManagerEngine {
         func hybridRetileVisibleMoveEverythingWindows() -> Bool {
             let widthPercent = min(max(config.settings.moveEverythingMiniRetileWidthPercent, 5), 100)
             let baseMiniWidthFraction = CGFloat(widthPercent / 100)
-            return performRetileVisibleMoveEverythingWindows(successVerb: "Hybrid retiled") {
+            return performRetileVisibleMoveEverythingWindows(
+                successVerb: "Hybrid retiled",
+                raiseAfterRetile: { [self] managedWindows in
+                    managedWindows.filter { !moveEverythingManagedWindowLooksLikeITerm($0) }
+                }
+            ) {
                 managedWindows,
                 fullAvailableFrame,
                 controlCenterIsOnRight,
@@ -984,19 +989,18 @@ extension WindowManagerEngine {
                 }
                 guard let iTermTargets else { return nil }
 
-                // Non-iTerm: mini retile in a slice
+                // Non-iTerm: place in the largest horizontal gap left by iTerm windows
                 if nonITermWindows.isEmpty {
                     return iTermTargets
                 }
-                let miniWidthFraction = min(max(baseMiniWidthFraction, 0.05), 0.95)
-                let miniFrame = moveEverythingRetileSlice(
-                    within: fullAvailableFrame,
-                    widthFraction: miniWidthFraction,
-                    controlCenterIsOnRight: controlCenterIsOnRight
-                )
+                let nonITermFrame = self.largestHorizontalGap(
+                    in: fullAvailableFrame,
+                    excluding: Array(iTermTargets.values),
+                    gap: gap
+                ) ?? fullAvailableFrame
                 guard let nonITermTargets = moveEverythingRetileTargetFramesByKey(
                     for: nonITermWindows,
-                    availableFrame: miniFrame,
+                    availableFrame: nonITermFrame,
                     aspectRatio: 1,
                     gap: gap
                 ) else {
@@ -1042,6 +1046,7 @@ extension WindowManagerEngine {
         }
         func performRetileVisibleMoveEverythingWindows(
             successVerb: String,
+            raiseAfterRetile: ((_ managedWindows: [MoveEverythingManagedWindow]) -> [MoveEverythingManagedWindow])? = nil,
             resolveTargetFramesByKey: (
                 _ managedWindows: [MoveEverythingManagedWindow],
                 _ fullAvailableFrame: CGRect,
@@ -1192,6 +1197,13 @@ extension WindowManagerEngine {
                 moveEverythingLastDirectActionErrorMessage = nil
             }
 
+            // Raise specified windows after retile (e.g. non-iTerm on top in hybrid)
+            if let raiseAfterRetile {
+                for w in raiseAfterRetile(managedWindows) {
+                    AXUIElementPerformAction(w.window, kAXRaiseAction as CFString)
+                }
+            }
+
             moveEverythingLastRetileUndoRecord = MoveEverythingRetileUndoRecord(
                 windowStatesByKey: undoWindowStatesByKey,
                 orderedWindowKeys: undoOrderedWindowKeys
@@ -1227,6 +1239,51 @@ extension WindowManagerEngine {
             }
             let orderedFrames = moveEverythingRetileFramesOrderedByRecency(targetFrames)
             return Dictionary(uniqueKeysWithValues: zip(managedWindows.map(\.key), orderedFrames))
+        }
+        func largestHorizontalGap(
+            in available: CGRect,
+            excluding rects: [CGRect],
+            gap: CGFloat
+        ) -> CGRect? {
+            // Collect left edges of occupied rects, sorted
+            var edges: [(x: CGFloat, isStart: Bool)] = []
+            for r in rects {
+                let clampedMinX = max(r.minX - gap, available.minX)
+                let clampedMaxX = min(r.maxX + gap, available.maxX)
+                edges.append((clampedMinX, true))
+                edges.append((clampedMaxX, false))
+            }
+            edges.sort { $0.x < $1.x }
+
+            var bestGap = CGRect.zero
+            var scanX = available.minX
+            var depth = 0
+            for edge in edges {
+                if depth == 0 && edge.x > scanX {
+                    let gapRect = CGRect(
+                        x: scanX, y: available.minY,
+                        width: edge.x - scanX, height: available.height
+                    )
+                    if gapRect.width > bestGap.width {
+                        bestGap = gapRect
+                    }
+                }
+                depth += edge.isStart ? 1 : -1
+                if !edge.isStart && depth == 0 {
+                    scanX = edge.x
+                }
+            }
+            // Check trailing gap
+            if scanX < available.maxX {
+                let gapRect = CGRect(
+                    x: scanX, y: available.minY,
+                    width: available.maxX - scanX, height: available.height
+                )
+                if gapRect.width > bestGap.width {
+                    bestGap = gapRect
+                }
+            }
+            return bestGap.width > 100 ? bestGap.integral : nil
         }
         func moveEverythingRetileSlice(
             within fullAvailableFrame: CGRect,
