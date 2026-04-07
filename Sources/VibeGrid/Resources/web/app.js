@@ -5992,6 +5992,9 @@ function normalizeMoveEverythingWindow(value) {
   const iTermWindowName = typeof value.iTermWindowName === "string" ? value.iTermWindowName.trim() || null : null;
   const iTermSessionName = typeof value.iTermSessionName === "string" ? value.iTermSessionName.trim() || null : null;
   const iTermLastLine = typeof value.iTermLastLine === "string" ? value.iTermLastLine.trim() || null : null;
+  const iTermProfileID = typeof value.iTermProfileID === "string" ? value.iTermProfileID.trim() || null : null;
+  const iTermPaneCommand = typeof value.iTermPaneCommand === "string" ? value.iTermPaneCommand.trim() || null : null;
+  const iTermPanePath = typeof value.iTermPanePath === "string" ? value.iTermPanePath.trim() || null : null;
 
   return {
     key,
@@ -6009,6 +6012,9 @@ function normalizeMoveEverythingWindow(value) {
     iTermWindowName,
     iTermSessionName,
     iTermLastLine,
+    iTermProfileID,
+    iTermPaneCommand,
+    iTermPanePath,
   };
 }
 
