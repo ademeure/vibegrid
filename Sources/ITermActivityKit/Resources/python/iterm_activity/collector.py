@@ -9,7 +9,7 @@ import iterm2
 from .models import PollEntry
 
 
-TMUX_SESSION_PATTERN = re.compile(r"tmux\s+(?:attach|a|new|new-session)\s+.*?-t\s+\W*(\w[\w-]*)")
+TMUX_SESSION_PATTERN = re.compile(r"tmux\s+(?:attach-session|attach|a|new-session|new)\s+.*?-t\s+\W*(\w[\w-]*)")
 
 # Cache tmux pane commands to avoid shelling out every poll cycle.
 _tmux_pane_command_cache: dict[str, tuple[str, float]] = {}
