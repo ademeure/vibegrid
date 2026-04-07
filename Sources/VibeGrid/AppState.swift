@@ -679,19 +679,12 @@ final class AppState {
             }
         }
 
-        // 2. Mux session name: "machine-number-reponame" → "reponame"
-        //    If the session has no repo suffix (e.g. "local-79"), return nil
-        //    immediately — don't fall through to generic patterns.
+        // 2. Mux session names and Claude session IDs have no repo info —
+        //    skip them so we fall through to pane path extraction.
         let trimmedForMux = text.replacingOccurrences(of: #"\s*\(tmux\)\s*$"#, with: "", options: .regularExpression)
         if isMuxSessionName(trimmedForMux) {
-            let parts = trimmedForMux.split(separator: "-", maxSplits: 2)
-            if parts.count >= 3 {
-                return String(parts[2...].joined(separator: "-")).lowercased()
-            }
             return nil
         }
-
-        // 3. Claude session IDs: "cs-XXXXXXXX (tmux)" — no repo info extractable
         if trimmedForMux.range(of: #"^cs-[0-9a-f]+"#, options: [.regularExpression, .caseInsensitive]) != nil {
             return nil
         }
