@@ -239,6 +239,10 @@ const ids = {
   moveEverythingITermRecentActivityIdleColorSetting: document.getElementById("moveEverythingITermRecentActivityIdleColorSetting"),
   moveEverythingITermRecentActivityActiveColorLightSetting: document.getElementById("moveEverythingITermRecentActivityActiveColorLightSetting"),
   moveEverythingITermRecentActivityIdleColorLightSetting: document.getElementById("moveEverythingITermRecentActivityIdleColorLightSetting"),
+  moveEverythingWindowListActiveColorSetting: document.getElementById("moveEverythingWindowListActiveColorSetting"),
+  moveEverythingWindowListIdleColorSetting: document.getElementById("moveEverythingWindowListIdleColorSetting"),
+  moveEverythingWindowListActiveColorLightSetting: document.getElementById("moveEverythingWindowListActiveColorLightSetting"),
+  moveEverythingWindowListIdleColorLightSetting: document.getElementById("moveEverythingWindowListIdleColorLightSetting"),
   moveEverythingITermBadgeTopMarginSetting: document.getElementById("moveEverythingITermBadgeTopMarginSetting"),
   moveEverythingITermBadgeRightMarginSetting: document.getElementById("moveEverythingITermBadgeRightMarginSetting"),
   moveEverythingActiveWindowHighlightColorizeSetting: document.getElementById("moveEverythingActiveWindowHighlightColorizeSetting"),
@@ -1191,6 +1195,18 @@ function renderMoveEverythingModal() {
       defaultMoveEverythingITermRecentActivityIdleColorLight
     );
   }
+  if (ids.moveEverythingWindowListActiveColorSetting) {
+    ids.moveEverythingWindowListActiveColorSetting.value = normalizeHexColor(settings.moveEverythingWindowListActiveColor, "#2F8F4E");
+  }
+  if (ids.moveEverythingWindowListIdleColorSetting) {
+    ids.moveEverythingWindowListIdleColorSetting.value = normalizeHexColor(settings.moveEverythingWindowListIdleColor, "#BA4D4D");
+  }
+  if (ids.moveEverythingWindowListActiveColorLightSetting) {
+    ids.moveEverythingWindowListActiveColorLightSetting.value = normalizeHexColor(settings.moveEverythingWindowListActiveColorLight, "#1A7535");
+  }
+  if (ids.moveEverythingWindowListIdleColorLightSetting) {
+    ids.moveEverythingWindowListIdleColorLightSetting.value = normalizeHexColor(settings.moveEverythingWindowListIdleColorLight, "#A03030");
+  }
   if (ids.moveEverythingITermBadgeTopMarginSetting) {
     ids.moveEverythingITermBadgeTopMarginSetting.value = clampInt(
       Number(settings.moveEverythingITermBadgeTopMargin ?? defaultMoveEverythingITermBadgeTopMargin),
@@ -2034,6 +2050,18 @@ function updateMoveEverythingSettings() {
       ids.moveEverythingITermRecentActivityIdleColorLightSetting.value,
       defaultMoveEverythingITermRecentActivityIdleColorLight
     );
+  }
+  if (ids.moveEverythingWindowListActiveColorSetting) {
+    settings.moveEverythingWindowListActiveColor = normalizeHexColor(ids.moveEverythingWindowListActiveColorSetting.value, "#2F8F4E");
+  }
+  if (ids.moveEverythingWindowListIdleColorSetting) {
+    settings.moveEverythingWindowListIdleColor = normalizeHexColor(ids.moveEverythingWindowListIdleColorSetting.value, "#BA4D4D");
+  }
+  if (ids.moveEverythingWindowListActiveColorLightSetting) {
+    settings.moveEverythingWindowListActiveColorLight = normalizeHexColor(ids.moveEverythingWindowListActiveColorLightSetting.value, "#1A7535");
+  }
+  if (ids.moveEverythingWindowListIdleColorLightSetting) {
+    settings.moveEverythingWindowListIdleColorLight = normalizeHexColor(ids.moveEverythingWindowListIdleColorLightSetting.value, "#A03030");
   }
   if (ids.moveEverythingITermBadgeTopMarginSetting) {
     settings.moveEverythingITermBadgeTopMargin = clampInt(
@@ -3352,9 +3380,10 @@ function buildMoveEverythingWindowRow(windowItem, options = {}) {
   const baseProfile = profileID.split("+")[0];
   const isClaudeOrCodex = baseProfile === "claude-code" || baseProfile === "codex";
   if (activityColorizeEnabled && isClaudeOrCodex && (activityStatus === "active" || activityStatus === "idle")) {
+    const isDark = moveEverythingThemeIsDark();
     const baseColor = activityStatus === "active"
-      ? settings.moveEverythingITermRecentActivityActiveColor
-      : settings.moveEverythingITermRecentActivityIdleColor;
+      ? (isDark ? settings.moveEverythingWindowListActiveColor : settings.moveEverythingWindowListActiveColorLight)
+      : (isDark ? settings.moveEverythingWindowListIdleColor : settings.moveEverythingWindowListIdleColorLight);
     const colorPair = resolveMoveEverythingWindowActivityColorPair(baseColor);
     if (colorPair) {
       row.classList.add("activity-status-box", `activity-status-${activityStatus}`);
@@ -6918,6 +6947,14 @@ function wireEvents() {
   on(ids.moveEverythingITermRecentActivityActiveColorLightSetting, "input", updateMoveEverythingSettings);
   on(ids.moveEverythingITermRecentActivityIdleColorLightSetting, "change", updateMoveEverythingSettings);
   on(ids.moveEverythingITermRecentActivityIdleColorLightSetting, "input", updateMoveEverythingSettings);
+  on(ids.moveEverythingWindowListActiveColorSetting, "change", updateMoveEverythingSettings);
+  on(ids.moveEverythingWindowListActiveColorSetting, "input", updateMoveEverythingSettings);
+  on(ids.moveEverythingWindowListIdleColorSetting, "change", updateMoveEverythingSettings);
+  on(ids.moveEverythingWindowListIdleColorSetting, "input", updateMoveEverythingSettings);
+  on(ids.moveEverythingWindowListActiveColorLightSetting, "change", updateMoveEverythingSettings);
+  on(ids.moveEverythingWindowListActiveColorLightSetting, "input", updateMoveEverythingSettings);
+  on(ids.moveEverythingWindowListIdleColorLightSetting, "change", updateMoveEverythingSettings);
+  on(ids.moveEverythingWindowListIdleColorLightSetting, "input", updateMoveEverythingSettings);
   on(ids.moveEverythingITermBadgeTopMarginSetting, "change", updateMoveEverythingSettings);
   on(ids.moveEverythingITermBadgeTopMarginSetting, "input", updateMoveEverythingSettings);
   on(ids.moveEverythingITermBadgeRightMarginSetting, "change", updateMoveEverythingSettings);

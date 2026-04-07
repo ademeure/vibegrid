@@ -364,6 +364,14 @@ struct YAMLConfigCodec {
                         config.settings.moveEverythingITermRecentActivityActiveColorLight = parseScalar(effectiveValue)
                     case "moveEverythingITermRecentActivityIdleColorLight":
                         config.settings.moveEverythingITermRecentActivityIdleColorLight = parseScalar(effectiveValue)
+                    case "moveEverythingWindowListActiveColor":
+                        config.settings.moveEverythingWindowListActiveColor = parseScalar(effectiveValue)
+                    case "moveEverythingWindowListIdleColor":
+                        config.settings.moveEverythingWindowListIdleColor = parseScalar(effectiveValue)
+                    case "moveEverythingWindowListActiveColorLight":
+                        config.settings.moveEverythingWindowListActiveColorLight = parseScalar(effectiveValue)
+                    case "moveEverythingWindowListIdleColorLight":
+                        config.settings.moveEverythingWindowListIdleColorLight = parseScalar(effectiveValue)
                     case "moveEverythingITermBadgeTopMargin":
                         config.settings.moveEverythingITermBadgeTopMargin = try parseInt(
                             effectiveValue,
@@ -710,6 +718,12 @@ struct YAMLConfigCodec {
         lines.append("  # Light mode colors (hex #RRGGBB)")
         lines.append("  moveEverythingITermRecentActivityActiveColorLight: \(encodeScalar(normalized.settings.moveEverythingITermRecentActivityActiveColorLight))  # active tint color (light mode)")
         lines.append("  moveEverythingITermRecentActivityIdleColorLight: \(encodeScalar(normalized.settings.moveEverythingITermRecentActivityIdleColorLight))  # idle tint color (light mode)")
+        lines.append("")
+        lines.append("  # Window list row colors (hex #RRGGBB)")
+        lines.append("  moveEverythingWindowListActiveColor: \(encodeScalar(normalized.settings.moveEverythingWindowListActiveColor))  # window list active color (dark mode)")
+        lines.append("  moveEverythingWindowListIdleColor: \(encodeScalar(normalized.settings.moveEverythingWindowListIdleColor))  # window list idle color (dark mode)")
+        lines.append("  moveEverythingWindowListActiveColorLight: \(encodeScalar(normalized.settings.moveEverythingWindowListActiveColorLight))  # window list active color (light mode)")
+        lines.append("  moveEverythingWindowListIdleColorLight: \(encodeScalar(normalized.settings.moveEverythingWindowListIdleColorLight))  # window list idle color (light mode)")
         lines.append("")
         lines.append("  # ── iTerm2 Badges & Titles ─────────────────────────────────────")
         lines.append("  moveEverythingITermBadgeTopMargin: \(normalized.settings.moveEverythingITermBadgeTopMargin)  # badge top margin in points")

@@ -293,6 +293,10 @@ struct Settings: Codable {
     var moveEverythingITermRecentActivityIdleColor: String
     var moveEverythingITermRecentActivityActiveColorLight: String
     var moveEverythingITermRecentActivityIdleColorLight: String
+    var moveEverythingWindowListActiveColor: String
+    var moveEverythingWindowListIdleColor: String
+    var moveEverythingWindowListActiveColorLight: String
+    var moveEverythingWindowListIdleColorLight: String
     var moveEverythingITermBadgeTopMargin: Int
     var moveEverythingITermBadgeRightMargin: Int
     var moveEverythingITermBadgeMaxWidth: Int
@@ -357,6 +361,10 @@ struct Settings: Codable {
             moveEverythingITermRecentActivityIdleColor: "#BA4D4D",
             moveEverythingITermRecentActivityActiveColorLight: "#1A7535",
             moveEverythingITermRecentActivityIdleColorLight: "#A03030",
+            moveEverythingWindowListActiveColor: "#2F8F4E",
+            moveEverythingWindowListIdleColor: "#BA4D4D",
+            moveEverythingWindowListActiveColorLight: "#1A7535",
+            moveEverythingWindowListIdleColorLight: "#A03030",
             moveEverythingITermBadgeTopMargin: 6,
             moveEverythingITermBadgeRightMargin: 8,
             moveEverythingITermBadgeMaxWidth: 120,
@@ -422,6 +430,10 @@ struct Settings: Codable {
         moveEverythingITermRecentActivityIdleColor: String = "#BA4D4D",
         moveEverythingITermRecentActivityActiveColorLight: String = "#1A7535",
         moveEverythingITermRecentActivityIdleColorLight: String = "#A03030",
+        moveEverythingWindowListActiveColor: String = "#2F8F4E",
+        moveEverythingWindowListIdleColor: String = "#BA4D4D",
+        moveEverythingWindowListActiveColorLight: String = "#1A7535",
+        moveEverythingWindowListIdleColorLight: String = "#A03030",
         moveEverythingITermBadgeTopMargin: Int = 6,
         moveEverythingITermBadgeRightMargin: Int = 8,
         moveEverythingITermBadgeMaxWidth: Int = 120,
@@ -484,6 +496,10 @@ struct Settings: Codable {
         self.moveEverythingITermRecentActivityIdleColor = moveEverythingITermRecentActivityIdleColor
         self.moveEverythingITermRecentActivityActiveColorLight = moveEverythingITermRecentActivityActiveColorLight
         self.moveEverythingITermRecentActivityIdleColorLight = moveEverythingITermRecentActivityIdleColorLight
+        self.moveEverythingWindowListActiveColor = moveEverythingWindowListActiveColor
+        self.moveEverythingWindowListIdleColor = moveEverythingWindowListIdleColor
+        self.moveEverythingWindowListActiveColorLight = moveEverythingWindowListActiveColorLight
+        self.moveEverythingWindowListIdleColorLight = moveEverythingWindowListIdleColorLight
         self.moveEverythingITermBadgeTopMargin = moveEverythingITermBadgeTopMargin
         self.moveEverythingITermBadgeRightMargin = moveEverythingITermBadgeRightMargin
         self.moveEverythingITermBadgeMaxWidth = moveEverythingITermBadgeMaxWidth
@@ -549,6 +565,10 @@ struct Settings: Codable {
         case moveEverythingITermRecentActivityIdleColor
         case moveEverythingITermRecentActivityActiveColorLight
         case moveEverythingITermRecentActivityIdleColorLight
+        case moveEverythingWindowListActiveColor
+        case moveEverythingWindowListIdleColor
+        case moveEverythingWindowListActiveColorLight
+        case moveEverythingWindowListIdleColorLight
         case moveEverythingITermBadgeTopMargin
         case moveEverythingITermBadgeRightMargin
         case moveEverythingITermBadgeMaxWidth
@@ -679,6 +699,10 @@ struct Settings: Codable {
             String.self,
             forKey: .moveEverythingITermRecentActivityIdleColorLight
         ) ?? "#A03030"
+        moveEverythingWindowListActiveColor = try container.decodeIfPresent(String.self, forKey: .moveEverythingWindowListActiveColor) ?? "#2F8F4E"
+        moveEverythingWindowListIdleColor = try container.decodeIfPresent(String.self, forKey: .moveEverythingWindowListIdleColor) ?? "#BA4D4D"
+        moveEverythingWindowListActiveColorLight = try container.decodeIfPresent(String.self, forKey: .moveEverythingWindowListActiveColorLight) ?? "#1A7535"
+        moveEverythingWindowListIdleColorLight = try container.decodeIfPresent(String.self, forKey: .moveEverythingWindowListIdleColorLight) ?? "#A03030"
         moveEverythingITermBadgeTopMargin = try container.decodeIfPresent(
             Int.self,
             forKey: .moveEverythingITermBadgeTopMargin
@@ -789,6 +813,10 @@ struct Settings: Codable {
         try container.encode(moveEverythingITermRecentActivityIdleColor, forKey: .moveEverythingITermRecentActivityIdleColor)
         try container.encode(moveEverythingITermRecentActivityActiveColorLight, forKey: .moveEverythingITermRecentActivityActiveColorLight)
         try container.encode(moveEverythingITermRecentActivityIdleColorLight, forKey: .moveEverythingITermRecentActivityIdleColorLight)
+        try container.encode(moveEverythingWindowListActiveColor, forKey: .moveEverythingWindowListActiveColor)
+        try container.encode(moveEverythingWindowListIdleColor, forKey: .moveEverythingWindowListIdleColor)
+        try container.encode(moveEverythingWindowListActiveColorLight, forKey: .moveEverythingWindowListActiveColorLight)
+        try container.encode(moveEverythingWindowListIdleColorLight, forKey: .moveEverythingWindowListIdleColorLight)
         try container.encode(moveEverythingITermBadgeTopMargin, forKey: .moveEverythingITermBadgeTopMargin)
         try container.encode(moveEverythingITermBadgeRightMargin, forKey: .moveEverythingITermBadgeRightMargin)
         try container.encode(moveEverythingITermBadgeMaxWidth, forKey: .moveEverythingITermBadgeMaxWidth)
