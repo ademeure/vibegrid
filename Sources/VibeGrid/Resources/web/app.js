@@ -2829,15 +2829,18 @@ function resolveMoveEverythingWindowSubtitle(windowItem) {
     if (baseProfile === "codex") {
       return "Codex";
     }
-    // Show the foreground binary, or cwd for idle shells
     const paneCommand = String(windowItem?.iTermPaneCommand || "").trim();
     const panePath = String(windowItem?.iTermPanePath || "").trim();
-    if (paneCommand && !["zsh", "-zsh", "bash", "-bash", "fish", "login"].includes(paneCommand)) {
+    const shortPath = panePath.startsWith("/Users/") ? "~" + panePath.slice(panePath.indexOf("/", 7)) : panePath;
+    const isShell = !paneCommand || ["zsh", "-zsh", "bash", "-bash", "fish", "login"].includes(paneCommand);
+    if (!isShell && shortPath) {
+      return `${paneCommand} · ${shortPath}`;
+    }
+    if (!isShell) {
       return paneCommand;
     }
-    if (panePath) {
-      const home = panePath.startsWith("/Users/") ? "~" + panePath.slice(panePath.indexOf("/", 7)) : panePath;
-      return home;
+    if (shortPath) {
+      return shortPath;
     }
     // Fallback: show something complementary to the title
     const displayedTitle = resolveMoveEverythingDisplayedWindowTitle(windowItem);
