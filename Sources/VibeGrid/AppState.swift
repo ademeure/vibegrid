@@ -1701,7 +1701,6 @@ final class AppState {
                         let lower = trimmed.lowercased()
                         return (lower.contains("running") && lower.contains("bash command"))
                             || (lower.contains("reading") && lower.contains("file"))
-                            || lower.contains("esc to interrupt")
                     }
                     if hasActiveIndicator {
                         newCache[key] = "active"
