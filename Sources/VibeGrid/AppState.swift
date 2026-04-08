@@ -67,6 +67,7 @@ final class AppState {
     private(set) var iTermActivityProfileCache: [String: String] = [:]  // snapshot key → profile id (e.g. "claude-code", "codex")
     private(set) var iTermPaneCommandCache: [String: String] = [:]  // snapshot key → tmux pane foreground command
     private(set) var iTermPanePathCache: [String: String] = [:]  // snapshot key → tmux pane current path
+    private(set) var iTermPaneTitleCache: [String: String] = [:]  // snapshot key → tmux pane title (e.g. Claude Code session name)
     private var iTermTmuxFallbackLastActiveAt: [String: Date] = [:]  // snapshot key → last time tmux fallback saw active
     private var iTermRuntimeWindowIDBySnapshotKey: [String: String] = [:]  // snapshot key → pty-... runtime id
     private let iTermActivityOverlayController = ITermActivityOverlayController()
@@ -126,8 +127,7 @@ final class AppState {
         windowManager.onCloseWindowOverride = { [weak self] key in
             guard let self,
                   self.config.settings.moveEverythingCloseMuxKill,
-                  let sessionName = self.iTermSessionNameCache[key],
-                  AppState.isMuxSessionName(sessionName) else {
+                  let sessionName = self.iTermSessionNameCache[key] else {
                 return false
             }
             return AppState.muxKill(sessionName: sessionName)
@@ -1594,6 +1594,7 @@ final class AppState {
                 var newProfileCache: [String: String] = [:]
                 var newPaneCommandCache: [String: String] = [:]
                 var newPanePathCache: [String: String] = [:]
+                var newPaneTitleCache: [String: String] = [:]
                 var newRuntimeWindowIDBySnapshotKey: [String: String] = [:]
                 let desktopHeight = NSScreen.screens.reduce(CGRect.null) { $0.union($1.frame) }.height
                 var unmatchedEntries = Array(activityEntries.enumerated())
@@ -1638,6 +1639,9 @@ final class AppState {
                         if let panePath = activity?.tmuxPanePath, !panePath.isEmpty {
                             newPanePathCache[snapshot.key] = panePath
                         }
+                        if let paneTitle = activity?.tmuxPaneTitle, !paneTitle.isEmpty {
+                            newPaneTitleCache[snapshot.key] = paneTitle
+                        }
                         if let activity {
                             WindowListDebugLogger.log(
                                 "iterm-activity",
@@ -1667,6 +1671,9 @@ final class AppState {
                         }
                         if let existingPanePath = self.iTermPanePathCache[snapshot.key] {
                             newPanePathCache[snapshot.key] = existingPanePath
+                        }
+                        if let existingPaneTitle = self.iTermPaneTitleCache[snapshot.key] {
+                            newPaneTitleCache[snapshot.key] = existingPaneTitle
                         }
                         WindowListDebugLogger.log(
                             "iterm-activity",
@@ -1737,6 +1744,7 @@ final class AppState {
                 self.iTermActivityProfileCache = newProfileCache
                 self.iTermPaneCommandCache = newPaneCommandCache
                 self.iTermPanePathCache = newPanePathCache
+                self.iTermPaneTitleCache = newPaneTitleCache
                 self.iTermRuntimeWindowIDBySnapshotKey = newRuntimeWindowIDBySnapshotKey
                 self.windowManager.iTermLastActiveAtBySnapshotKey = self.iTermLastActiveAt
 

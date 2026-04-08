@@ -84,6 +84,7 @@ public enum ITermWindowActivityDetector {
         public let detail: String
         public let tmuxPaneCommand: String
         public let tmuxPanePath: String
+        public let tmuxPaneTitle: String
 
         public var semanticLineCount: Int {
             semanticLines.count
@@ -99,7 +100,8 @@ public enum ITermWindowActivityDetector {
             semanticLines: [String],
             detail: String = "",
             tmuxPaneCommand: String = "",
-            tmuxPanePath: String = ""
+            tmuxPanePath: String = "",
+            tmuxPaneTitle: String = ""
         ) {
             self.status = status
             self.badgeText = badgeText
@@ -111,6 +113,7 @@ public enum ITermWindowActivityDetector {
             self.detail = detail
             self.tmuxPaneCommand = tmuxPaneCommand
             self.tmuxPanePath = tmuxPanePath
+            self.tmuxPaneTitle = tmuxPaneTitle
         }
     }
 

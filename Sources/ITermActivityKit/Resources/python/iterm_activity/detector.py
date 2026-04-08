@@ -223,6 +223,7 @@ class Detector:
                 detail=detail,
                 tmux_pane_command=entry.tmux_pane_command,
                 tmux_pane_path=entry.tmux_pane_path,
+                tmux_pane_title=entry.tmux_pane_title,
                 semantic_lines=semantic_lines,
             )
             del detail

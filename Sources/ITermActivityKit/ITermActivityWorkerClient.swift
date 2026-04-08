@@ -433,6 +433,8 @@ public final class ITermActivityWorkerClient {
                 tmuxPaneCommand: (dict["tmux_pane_command"] as? String)?
                     .trimmingCharacters(in: .whitespacesAndNewlines) ?? "",
                 tmuxPanePath: (dict["tmux_pane_path"] as? String)?
+                    .trimmingCharacters(in: .whitespacesAndNewlines) ?? "",
+                tmuxPaneTitle: (dict["tmux_pane_title"] as? String)?
                     .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             )
         }

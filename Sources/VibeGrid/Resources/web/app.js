@@ -2820,6 +2820,19 @@ function resolveMoveEverythingDisplayedWindowTitle(windowItem) {
       return badge;
     }
   }
+  // For Claude Code / Codex sessions, use the tmux pane title as the
+  // main title — it contains the user-assigned session name (e.g.
+  // "fix-keyboard-session-binding") set via /rename.
+  const profileID = String(windowItem?.iTermProfileID || "").trim().toLowerCase();
+  const baseProfile = profileID.split("+")[0];
+  if (baseProfile === "claude-code" || baseProfile === "codex") {
+    const paneTitle = String(windowItem?.iTermPaneTitle || "").trim();
+    // Strip the status indicator prefix (e.g. "✳ " or "⠂ ")
+    const ccSessionName = paneTitle.replace(/^.\s+/, "").trim();
+    if (ccSessionName.length && ccSessionName !== "Claude Code" && ccSessionName !== "Codex") {
+      return ccSessionName;
+    }
+  }
   // Prefer the stripped raw AX title — it contains the full context
   // (e.g. "[global] window overlay") rather than just the bare session name.
   const rawTitle = String(windowItem?.title || "");
@@ -6070,6 +6083,7 @@ function normalizeMoveEverythingWindow(value) {
   const iTermProfileID = typeof value.iTermProfileID === "string" ? value.iTermProfileID.trim() || null : null;
   const iTermPaneCommand = typeof value.iTermPaneCommand === "string" ? value.iTermPaneCommand.trim() || null : null;
   const iTermPanePath = typeof value.iTermPanePath === "string" ? value.iTermPanePath.trim() || null : null;
+  const iTermPaneTitle = typeof value.iTermPaneTitle === "string" ? value.iTermPaneTitle.trim() || null : null;
 
   return {
     key,
@@ -6090,6 +6104,7 @@ function normalizeMoveEverythingWindow(value) {
     iTermProfileID,
     iTermPaneCommand,
     iTermPanePath,
+    iTermPaneTitle,
     iTermRepoGroup: typeof value.iTermRepoGroup === "string" ? value.iTermRepoGroup.trim() || null : null,
   };
 }

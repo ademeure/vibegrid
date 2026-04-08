@@ -16,26 +16,27 @@ _tmux_pane_command_cache: dict[str, tuple[str, float]] = {}
 _TMUX_PANE_COMMAND_CACHE_TTL = 5.0
 
 
-def _query_tmux_pane_info(session_name: str) -> tuple[str, str]:
-    """Query the foreground command and cwd of a tmux session's active pane."""
+def _query_tmux_pane_info(session_name: str) -> tuple[str, str, str]:
+    """Query the foreground command, cwd, and pane title of a tmux session's active pane."""
     now = time.monotonic()
     cached = _tmux_pane_command_cache.get(session_name)
     if cached and now - cached[1] < _TMUX_PANE_COMMAND_CACHE_TTL:
         return cached[0]
     try:
         result = subprocess.run(
-            ["tmux", "list-panes", "-t", session_name, "-F", "#{pane_current_command}\t#{pane_current_path}"],
+            ["tmux", "list-panes", "-t", session_name, "-F", "#{pane_current_command}\t#{pane_current_path}\t#{pane_title}"],
             capture_output=True, text=True, timeout=2,
         )
         if result.returncode == 0:
-            parts = result.stdout.strip().split("\n")[0].split("\t", 1)
+            parts = result.stdout.strip().split("\n")[0].split("\t", 2)
             cmd = parts[0].strip()
             path = parts[1].strip() if len(parts) > 1 else ""
+            title = parts[2].strip() if len(parts) > 2 else ""
         else:
-            cmd, path = "", ""
+            cmd, path, title = "", "", ""
     except Exception:
-        cmd, path = "", ""
-    info = (cmd, path)
+        cmd, path, title = "", "", ""
+    info = (cmd, path, title)
     _tmux_pane_command_cache[session_name] = (info, now)
     return info
 
@@ -111,13 +112,14 @@ async def _fetch_metadata(session) -> dict[str, str]:
 
     tmux_pane_command = ""
     tmux_pane_path = ""
+    tmux_pane_title = ""
     try:
         command_line = str(await session.async_get_variable("commandLine") or "").strip()
         presentation_name = str(await session.async_get_variable("presentationName") or "").strip()
         match = TMUX_SESSION_PATTERN.search(command_line)
         if match:
             session_name = match.group(1)
-            tmux_pane_command, tmux_pane_path = _query_tmux_pane_info(session_name)
+            tmux_pane_command, tmux_pane_path, tmux_pane_title = _query_tmux_pane_info(session_name)
             # If the outer session runs a shell, try finding a nested tmux
             # session by matching the presentationName suffix against all sessions.
             if tmux_pane_command in {"zsh", "-zsh", "bash", "-bash", "fish", "login", "tmux", ""}:
@@ -125,10 +127,11 @@ async def _fetch_metadata(session) -> dict[str, str]:
                 if pres_base and pres_base != session_name:
                     nested = _find_tmux_session_by_suffix(pres_base)
                     if nested:
-                        nested_cmd, nested_path = _query_tmux_pane_info(nested)
+                        nested_cmd, nested_path, nested_title = _query_tmux_pane_info(nested)
                         if nested_cmd and nested_cmd not in {"zsh", "-zsh", "bash", "-bash", "fish", "login", "tmux", ""}:
                             tmux_pane_command = nested_cmd
                             tmux_pane_path = nested_path
+                            tmux_pane_title = nested_title
                             session_name = nested
         elif presentation_name and presentation_name not in {"-zsh", "zsh", "bash", "-bash", "fish", "login"}:
             session_name = presentation_name
@@ -140,6 +143,7 @@ async def _fetch_metadata(session) -> dict[str, str]:
         "command_line": command_line,
         "tmux_pane_command": tmux_pane_command,
         "tmux_pane_path": tmux_pane_path,
+        "tmux_pane_title": tmux_pane_title,
         "presentation_name": presentation_name,
         "session_name": session_name,
     }
@@ -207,7 +211,7 @@ async def collect_window_snapshots(
             if metadata_cache is not None:
                 metadata_cache.put(window_id, metadata)
         if metadata is None:
-            metadata = {"badge_text": "", "command_line": "", "tmux_pane_command": "", "tmux_pane_path": "", "presentation_name": "", "session_name": ""}
+            metadata = {"badge_text": "", "command_line": "", "tmux_pane_command": "", "tmux_pane_path": "", "tmux_pane_title": "", "presentation_name": "", "session_name": ""}
 
         # Background color is populated by the worker from the profile list cache
         bg_r, bg_g, bg_b = 0, 0, 0
@@ -249,6 +253,7 @@ async def collect_window_snapshots(
                 command_line=metadata["command_line"],
                 tmux_pane_command=metadata.get("tmux_pane_command", ""),
                 tmux_pane_path=metadata.get("tmux_pane_path", ""),
+                tmux_pane_title=metadata.get("tmux_pane_title", ""),
                 last_line=last_line,
                 non_empty_lines_from_bottom=non_empty_lines,
                 background_color_r=bg_r,
