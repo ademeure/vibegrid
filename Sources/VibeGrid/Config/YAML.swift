@@ -278,6 +278,19 @@ struct YAMLConfigCodec {
                             lineNumber: line.number,
                             field: "moveEverythingMiniRetileWidthPercent"
                         )
+                    case "moveEverythingRetileOrder":
+                        let raw = effectiveValue.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+                        if raw == "innermostfirst" {
+                            config.settings.moveEverythingRetileOrder = .innermostFirst
+                        } else {
+                            config.settings.moveEverythingRetileOrder = .leftToRight
+                        }
+                    case "moveEverythingITermGroupByRepository":
+                        config.settings.moveEverythingITermGroupByRepository = try parseBoolean(
+                            effectiveValue,
+                            lineNumber: line.number,
+                            field: "moveEverythingITermGroupByRepository"
+                        )
                     case "moveEverythingBackgroundRefreshInterval":
                         config.settings.moveEverythingBackgroundRefreshInterval = try parseDouble(
                             effectiveValue,
@@ -687,9 +700,11 @@ struct YAMLConfigCodec {
         lines.append("  moveEverythingCloseMuxKill: \(normalized.settings.moveEverythingCloseMuxKill ? "true" : "false")  # kill mux session when closing iTerm windows")
         lines.append("  moveEverythingExcludePinnedWindows: \(normalized.settings.moveEverythingExcludePinnedWindows ? "true" : "false")")
         lines.append("  moveEverythingMiniRetileWidthPercent: \(formatDouble(normalized.settings.moveEverythingMiniRetileWidthPercent))  # width % for mini retile")
+        lines.append("  moveEverythingRetileOrder: \(normalized.settings.moveEverythingRetileOrder.rawValue)  # leftToRight | innermostFirst")
         lines.append("  moveEverythingBackgroundRefreshInterval: \(formatDouble(normalized.settings.moveEverythingBackgroundRefreshInterval))  # window list refresh interval (sec)")
         lines.append("")
         lines.append("  # ── iTerm2 Activity Detection ──────────────────────────────────")
+        lines.append("  moveEverythingITermGroupByRepository: \(normalized.settings.moveEverythingITermGroupByRepository ? "true" : "false")  # group iTerm windows by repository")
         lines.append("  moveEverythingITermRecentActivityTimeout: \(formatDouble(normalized.settings.moveEverythingITermRecentActivityTimeout))  # detection poll timeout (sec)")
         lines.append("  moveEverythingITermRecentActivityBuffer: \(formatDouble(normalized.settings.moveEverythingITermRecentActivityBuffer))  # buffer before activity detection starts (sec)")
         lines.append("  moveEverythingITermRecentActivityActiveText: \(encodeScalar(normalized.settings.moveEverythingITermRecentActivityActiveText))  # text shown for active windows")
@@ -703,7 +718,7 @@ struct YAMLConfigCodec {
         lines.append("  #   overlay — legacy transparent border overlay (0=off)")
         lines.append("  moveEverythingITermActivityBackgroundTintEnabled: \(normalized.settings.moveEverythingITermActivityBackgroundTintEnabled ? "true" : "false")")
         lines.append("  moveEverythingITermActivityTabColorEnabled: \(normalized.settings.moveEverythingITermActivityTabColorEnabled ? "true" : "false")")
-        lines.append("  moveEverythingITermActivityOverlayOpacity: \(normalized.settings.moveEverythingITermActivityOverlayOpacity)  # legacy overlay opacity (0=off, 0-1)")
+        lines.append("  moveEverythingITermActivityOverlayOpacity: \(formatDouble(normalized.settings.moveEverythingITermActivityOverlayOpacity))  # legacy overlay opacity (0=off, 0-1)")
         lines.append("  moveEverythingITermActivityTintIntensity: \(formatDouble(normalized.settings.moveEverythingITermActivityTintIntensity))  # background tint strength (0.05-1.0)")
         lines.append("  moveEverythingITermActivityHoldSeconds: \(formatDouble(normalized.settings.moveEverythingITermActivityHoldSeconds))  # how long active status persists after last change (sec)")
         lines.append("  moveEverythingITermRecentActivityColorize: \(normalized.settings.moveEverythingITermRecentActivityColorize ? "true" : "false")  # color-code window list by activity")
@@ -740,6 +755,8 @@ struct YAMLConfigCodec {
         lines.append("  moveEverythingHideWindowHotkey: \(encodeHotkey(normalized.settings.moveEverythingHideWindowHotkey))")
         lines.append("  moveEverythingNameWindowHotkey: \(encodeHotkey(normalized.settings.moveEverythingNameWindowHotkey))")
         lines.append("  moveEverythingQuickViewHotkey: \(encodeHotkey(normalized.settings.moveEverythingQuickViewHotkey))")
+        lines.append("  moveEverythingUndoWindowMovementHotkey: \(encodeHotkey(normalized.settings.moveEverythingUndoWindowMovementHotkey))")
+        lines.append("  moveEverythingRedoWindowMovementHotkey: \(encodeHotkey(normalized.settings.moveEverythingRedoWindowMovementHotkey))")
         lines.append("  moveEverythingQuickViewVerticalMode: \(normalized.settings.moveEverythingQuickViewVerticalMode.rawValue)  # fullHeight | fromCursor | padded")
         lines.append("")
         lines.append("# ── Shortcuts ───────────────────────────────────────────────────")
@@ -913,6 +930,9 @@ struct YAMLConfigCodec {
             let escaped = value
                 .replacingOccurrences(of: "\\", with: "\\\\")
                 .replacingOccurrences(of: "\"", with: "\\\"")
+                .replacingOccurrences(of: "\n", with: "\\n")
+                .replacingOccurrences(of: "\r", with: "\\r")
+                .replacingOccurrences(of: "\t", with: "\\t")
             return "\"\(escaped)\""
         }
 

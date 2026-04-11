@@ -203,10 +203,10 @@ final class UIBridge: NSObject, WKScriptMessageHandler {
                 sendNotice(level: "error", message: "Missing Window List window key")
                 return
             }
-            let movePointerToTopMiddle = payload["movePointerToTopMiddle"] as? Bool ?? false
+            let movePointerToCenter = payload["movePointerToCenter"] as? Bool ?? false
             if !appState.focusMoveEverythingWindow(
                 withKey: key,
-                movePointerToTopMiddle: movePointerToTopMiddle
+                movePointerToCenter: movePointerToCenter
             ) {
                 sendNotice(level: "error", message: "Unable to focus that window")
             }

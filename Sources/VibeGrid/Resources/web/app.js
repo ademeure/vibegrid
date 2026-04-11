@@ -462,6 +462,7 @@ function receiveState(payload) {
   // server immediately but skip this payload's config — it's stale (predates
   // our edits). The flush triggers a saveConfig which will cause the server
   // to push back the correct config on the next cycle.
+  const hasDragInProgress = state.gridDrag || state.freeDrag || state.listReorderDrag;
   if (autosaveTimer !== null) {
     flushAutosave();
     // Config wasn't updated from payload; record current signature for fast-path diffing.
@@ -471,6 +472,14 @@ function receiveState(payload) {
   } else if (performance.now() < configSaveGuardUntil) {
     // Skip config overwrite — a save was just flushed and the server
     // may not have processed it yet. The next push will have the correct config.
+    if (state._currentConfigSig === undefined) {
+      state._currentConfigSig = configSignature(state.config);
+    }
+  } else if (hasDragInProgress) {
+    // Skip config overwrite — a grid/freeform/reorder drag is in progress and
+    // has already mutated state.config in place. Overwriting now would silently
+    // discard the in-progress edits. The commit on mouseup will call markDirty
+    // which saves the final state.
     if (state._currentConfigSig === undefined) {
       state._currentConfigSig = configSignature(state.config);
     }
@@ -6453,17 +6462,26 @@ function wireEvents() {
     }
     handleMoveEverythingWindowListButtonEvent(event, "pointerdown");
   });
+  // Track clicks manually for double-click detection. Native dblclick is
+  // unreliable because hover-driven state pushes can rebuild the DOM between
+  // the two clicks, destroying the target element so the browser never fires
+  // dblclick.
+  let _lastRowClickKey = null;
+  let _lastRowClickTime = 0;
+  const _dblClickThresholdMs = 500;
   on(ids.moveEverythingWindowList, "click", (event) => {
     if (handleMoveEverythingWindowListButtonEvent(event, "click")) {
+      _lastRowClickKey = null;
       return;
     }
     if (handleMoveEverythingWindowListRowClick(event)) {
+      _lastRowClickKey = null;
       return;
     }
-  });
-  on(ids.moveEverythingWindowList, "dblclick", (event) => {
+
     const target = event.target instanceof Element ? event.target : null;
     if (!target || isInteractiveElement(target)) {
+      _lastRowClickKey = null;
       return;
     }
 
@@ -6472,25 +6490,44 @@ function wireEvents() {
         !ids.moveEverythingWindowList.contains(row) ||
         row.classList.contains("hidden-window") ||
         row.dataset.meControlCenter === "1") {
+      _lastRowClickKey = null;
       return;
     }
 
     const key = String(row.dataset.meWindowKey || "").trim();
     if (!key) {
+      _lastRowClickKey = null;
       return;
     }
 
-    event.preventDefault();
-    sendToNative("moveEverythingFocusWindow", {
-      key,
-      movePointerToTopMiddle: true,
-    });
+    const now = performance.now();
+    if (key === _lastRowClickKey && (now - _lastRowClickTime) < _dblClickThresholdMs) {
+      _lastRowClickKey = null;
+      _lastRowClickTime = 0;
+      event.preventDefault();
+      sendToNative("moveEverythingFocusWindow", {
+        key,
+        movePointerToCenter: true,
+      });
+      return;
+    }
+
+    _lastRowClickKey = key;
+    _lastRowClickTime = now;
   });
   let _hoverHysteresisY = null;
   on(ids.moveEverythingWindowList, "pointermove", (event) => {
     // Don't change hover while a mouse button is pressed — a DOM rebuild
     // during a click would destroy the button element and eat the click.
     if (event.buttons !== 0) {
+      return;
+    }
+    // Suppress hover changes while a double-click is pending. Moving the
+    // cursor between rows during the gap between the two clicks would
+    // trigger a hover change → state push → DOM rebuild, destroying the
+    // row element and making the second click land on the wrong target.
+    if (_lastRowClickKey !== null &&
+        (performance.now() - _lastRowClickTime) < _dblClickThresholdMs) {
       return;
     }
     if (event.target instanceof Element && isInteractiveElement(event.target)) {

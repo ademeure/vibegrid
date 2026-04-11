@@ -4,7 +4,7 @@ import CoreGraphics
 protocol WindowManagerEngineProtocol: AnyObject {
     var isMoveEverythingAlwaysOnTopEnabledProvider: (() -> Bool)? { get set }
     var onMoveEverythingModeChanged: ((Bool) -> Void)? { get set }
-    var onCloseWindowOverride: ((_ key: String) -> Bool)? { get set }
+    var onCloseWindowOverride: ((_ key: String) -> Void)? { get set }
     var onMoveEverythingInventoryRefreshed: (() -> Void)? { get set }
     var onMoveEverythingNameWindowRequested: ((String) -> Void)? { get set }
     var onMoveEverythingQuickViewRequested: (() -> Void)? { get set }
@@ -34,7 +34,7 @@ protocol WindowManagerEngineProtocol: AnyObject {
     func seedMoveEverythingSavedWindowPositions(_ snapshots: [MoveEverythingSavedWindowPositionsSnapshot])
     func moveEverythingSavedPositionsPreviousAvailable() -> Bool
     func moveEverythingSavedPositionsNextAvailable() -> Bool
-    func focusMoveEverythingWindow(withKey key: String, movePointerToTopMiddle: Bool) -> Bool
+    func focusMoveEverythingWindow(withKey key: String, movePointerToCenter: Bool) -> Bool
     func centerMoveEverythingWindow(withKey key: String) -> Bool
     func maximizeMoveEverythingWindow(withKey key: String) -> Bool
     func retileVisibleMoveEverythingWindows() -> Bool

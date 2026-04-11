@@ -306,7 +306,7 @@ extension WindowManagerEngine {
                 return isMoveEverythingWindowFocused(managedWindow)
             }
         }
-        func warpMousePointerToMoveEverythingWindowTopMiddle(
+        func warpMousePointerToMoveEverythingWindowCenter(
             _ managedWindow: MoveEverythingManagedWindow
         ) -> Bool {
             guard let frame = currentWindowRect(for: managedWindow.window),
@@ -320,10 +320,9 @@ extension WindowManagerEngine {
                 return false
             }
 
-            let topInset: CGFloat = min(6, frame.height - 1)
             let targetCocoaPoint = CGPoint(
                 x: min(max(frame.midX, desktop.minX + 1), desktop.maxX - 1),
-                y: min(max(frame.maxY - topInset, desktop.minY + 1), desktop.maxY - 1)
+                y: min(max(frame.midY, desktop.minY + 1), desktop.maxY - 1)
             )
             let targetQuartzPoint = CGPoint(
                 x: targetCocoaPoint.x,
@@ -653,7 +652,7 @@ extension WindowManagerEngine {
         }
         func focusMoveEverythingWindow(
             withKey key: String,
-            movePointerToTopMiddle: Bool = false
+            movePointerToCenter: Bool = false
         ) -> Bool {
             guard ensureMoveEverythingActiveForDirectAction() else {
                 return false
@@ -700,8 +699,8 @@ extension WindowManagerEngine {
                 moveEverythingFocusedWindowLastCheckAt = Date()
                 moveEverythingHoveredWindowKey = managedWindow.key
                 lockMoveEverythingHoveredWindow(managedWindow.key)
-                if movePointerToTopMiddle {
-                    _ = warpMousePointerToMoveEverythingWindowTopMiddle(managedWindow)
+                if movePointerToCenter {
+                    _ = warpMousePointerToMoveEverythingWindowCenter(managedWindow)
                 }
                 showMoveEverythingOverlay(for: managedWindow)
                 return true
@@ -957,7 +956,7 @@ extension WindowManagerEngine {
         }
         func hybridRetileVisibleMoveEverythingWindows() -> Bool {
             let widthPercent = min(max(config.settings.moveEverythingMiniRetileWidthPercent, 5), 100)
-            let baseMiniWidthFraction = CGFloat(widthPercent / 100)
+            _ = CGFloat(widthPercent / 100)
             return performRetileVisibleMoveEverythingWindows(
                 successVerb: "Hybrid retiled",
                 raiseAfterRetile: { [self] managedWindows in
@@ -2233,6 +2232,10 @@ extension WindowManagerEngine {
 
             let managedWindow = runState.windows[index]
             guard closeMoveEverythingWindow(managedWindow) else {
+                // AX close failed, but an async side-effect (e.g. mux kill)
+                // may still terminate the window. Invalidate the inventory
+                // cache so the next prune cycle detects the removal.
+                invalidateMoveEverythingResolvedInventoryCache()
                 return false
             }
             invalidateMoveEverythingResolvedInventoryCache()
@@ -4531,10 +4534,8 @@ extension WindowManagerEngine {
                 return false
             }
 
-            // Allow override (e.g. mux kill for tmux sessions) before default AX close
-            if let override = onCloseWindowOverride, override(managedWindow.key) {
-                return true
-            }
+            // Fire side-effect (e.g. async mux session kill) before the normal close
+            onCloseWindowOverride?(managedWindow.key)
 
             if managedWindow.pid == ProcessInfo.processInfo.processIdentifier,
                let ownWindow = ownWindow(for: managedWindow) {
@@ -4611,15 +4612,13 @@ extension WindowManagerEngine {
                 return false
             }
 
-            // Check for mux session override via key lookup
+            // Fire side-effect (e.g. async mux session kill) before the normal close
             if let override = onCloseWindowOverride {
                 var pid: pid_t = 0
                 AXUIElementGetPid(focusedWindow, &pid)
                 if let windowNumber = resolvedAXWindowNumber(for: focusedWindow) {
                     let key = "\(pid)-\(windowNumber)"
-                    if override(key) {
-                        return true
-                    }
+                    override(key)
                 }
             }
 

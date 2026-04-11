@@ -122,7 +122,10 @@ async def _fetch_metadata(session) -> dict[str, str]:
             tmux_pane_command, tmux_pane_path, tmux_pane_title = _query_tmux_pane_info(session_name)
             # If the outer session runs a shell, try finding a nested tmux
             # session by matching the presentationName suffix against all sessions.
-            if tmux_pane_command in {"zsh", "-zsh", "bash", "-bash", "fish", "login", "tmux", ""}:
+            # Skip this for remote sessions: empty pane command means the session
+            # doesn't exist locally (e.g. neb-6 is on a remote machine), so the
+            # regex extraction is already correct — don't override it.
+            if tmux_pane_command and tmux_pane_command in {"zsh", "-zsh", "bash", "-bash", "fish", "login", "tmux"}:
                 pres_base = re.sub(r"\s*\(tmux\)\s*$", "", presentation_name).strip()
                 if pres_base and pres_base != session_name:
                     nested = _find_tmux_session_by_suffix(pres_base)

@@ -125,12 +125,26 @@ final class AppState {
             self?.moveEverythingAlwaysOnTop ?? false
         }
         windowManager.onCloseWindowOverride = { [weak self] key in
-            guard let self,
-                  self.config.settings.moveEverythingCloseMuxKill,
-                  let sessionName = self.iTermSessionNameCache[key] else {
-                return false
+            guard let self else {
+                NSLog("VibeGrid: close override — self is nil for key=%@", key)
+                return
             }
-            return AppState.muxKill(sessionName: sessionName)
+            guard self.config.settings.moveEverythingCloseMuxKill else {
+                NSLog("VibeGrid: close override — moveEverythingCloseMuxKill disabled for key=%@", key)
+                return
+            }
+            guard let sessionName = self.iTermSessionNameCache[key] else {
+                NSLog("VibeGrid: close override — no session in cache for key=%@ (cache has %d entries: %@)",
+                      key, self.iTermSessionNameCache.count,
+                      self.iTermSessionNameCache.map { "\($0.key)=\($0.value)" }.joined(separator: ", "))
+                return
+            }
+            NSLog("VibeGrid: close override — dispatching mux kill for key=%@ session=%@", key, sessionName)
+            // Kill the mux session async — the caller AX-closes the window
+            // immediately so the user gets instant visual feedback.
+            DispatchQueue.global(qos: .utility).async {
+                AppState.muxKill(sessionName: sessionName)
+            }
         }
         windowManager.onMoveEverythingModeChanged = { [weak self] isActive in
             DispatchQueue.main.async {
@@ -738,6 +752,28 @@ final class AppState {
         return nil
     }
 
+    /// Convert mux session name (e.g. "neb-8", "neb-8-train") to colon-separated
+    /// machine:target format (e.g. "neb:8", "neb:8-train") that `mux kill` expects.
+    /// Local sessions like "local-124" become "local:124".
+    static func muxKillArgument(from sessionName: String) -> String {
+        // Pattern: machine-number[-suffix] → machine:number[-suffix]
+        guard sessionName.range(
+            of: #"^([a-zA-Z][a-zA-Z0-9]*)-(\d+.*)$"#,
+            options: .regularExpression
+        ) != nil else {
+            return sessionName
+        }
+        // Find the first "-" followed by a digit
+        if let dashIndex = sessionName.firstIndex(where: { $0 == "-" }),
+           let nextIndex = sessionName.index(dashIndex, offsetBy: 1, limitedBy: sessionName.endIndex),
+           sessionName[nextIndex].isNumber {
+            var result = sessionName
+            result.replaceSubrange(dashIndex...dashIndex, with: ":")
+            return result
+        }
+        return sessionName
+    }
+
     /// Run `mux kill <sessionName>` to cleanly terminate a mux session and its iTerm window.
     @discardableResult
     static func muxKill(sessionName: String) -> Bool {
@@ -745,12 +781,22 @@ final class AppState {
             NSLog("VibeGrid: mux binary not found, falling back to AX close")
             return false
         }
+        let killArg = muxKillArgument(from: sessionName)
+        NSLog("VibeGrid: mux kill %@ (from session name %@)", killArg, sessionName)
         let process = Process()
         process.executableURL = URL(fileURLWithPath: muxBin)
-        process.arguments = ["kill", sessionName]
+        process.arguments = ["kill", killArg]
+        let semaphore = DispatchSemaphore(value: 0)
+        process.terminationHandler = { _ in semaphore.signal() }
         do {
             try process.run()
-            process.waitUntilExit()
+            // Timeout after 10s — remote sessions need SSH roundtrips.
+            // This runs async so the timeout doesn't block the UI.
+            if semaphore.wait(timeout: .now() + 10) == .timedOut {
+                NSLog("VibeGrid: mux kill timed out for session %@, falling back to AX close", sessionName)
+                process.terminate()
+                return false
+            }
             if process.terminationStatus == 0 {
                 NSLog("VibeGrid: mux kill succeeded for session %@", sessionName)
                 return true
@@ -833,11 +879,11 @@ final class AppState {
     @discardableResult
     func focusMoveEverythingWindow(
         withKey key: String,
-        movePointerToTopMiddle: Bool
+        movePointerToCenter: Bool
     ) -> Bool {
         windowManager.focusMoveEverythingWindow(
             withKey: key,
-            movePointerToTopMiddle: movePointerToTopMiddle
+            movePointerToCenter: movePointerToCenter
         )
     }
 

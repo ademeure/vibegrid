@@ -113,8 +113,8 @@ final class WindowManagerEngine: WindowManagerEngineProtocol {
     var isMoveEverythingActive = false
     var onMoveEverythingModeChanged: ((Bool) -> Void)?
 
-    /// Called before the default AX close. Returns true if the window was handled (e.g. mux kill).
-    var onCloseWindowOverride: ((_ key: String) -> Bool)?
+    /// Side-effect hook called before the default AX close (e.g. async mux session kill).
+    var onCloseWindowOverride: ((_ key: String) -> Void)?
 
     var iTermLastActiveAtBySnapshotKey: [String: Date] = [:]
     var iTermRepositoryGroupBySnapshotKey: [String: String] = [:]
