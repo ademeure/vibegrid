@@ -832,6 +832,87 @@ final class AppState {
         }
     }
 
+    // MARK: - vibed daemon integration
+
+    /// Path to the vibed daemon's state file, written every ~2-3 seconds.
+    private static let vibedStatePath = NSString("~/.local/state/vibed/state.json").expandingTildeInPath
+
+    /// Read vibed daemon state and override the activity cache for Claude/Codex
+    /// sessions where vibed's caffeinate-based detection is available.
+    /// This runs after both the screen-content detector and tmux fallback,
+    /// so vibed data takes highest priority.
+    static func overlayVibedSessionActivity(
+        cache: inout [String: String],
+        profileCache: [String: String],
+        runtimeWindowIDByKey: [String: String],
+        lastActiveAt: inout [String: Date],
+        logger: WindowListDebugLogger.Type
+    ) {
+        guard FileManager.default.fileExists(atPath: vibedStatePath) else { return }
+
+        // Only read if the file was updated recently (within 10 seconds)
+        guard let attrs = try? FileManager.default.attributesOfItem(atPath: vibedStatePath),
+              let modDate = attrs[.modificationDate] as? Date,
+              Date().timeIntervalSince(modDate) < 10 else {
+            return
+        }
+
+        guard let data = try? Data(contentsOf: URL(fileURLWithPath: vibedStatePath)),
+              let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let sessions = root["sessions"] as? [String: Any] else {
+            return
+        }
+
+        // Build reverse map: pty-... window ID → snapshot key
+        var snapshotKeyByWindowID: [String: String] = [:]
+        for (snapshotKey, windowID) in runtimeWindowIDByKey {
+            snapshotKeyByWindowID[windowID] = snapshotKey
+        }
+
+        for (_, sessionValue) in sessions {
+            guard let session = sessionValue as? [String: Any] else { continue }
+
+            // Only override Claude/Codex sessions
+            let tool = session["tool"] as? String ?? ""
+            guard tool == "claude" || tool == "codex" else { continue }
+
+            // Match by window_id → snapshot key
+            guard let windowID = session["window_id"] as? String,
+                  !windowID.isEmpty,
+                  let snapshotKey = snapshotKeyByWindowID[windowID] else {
+                continue
+            }
+
+            // Only override if the profile cache confirms this is a Claude/Codex window
+            let profile = profileCache[snapshotKey] ?? ""
+            guard profile.hasPrefix("claude-code") || profile.hasPrefix("codex") else { continue }
+
+            let vibedStatus = session["status"] as? String ?? ""
+            let activityReason = session["activity_reason"] as? String ?? ""
+            let currentCacheValue = cache[snapshotKey] ?? "idle"
+
+            // Map vibed status to VibeGrid's "active"/"idle"
+            let newStatus: String
+            switch vibedStatus {
+            case "active":
+                newStatus = "active"
+            default:
+                newStatus = "idle"
+            }
+
+            if newStatus != currentCacheValue {
+                logger.log(
+                    "vibed-overlay",
+                    "key=\(snapshotKey) windowID=\(windowID) vibed=\(vibedStatus) reason=\(activityReason) was=\(currentCacheValue) now=\(newStatus)"
+                )
+                cache[snapshotKey] = newStatus
+                if newStatus == "active" {
+                    lastActiveAt[snapshotKey] = Date()
+                }
+            }
+        }
+    }
+
     private static func findMuxBinary() -> String? {
         // Same search order as the Python worker
         let candidates = [
@@ -1782,6 +1863,17 @@ final class AppState {
                         )
                     }
                 }
+
+                // Overlay vibed daemon session activity when available.
+                // vibed uses caffeinate process-tree detection which is more
+                // reliable than screen-content heuristics for Claude/Codex sessions.
+                Self.overlayVibedSessionActivity(
+                    cache: &newCache,
+                    profileCache: newProfileCache,
+                    runtimeWindowIDByKey: newRuntimeWindowIDBySnapshotKey,
+                    lastActiveAt: &self.iTermLastActiveAt,
+                    logger: WindowListDebugLogger.self
+                )
 
                 self.iTermActivityCache = newCache
                 self.iTermBadgeTextCache = newBadgeCache
