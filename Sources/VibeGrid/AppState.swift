@@ -2102,10 +2102,16 @@ final class AppState {
             }
             activeWindowIDs.insert(windowID)
 
-            // Suppress tint when user is actively interacting with this iTerm window
-            let hasRecentInput = snapshot.windowNumber
-                .flatMap { iTermInputTimestamps[$0] }
-                .map { $0 > inputCutoff } ?? false
+            // Suppress tint when user is actively interacting with this iTerm window,
+            // unless the persistent setting is enabled (keeps tint visible always).
+            let hasRecentInput: Bool
+            if config.settings.moveEverythingITermActivityBackgroundTintPersistent {
+                hasRecentInput = false
+            } else {
+                hasRecentInput = snapshot.windowNumber
+                    .flatMap { iTermInputTimestamps[$0] }
+                    .map { $0 > inputCutoff } ?? false
+            }
 
             let isActive = iTermActivityCache[snapshot.key] == "active"
             let statusKey = hasRecentInput ? "suppressed" : (isActive ? "active" : "idle")

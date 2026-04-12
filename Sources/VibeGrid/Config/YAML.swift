@@ -355,6 +355,12 @@ struct YAMLConfigCodec {
                             lineNumber: line.number,
                             field: "moveEverythingITermActivityBackgroundTintEnabled"
                         )
+                    case "moveEverythingITermActivityBackgroundTintPersistent":
+                        config.settings.moveEverythingITermActivityBackgroundTintPersistent = try parseBoolean(
+                            effectiveValue,
+                            lineNumber: line.number,
+                            field: "moveEverythingITermActivityBackgroundTintPersistent"
+                        )
                     case "moveEverythingITermActivityTabColorEnabled":
                         config.settings.moveEverythingITermActivityTabColorEnabled = try parseBoolean(
                             effectiveValue,
@@ -717,6 +723,7 @@ struct YAMLConfigCodec {
         lines.append("  #   tabColor — colors the iTerm tab bar per-window")
         lines.append("  #   overlay — legacy transparent border overlay (0=off)")
         lines.append("  moveEverythingITermActivityBackgroundTintEnabled: \(normalized.settings.moveEverythingITermActivityBackgroundTintEnabled ? "true" : "false")")
+        lines.append("  moveEverythingITermActivityBackgroundTintPersistent: \(normalized.settings.moveEverythingITermActivityBackgroundTintPersistent ? "true" : "false")  # keep tint active during user interaction")
         lines.append("  moveEverythingITermActivityTabColorEnabled: \(normalized.settings.moveEverythingITermActivityTabColorEnabled ? "true" : "false")")
         lines.append("  moveEverythingITermActivityOverlayOpacity: \(formatDouble(normalized.settings.moveEverythingITermActivityOverlayOpacity))  # legacy overlay opacity (0=off, 0-1)")
         lines.append("  moveEverythingITermActivityTintIntensity: \(formatDouble(normalized.settings.moveEverythingITermActivityTintIntensity))  # background tint strength (0.05-1.0)")

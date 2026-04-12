@@ -286,6 +286,7 @@ struct Settings: Codable {
     var moveEverythingITermActivityHoldSeconds: Double
     var moveEverythingITermActivityOverlayOpacity: Double
     var moveEverythingITermActivityBackgroundTintEnabled: Bool
+    var moveEverythingITermActivityBackgroundTintPersistent: Bool
     var moveEverythingITermActivityTabColorEnabled: Bool
     var moveEverythingActiveWindowHighlightColorize: Bool
     var moveEverythingActiveWindowHighlightColor: String
@@ -354,6 +355,7 @@ struct Settings: Codable {
             moveEverythingITermActivityHoldSeconds: 7.0,
             moveEverythingITermActivityOverlayOpacity: 0.0,
             moveEverythingITermActivityBackgroundTintEnabled: false,
+            moveEverythingITermActivityBackgroundTintPersistent: false,
             moveEverythingITermActivityTabColorEnabled: false,
             moveEverythingActiveWindowHighlightColorize: true,
             moveEverythingActiveWindowHighlightColor: "#4D88D4",
@@ -423,6 +425,7 @@ struct Settings: Codable {
         moveEverythingITermActivityHoldSeconds: Double = 7.0,
         moveEverythingITermActivityOverlayOpacity: Double = 0.14,
         moveEverythingITermActivityBackgroundTintEnabled: Bool = false,
+        moveEverythingITermActivityBackgroundTintPersistent: Bool = false,
         moveEverythingITermActivityTabColorEnabled: Bool = false,
         moveEverythingActiveWindowHighlightColorize: Bool = true,
         moveEverythingActiveWindowHighlightColor: String = "#4D88D4",
@@ -489,6 +492,7 @@ struct Settings: Codable {
         self.moveEverythingITermActivityHoldSeconds = moveEverythingITermActivityHoldSeconds
         self.moveEverythingITermActivityOverlayOpacity = moveEverythingITermActivityOverlayOpacity
         self.moveEverythingITermActivityBackgroundTintEnabled = moveEverythingITermActivityBackgroundTintEnabled
+        self.moveEverythingITermActivityBackgroundTintPersistent = moveEverythingITermActivityBackgroundTintPersistent
         self.moveEverythingITermActivityTabColorEnabled = moveEverythingITermActivityTabColorEnabled
         self.moveEverythingActiveWindowHighlightColorize = moveEverythingActiveWindowHighlightColorize
         self.moveEverythingActiveWindowHighlightColor = moveEverythingActiveWindowHighlightColor
@@ -558,6 +562,7 @@ struct Settings: Codable {
         case moveEverythingITermActivityHoldSeconds
         case moveEverythingITermActivityOverlayOpacity
         case moveEverythingITermActivityBackgroundTintEnabled
+        case moveEverythingITermActivityBackgroundTintPersistent
         case moveEverythingITermActivityTabColorEnabled
         case moveEverythingActiveWindowHighlightColorize
         case moveEverythingActiveWindowHighlightColor
@@ -670,6 +675,10 @@ struct Settings: Codable {
         moveEverythingITermActivityBackgroundTintEnabled = try container.decodeIfPresent(
             Bool.self,
             forKey: .moveEverythingITermActivityBackgroundTintEnabled
+        ) ?? false
+        moveEverythingITermActivityBackgroundTintPersistent = try container.decodeIfPresent(
+            Bool.self,
+            forKey: .moveEverythingITermActivityBackgroundTintPersistent
         ) ?? false
         moveEverythingITermActivityTabColorEnabled = try container.decodeIfPresent(
             Bool.self,
@@ -803,6 +812,7 @@ struct Settings: Codable {
         try container.encode(moveEverythingITermActivityHoldSeconds, forKey: .moveEverythingITermActivityHoldSeconds)
         try container.encode(moveEverythingITermActivityOverlayOpacity, forKey: .moveEverythingITermActivityOverlayOpacity)
         try container.encode(moveEverythingITermActivityBackgroundTintEnabled, forKey: .moveEverythingITermActivityBackgroundTintEnabled)
+        try container.encode(moveEverythingITermActivityBackgroundTintPersistent, forKey: .moveEverythingITermActivityBackgroundTintPersistent)
         try container.encode(moveEverythingITermActivityTabColorEnabled, forKey: .moveEverythingITermActivityTabColorEnabled)
         try container.encode(
             moveEverythingActiveWindowHighlightColorize,
