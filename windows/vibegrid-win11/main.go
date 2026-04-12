@@ -54,6 +54,7 @@ var (
 	procGetWindowLongW           = user32.NewProc("GetWindowLongW")
 	procGetClassNameW            = user32.NewProc("GetClassNameW")
 	procGetWindow                = user32.NewProc("GetWindow")
+	procSetCursorPos             = user32.NewProc("SetCursorPos")
 
 	procOpenProcess = kernel32.NewProc("OpenProcess")
 	procCloseHandle = kernel32.NewProc("CloseHandle")
@@ -1229,6 +1230,13 @@ type AppState struct {
 	configPath       string
 	legacyConfigPath string
 	logger           *log.Logger
+
+	// MoveEverything runtime toggle state (not persisted in config)
+	meAlwaysOnTop    bool
+	meMoveToBottom   bool
+	meDontMoveVG     bool
+	meShowOverlays   bool
+	mePinnedKeys     map[string]bool
 }
 
 func newAppState(logger *log.Logger) *AppState {
@@ -1240,6 +1248,7 @@ func newAppState(logger *log.Logger) *AppState {
 		configPath:       configPath,
 		legacyConfigPath: legacyConfigPath,
 		logger:           logger,
+		mePinnedKeys:     make(map[string]bool),
 	}
 
 	data, err := os.ReadFile(configPath)
@@ -1450,10 +1459,25 @@ func closeBrowserWindows(logger *log.Logger) {
 
 func buildFullState(as *AppState, logger *log.Logger, icons *iconCache) map[string]any {
 	windows := listMoveEverythingWindows(logger, icons)
+
+	as.mu.RLock()
+	pinnedKeys := make([]string, 0, len(as.mePinnedKeys))
+	for k := range as.mePinnedKeys {
+		pinnedKeys = append(pinnedKeys, k)
+	}
+	alwaysOnTop := as.meAlwaysOnTop
+	moveToBottom := as.meMoveToBottom
+	dontMoveVG := as.meDontMoveVG
+	showOverlays := as.meShowOverlays
+	as.mu.RUnlock()
+
+	cfg := as.getConfig()
+	yamlText, _ := configToYAML(cfg)
+
 	return map[string]any{
 		"type": "state",
 		"payload": map[string]any{
-			"config":                             as.getConfig(),
+			"config":                             cfg,
 			"hotKeyIssues":                       []any{},
 			"configPath":                         as.configPath,
 			"permissions":                        map[string]any{"accessibility": true},
@@ -1463,11 +1487,13 @@ func buildFullState(as *AppState, logger *log.Logger, icons *iconCache) map[stri
 			"moveEverythingWindows":              windows,
 			"controlCenterFocused":               true,
 			"moveEverythingControlCenterFocused": true,
-			"moveEverythingAlwaysOnTop":          false,
-			"moveEverythingMoveToBottom":         false,
-			"moveEverythingDontMoveVibeGrid":     false,
-			"moveEverythingShowOverlays":         false,
-			"yaml":                               "",
+			"moveEverythingAlwaysOnTop":          alwaysOnTop,
+			"moveEverythingMoveToBottom":         moveToBottom,
+			"moveEverythingDontMoveVibeGrid":     dontMoveVG,
+			"moveEverythingShowOverlays":         showOverlays,
+			"moveEverythingPinnedWindowKeys":     pinnedKeys,
+			"moveEverythingFocusedWindowKey":     "",
+			"yaml":                               yamlText,
 		},
 	}
 }
@@ -1500,8 +1526,20 @@ func handleBridgeMessage(msg map[string]any, as *AppState, overlays *OverlayMana
 			return map[string]any{"type": "notice", "payload": map[string]any{"level": "error", "message": err.Error()}}
 		}
 		hkMgr.reloadHotkeys()
-		pushState(buildFullState(as, logger, icons))
-		return map[string]any{"type": "notice", "payload": map[string]any{"level": "success", "message": "Configuration saved"}}
+		// Push saveMeta with YAML text (matches macOS UIBridge behavior)
+		yamlText, _ := configToYAML(as.getConfig())
+		pushState(map[string]any{
+			"type": "saveMeta",
+			"payload": map[string]any{
+				"hotKeyIssues": []any{},
+				"yaml":         yamlText,
+			},
+		})
+		silent, _ := payload["silent"].(bool)
+		if !silent {
+			return map[string]any{"type": "notice", "payload": map[string]any{"level": "success", "message": "Configuration saved"}}
+		}
+		return map[string]any{"type": "ok"}
 
 	case "toggleMoveEverythingMode", "ensureMoveEverythingMode":
 		state := buildFullState(as, logger, icons)
@@ -1512,6 +1550,19 @@ func handleBridgeMessage(msg map[string]any, as *AppState, overlays *OverlayMana
 		key, _ := payload["key"].(string)
 		if key != "" {
 			doWindowAction(key, "focus", logger)
+			movePointer, _ := payload["movePointerToCenter"].(bool)
+			if movePointer {
+				hwnd := parseHwnd(key)
+				if hwnd != 0 {
+					win32Do(func() {
+						var r rect
+						procGetWindowRect.Call(hwnd, uintptr(unsafe.Pointer(&r)))
+						cx := (r.Left + r.Right) / 2
+						cy := (r.Top + r.Bottom) / 2
+						procSetCursorPos.Call(uintptr(cx), uintptr(cy))
+					})
+				}
+			}
 		}
 		pushState(buildFullState(as, logger, icons))
 		return map[string]any{"type": "ok"}
@@ -1577,6 +1628,32 @@ func handleBridgeMessage(msg map[string]any, as *AppState, overlays *OverlayMana
 		state := buildFullState(as, logger, icons)
 		pushState(state)
 		return state
+
+	case "moveEverythingHybridRetileVisibleWindows",
+		"moveEverythingITermRetileVisibleWindows",
+		"moveEverythingNonITermRetileVisibleWindows":
+		// No iTerm distinction on Windows — all retile variants use the standard retile
+		if err := retileVisibleWindows(as, logger, 1, 3.0/2.0); err != nil {
+			return map[string]any{"type": "notice", "payload": map[string]any{"level": "error", "message": err.Error()}}
+		}
+		state := buildFullState(as, logger, icons)
+		pushState(state)
+		return state
+
+	case "moveEverythingSavePositions",
+		"moveEverythingRestorePreviousPositions",
+		"moveEverythingRestoreNextPositions",
+		"moveEverythingUndoRetile":
+		// Position save/restore not yet implemented on Windows
+		return map[string]any{"type": "ok"}
+
+	case "saveControlCenterDefaults", "resetControlCenterDefaults":
+		// Browser-based control center — position managed by browser
+		return map[string]any{"type": "ok"}
+
+	case "windowEditorOpened", "windowEditorClosed":
+		// Grid editor popup not implemented on Windows
+		return map[string]any{"type": "ok"}
 
 	case "jsLog":
 		level, _ := payload["level"].(string)
@@ -1655,13 +1732,73 @@ func handleBridgeMessage(msg map[string]any, as *AppState, overlays *OverlayMana
 		go exec.Command("cmd", "/c", "start", "ms-settings:startupapps").Start()
 		return map[string]any{"type": "ok"}
 
-	case "setMoveEverythingAlwaysOnTop",
-		"setMoveEverythingShowOverlays",
-		"setMoveEverythingMoveToBottom",
-		"setMoveEverythingDontMoveVibeGrid",
-		"setMoveEverythingNarrowMode",
-		"openSettings":
+	case "setMoveEverythingAlwaysOnTop":
+		enabled, _ := payload["enabled"].(bool)
+		as.mu.Lock()
+		as.meAlwaysOnTop = enabled
+		as.mu.Unlock()
 		return map[string]any{"type": "ok"}
+
+	case "setMoveEverythingShowOverlays":
+		enabled, _ := payload["enabled"].(bool)
+		as.mu.Lock()
+		as.meShowOverlays = enabled
+		as.mu.Unlock()
+		return map[string]any{"type": "ok"}
+
+	case "setMoveEverythingMoveToBottom":
+		enabled, _ := payload["enabled"].(bool)
+		as.mu.Lock()
+		as.meMoveToBottom = enabled
+		as.mu.Unlock()
+		return map[string]any{"type": "ok"}
+
+	case "setMoveEverythingDontMoveVibeGrid":
+		enabled, _ := payload["enabled"].(bool)
+		as.mu.Lock()
+		as.meDontMoveVG = enabled
+		as.mu.Unlock()
+		return map[string]any{"type": "ok"}
+
+	case "setMoveEverythingNarrowMode", "openSettings":
+		return map[string]any{"type": "ok"}
+
+	case "setMoveEverythingPinMode":
+		// Pin mode toggle — tracked in JS, just acknowledge
+		return map[string]any{"type": "ok"}
+
+	case "pinMoveEverythingWindow":
+		key, _ := payload["key"].(string)
+		if key != "" {
+			as.mu.Lock()
+			as.mePinnedKeys[key] = true
+			as.mu.Unlock()
+		}
+		pushState(buildFullState(as, logger, icons))
+		return map[string]any{"type": "ok"}
+
+	case "unpinMoveEverythingWindow":
+		key, _ := payload["key"].(string)
+		if key != "" {
+			as.mu.Lock()
+			delete(as.mePinnedKeys, key)
+			as.mu.Unlock()
+		}
+		pushState(buildFullState(as, logger, icons))
+		return map[string]any{"type": "ok"}
+
+	case "moveEverythingShowAllWindows":
+		windows := listMoveEverythingWindows(logger, icons)
+		if hidden, ok := windows["hidden"].([]MoveEverythingWindow); ok {
+			for _, w := range hidden {
+				if w.CanRestore {
+					doWindowAction(w.Key, "show", logger)
+				}
+			}
+		}
+		state := buildFullState(as, logger, icons)
+		pushState(state)
+		return state
 
 	case "beginHotkeyCapture":
 		hkMgr.beginCapture()
