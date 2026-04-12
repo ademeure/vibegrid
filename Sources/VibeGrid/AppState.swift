@@ -917,12 +917,16 @@ final class AppState {
             // Map vibed status to VibeGrid's "active"/"idle"
             let newStatus = vibedStatus == "active" ? "active" : "idle"
 
-            // Also ensure the profile cache reflects the tool type from vibed,
-            // so that UI styling (activity colors, indicators) applies correctly
-            // even when the screen-content detector didn't identify the profile.
+            // Ensure the profile cache reflects the tool type from vibed,
+            // so that UI styling (activity colors, indicators) applies correctly.
+            // The screen-content detector may classify remote sessions as
+            // "default+tmux" instead of "claude-code" — vibed knows better.
             let currentProfile = profileCache[key] ?? ""
-            if currentProfile.isEmpty {
-                let vibedProfile = tool == "codex" ? "codex" : "claude-code"
+            let baseProfile = currentProfile.split(separator: "+").first.map(String.init) ?? currentProfile
+            if baseProfile != "claude-code" && baseProfile != "codex" {
+                // Preserve the "+tmux" suffix if present
+                let suffix = currentProfile.contains("+") ? "+" + currentProfile.split(separator: "+").dropFirst().joined(separator: "+") : ""
+                let vibedProfile = (tool == "codex" ? "codex" : "claude-code") + suffix
                 profileCache[key] = vibedProfile
             }
 
