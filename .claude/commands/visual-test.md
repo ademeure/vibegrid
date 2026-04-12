@@ -141,36 +141,48 @@ PASS/FAIL/UNVERIFIED with a short reason.
 
 These tests cover the code path where nearly every recent bug has lived.
 
-**Setup:** Make sure at least one iTerm window is running a Claude Code or Codex
-session. If none are active, start one in a spare iTerm window:
+**Prereqs — fail fast if any of these aren't true:**
+
 ```bash
-cd ~/github/vibegrid && claude --help >/dev/null   # just launches claude briefly
+# Config: tint/tab-color must be enabled for Section C to make sense
+python3 -c "
+import yaml, sys
+cfg = yaml.safe_load(open('$HOME/Library/Application Support/VibeGrid/config.yaml'))
+s = cfg['settings']
+for k in ['moveEverythingITermActivityBackgroundTintEnabled',
+          'moveEverythingITermActivityTabColorEnabled',
+          'moveEverythingITermActivityBackgroundTintPersistent']:
+    print(k, '=', s.get(k))
+"
 ```
-If you can't start one, mark Section C as UNVERIFIED and skip it — don't
-fabricate results.
+- If bg-tint AND tab-color are both **false**: Section C cannot verify tints. Mark C1–C5 as UNVERIFIED (config disabled) and skip to Section D.
+- If the user wants to force-enable them for the test run, open VibeGrid Settings → iTerm activity section → toggle on, wait one poll cycle, proceed. Revert at teardown.
+
+**iTerm session prereq:**
+- Section C needs at least one iTerm window already running a Claude Code or Codex session before the test starts. The Bash tool cannot spawn one (it runs in the Claude Code harness shell, not iTerm) and iTerm2 is click-only via computer-use, so you can't type `claude` into it either.
+- Check: `ls ~/.local/state/vibed/state.json && jq '.sessions | to_entries | map(select(.value.tool == "claude" or .value.tool == "codex")) | length' ~/.local/state/vibed/state.json`
+- If that returns `0`, mark Section C as UNVERIFIED (no Claude/Codex iTerm session present) and skip to D.
 
 #### C1. Active-state tint visible
-- Screenshot the iTerm window running an active Claude/Codex session.
+- Screenshot an iTerm window running an active Claude/Codex session.
 - Verify: background has a **green** tint (active color, default `#2f8f4e`).
 - Verify: tab has a green tab color.
 
 #### C2. Idle-state tint visible
-- Wait ~10 seconds after Claude finishes (past the hold period).
+- Wait past `moveEverythingITermActivityHoldSeconds` (default 7s) after Claude finishes its last work cycle.
 - Screenshot the same iTerm window.
 - Verify: background has a **red** tint (idle color, default `#ba4d4d`).
 
 #### C3. Hold period prevents flicker
-- Actively work in a Claude Code session so it's in "active" state.
-- At a natural pause (Claude finishes, waits for you), watch the tint for ~5 seconds.
-- Screenshot every 2 seconds → verify the tint stays green for at least `holdSeconds` (default 7s) without flipping to red.
+- Observe a Claude session as it transitions from working to prompt.
+- Screenshot every 2 seconds for ~10 seconds → verify the tint stays green for at least `holdSeconds` (default 7s) past the last "active" observation before flipping to red.
 - This is the regression test for the "flicker during typing / idle blips" bug. If it flickers before 7s, that's a FAIL.
 
 #### C4. Typing doesn't flip the indicator
-- Check `~/Library/Application Support/VibeGrid/config.yaml` for
-  `moveEverythingITermActivityBackgroundTintPersistent`.
-- With persistent = true: start typing in the Claude prompt → screenshot →
-  verify the tint stays whatever it was (green or red, not flickering).
-- This tests that recent input doesn't destabilize the cache.
+- Confirm `moveEverythingITermActivityBackgroundTintPersistent` from the prereq check.
+- Focus the iTerm window (click with computer-use; don't type, since iTerm is click-only — instead, ask the user to type, or observe a Claude session that's already actively working).
+- Screenshot every 1s for 5s → verify the tint state is stable (no active↔idle flicker).
+- If you cannot produce fresh typing via computer-use, mark C4 as UNVERIFIED with that note.
 
 #### C5. Window list activity badges
 - Open the Window List panel.
@@ -206,16 +218,16 @@ echo "mux=$MUX"
 #### D1. Move-Everything close kills the mux session
 - `"$MUX" list` — note current sessions (call this the **BEFORE** list).
 - Open an iTerm window attached to a mux session you can safely kill (ideally a
-  scratch one you just created — do NOT target production work).
+  scratch one the user just created — do NOT target production work).
 - Activate Move-Everything mode. Hover the iTerm window. Press the close hotkey.
 - Screenshot — verify the iTerm window disappears.
 - `"$MUX" list` — the target session should be **GONE** from the list.
-- Cross-check with `~/Library/Application Support/VibeGrid/logs/window-list-debug.log`:
+- Cross-check with the file-based debug log (the close-mux path writes to WindowListDebugLogger):
   ```bash
-  tail -50 ~/Library/Application\ Support/VibeGrid/logs/window-list-debug.log | grep -iE "close override|mux kill"
+  tail -100 ~/Library/Application\ Support/VibeGrid/logs/window-list-debug.log | grep '\[close-mux\]'
   ```
-- Expected log line: `close override — dispatching mux kill for key=... session=...` followed by `mux kill succeeded`.
-- **FAIL conditions:** iTerm window closes but mux session still in list; log says "mux binary not found"; log says "no session in cache".
+- Expected lines (in order): `[close-mux] dispatching mux kill for key=... session=...` then `[close-mux] mux kill <killArg> (from session name ...)` then `[close-mux] mux kill succeeded for session ...`.
+- **FAIL conditions:** iTerm window closes but mux session still in list; log says `[close-mux] mux binary not found`; log says `[close-mux] no session in cache`; log shows `mux kill timed out` or `mux kill exited with status N`.
 
 #### D2. Close outside Move-Everything mode (known edge)
 - Focus an iTerm window without entering Move-Everything mode.
@@ -254,11 +266,18 @@ echo "mux=$MUX"
 - Expected: <5% CPU at rest.
 - If >20%, note it and attach a `sample` for investigation.
 
-#### E3. No NSLog spam about missing binaries / caches
-- ```bash
-  log show --predicate 'process == "VibeGrid"' --info --last 5m 2>&1 | grep -iE "binary not found|no session in cache|parse failed|timed out" | head -20
+#### E3. No pipeline failures in the debug log
+- Poll failures (the activity poll path logs via WindowListDebugLogger):
+  ```bash
+  tail -500 ~/Library/Application\ Support/VibeGrid/logs/window-list-debug.log \
+    | grep -E '\[iterm-activity\] poll failed' | tail -10
   ```
-- Expected: clean output (or only rare timeouts under load).
+- Close-mux failures:
+  ```bash
+  tail -500 ~/Library/Application\ Support/VibeGrid/logs/window-list-debug.log \
+    | grep -E '\[close-mux\] (mux binary not found|no session in cache|mux kill (timed out|exited|failed))' | tail -10
+  ```
+- Expected: both greps clean (or only a rare timeout under load).
 
 ---
 
