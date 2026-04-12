@@ -874,14 +874,16 @@ final class AppState {
             return
         }
 
-        // Build reverse maps for matching
+        // Build reverse maps for matching. Session names can legitimately map to
+        // multiple snapshot keys (e.g. the same tmux session attached from two
+        // iTerm windows), so session-name fallback is 1:many.
         var snapshotKeyByWindowID: [String: String] = [:]
         for (snapshotKey, windowID) in runtimeWindowIDByKey {
             snapshotKeyByWindowID[windowID] = snapshotKey
         }
-        var snapshotKeyBySessionName: [String: String] = [:]
+        var snapshotKeysBySessionName: [String: [String]] = [:]
         for (snapshotKey, sessionName) in sessionNameCache {
-            snapshotKeyBySessionName[sessionName] = snapshotKey
+            snapshotKeysBySessionName[sessionName, default: []].append(snapshotKey)
         }
 
         // Vibed can carry stale entries that share the same window_id as a
@@ -898,34 +900,11 @@ final class AppState {
         }
         var matchesByKey: [String: VibedMatch] = [:]
 
-        for (_, sessionValue) in sessions {
-            guard let session = sessionValue as? [String: Any] else { continue }
-
-            let tool = session["tool"] as? String ?? ""
-            guard tool == "claude" || tool == "codex" else { continue }
-
-            let sessionName = session["name"] as? String ?? ""
-
-            var snapshotKey: String?
-            var matchedVia = ""
-            if let windowID = session["window_id"] as? String,
-               !windowID.isEmpty,
-               let key = snapshotKeyByWindowID[windowID] {
-                snapshotKey = key
-                matchedVia = "window_id"
-            } else if !sessionName.isEmpty,
-                      let key = snapshotKeyBySessionName[sessionName] {
-                snapshotKey = key
-                matchedVia = "session_name"
-            }
-            guard let key = snapshotKey else { continue }
-
+        func considerMatch(key: String, session: [String: Any], matchedVia: String) {
             let updatedAt = session["updated_at"] as? Double ?? 0
             let isActive = (session["status"] as? String) == "active"
             let candidate = VibedMatch(session: session, matchedVia: matchedVia, updatedAt: updatedAt, isActive: isActive)
-
             if let existing = matchesByKey[key] {
-                // Prefer active over idle; if both same status, prefer freshest updated_at.
                 let preferNew: Bool
                 if candidate.isActive != existing.isActive {
                     preferNew = candidate.isActive
@@ -935,6 +914,26 @@ final class AppState {
                 if preferNew { matchesByKey[key] = candidate }
             } else {
                 matchesByKey[key] = candidate
+            }
+        }
+
+        for (_, sessionValue) in sessions {
+            guard let session = sessionValue as? [String: Any] else { continue }
+
+            let tool = session["tool"] as? String ?? ""
+            guard tool == "claude" || tool == "codex" else { continue }
+
+            let sessionName = session["name"] as? String ?? ""
+
+            if let windowID = session["window_id"] as? String,
+               !windowID.isEmpty,
+               let key = snapshotKeyByWindowID[windowID] {
+                considerMatch(key: key, session: session, matchedVia: "window_id")
+            } else if !sessionName.isEmpty,
+                      let keys = snapshotKeysBySessionName[sessionName] {
+                for key in keys {
+                    considerMatch(key: key, session: session, matchedVia: "session_name")
+                }
             }
         }
 
@@ -2046,12 +2045,15 @@ final class AppState {
         // Check if user recently interacted (key/click/scroll) with a focused iTerm window
         let focusedWindowNumber = recordRecentITermInteractions()
 
-        // Clear input timestamps for windows that are no longer focused —
-        // overlay should reappear quickly after switching away.
+        // Clear input timestamps so the overlay reappears quickly after switching
+        // away. When iTerm is still frontmost, keep only the focused window. When
+        // iTerm is no longer frontmost, clear them all.
         if let focusedWindowNumber {
             for wn in iTermInputTimestamps.keys where wn != focusedWindowNumber {
                 iTermInputTimestamps.removeValue(forKey: wn)
             }
+        } else {
+            iTermInputTimestamps.removeAll()
         }
 
 
@@ -2254,6 +2256,10 @@ final class AppState {
     }
 
     /// Queues restore commands for all iTerm windows. Called when indicators are disabled.
+    /// Preserves iTermOriginalBackgroundByWindowID and the tinted-windows file so that
+    /// if the poll carrying the restore commands fails, crash-recovery on next launch
+    /// can still undo the tint. iTermCurrentBgTintStatus/iTermCurrentTabColorStatus are
+    /// cleared so the disabled-guard doesn't re-queue commands on every refresh.
     private func queueRestoreAllITermColors() {
         for (windowID, original) in iTermOriginalBackgroundByWindowID {
             pendingITermColorCommands.append(
@@ -2268,10 +2274,8 @@ final class AppState {
                 "enabled": false,
             ])
         }
-        iTermOriginalBackgroundByWindowID.removeAll()
         iTermCurrentBgTintStatus.removeAll()
         iTermCurrentTabColorStatus.removeAll()
-        Self.clearTintedWindowsFile()
     }
 
     /// Persist tinted window IDs and their original backgrounds so a crash recovery can restore them.
