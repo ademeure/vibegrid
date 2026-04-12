@@ -4328,19 +4328,9 @@ function cloneShortcut() {
   pubsub.publishAll(['config', 'selection']);
 }
 
-async function removeShortcut() {
+function removeShortcut() {
   const shortcut = selectedShortcut();
   if (!shortcut) {
-    return;
-  }
-
-  const confirmed = await showConfirmDialog({
-    title: "Delete Shortcut",
-    message: `Delete "${shortcut.name}"? This cannot be undone.`,
-    confirmLabel: "Delete",
-    tone: "danger",
-  });
-  if (!confirmed) {
     return;
   }
 
@@ -4391,21 +4381,10 @@ function addPlacement(mode) {
   pubsub.publishAll(['config', 'selection']);
 }
 
-async function removePlacement() {
+function removePlacement() {
   const shortcut = selectedShortcut();
   const placement = selectedPlacement();
   if (!shortcut || !placement) {
-    return;
-  }
-
-  const stepName = placement.title || `Step ${shortcut.placements.indexOf(placement) + 1}`;
-  const confirmed = await showConfirmDialog({
-    title: "Delete Step",
-    message: `Delete "${stepName}" from ${shortcut.name}?`,
-    confirmLabel: "Delete",
-    tone: "danger",
-  });
-  if (!confirmed) {
     return;
   }
 
