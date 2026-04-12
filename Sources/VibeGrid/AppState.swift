@@ -838,12 +838,23 @@ final class AppState {
     private static let vibedStatePath = NSString("~/.local/state/vibed/state.json").expandingTildeInPath
 
     /// Read vibed daemon state and override the activity cache for Claude/Codex
-    /// sessions where vibed's caffeinate-based detection is available.
+    /// sessions where vibed's process-tree detection is available.
     /// This runs after both the screen-content detector and tmux fallback,
     /// so vibed data takes highest priority.
+    ///
+    /// Matching strategy (in priority order):
+    ///   1. window_id (pty-...) → iTermRuntimeWindowIDBySnapshotKey (most reliable)
+    ///   2. session name → iTermSessionNameCache (for remote sessions where the
+    ///      iTerm window was created by a previous mux session but now runs a
+    ///      different tmux session — the window_id still links them)
+    ///
+    /// We trust vibed's `tool` field ("claude"/"codex") and do NOT require
+    /// VibeGrid's profile cache to confirm — vibed's detection is more reliable
+    /// for remote sessions where screen-content heuristics may fail.
     static func overlayVibedSessionActivity(
         cache: inout [String: String],
-        profileCache: [String: String],
+        profileCache: inout [String: String],
+        sessionNameCache: [String: String],
         runtimeWindowIDByKey: [String: String],
         lastActiveAt: inout [String: Date],
         logger: WindowListDebugLogger.Type
@@ -863,51 +874,66 @@ final class AppState {
             return
         }
 
-        // Build reverse map: pty-... window ID → snapshot key
+        // Build reverse maps for matching
         var snapshotKeyByWindowID: [String: String] = [:]
         for (snapshotKey, windowID) in runtimeWindowIDByKey {
             snapshotKeyByWindowID[windowID] = snapshotKey
+        }
+        var snapshotKeyBySessionName: [String: String] = [:]
+        for (snapshotKey, sessionName) in sessionNameCache {
+            snapshotKeyBySessionName[sessionName] = snapshotKey
         }
 
         for (_, sessionValue) in sessions {
             guard let session = sessionValue as? [String: Any] else { continue }
 
-            // Only override Claude/Codex sessions
+            // Only override Claude/Codex sessions (trust vibed's tool field)
             let tool = session["tool"] as? String ?? ""
             guard tool == "claude" || tool == "codex" else { continue }
 
-            // Match by window_id → snapshot key
-            guard let windowID = session["window_id"] as? String,
-                  !windowID.isEmpty,
-                  let snapshotKey = snapshotKeyByWindowID[windowID] else {
-                continue
+            let sessionName = session["name"] as? String ?? ""
+
+            // Try matching: window_id first, then session name
+            var snapshotKey: String?
+            var matchedVia = ""
+
+            if let windowID = session["window_id"] as? String,
+               !windowID.isEmpty,
+               let key = snapshotKeyByWindowID[windowID] {
+                snapshotKey = key
+                matchedVia = "window_id"
+            } else if !sessionName.isEmpty,
+                      let key = snapshotKeyBySessionName[sessionName] {
+                snapshotKey = key
+                matchedVia = "session_name"
             }
 
-            // Only override if the profile cache confirms this is a Claude/Codex window
-            let profile = profileCache[snapshotKey] ?? ""
-            guard profile.hasPrefix("claude-code") || profile.hasPrefix("codex") else { continue }
+            guard let key = snapshotKey else { continue }
 
             let vibedStatus = session["status"] as? String ?? ""
             let activityReason = session["activity_reason"] as? String ?? ""
-            let currentCacheValue = cache[snapshotKey] ?? "idle"
+            let currentCacheValue = cache[key] ?? "idle"
 
             // Map vibed status to VibeGrid's "active"/"idle"
-            let newStatus: String
-            switch vibedStatus {
-            case "active":
-                newStatus = "active"
-            default:
-                newStatus = "idle"
+            let newStatus = vibedStatus == "active" ? "active" : "idle"
+
+            // Also ensure the profile cache reflects the tool type from vibed,
+            // so that UI styling (activity colors, indicators) applies correctly
+            // even when the screen-content detector didn't identify the profile.
+            let currentProfile = profileCache[key] ?? ""
+            if currentProfile.isEmpty {
+                let vibedProfile = tool == "codex" ? "codex" : "claude-code"
+                profileCache[key] = vibedProfile
             }
 
             if newStatus != currentCacheValue {
                 logger.log(
                     "vibed-overlay",
-                    "key=\(snapshotKey) windowID=\(windowID) vibed=\(vibedStatus) reason=\(activityReason) was=\(currentCacheValue) now=\(newStatus)"
+                    "key=\(key) session=\(sessionName) matched=\(matchedVia) vibed=\(vibedStatus) reason=\(activityReason) was=\(currentCacheValue) now=\(newStatus)"
                 )
-                cache[snapshotKey] = newStatus
+                cache[key] = newStatus
                 if newStatus == "active" {
-                    lastActiveAt[snapshotKey] = Date()
+                    lastActiveAt[key] = Date()
                 }
             }
         }
@@ -1869,7 +1895,8 @@ final class AppState {
                 // reliable than screen-content heuristics for Claude/Codex sessions.
                 Self.overlayVibedSessionActivity(
                     cache: &newCache,
-                    profileCache: newProfileCache,
+                    profileCache: &newProfileCache,
+                    sessionNameCache: newSessionNameCache,
                     runtimeWindowIDByKey: newRuntimeWindowIDBySnapshotKey,
                     lastActiveAt: &self.iTermLastActiveAt,
                     logger: WindowListDebugLogger.self
