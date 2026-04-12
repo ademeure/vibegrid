@@ -914,20 +914,9 @@ final class AppState {
             let activityReason = session["activity_reason"] as? String ?? ""
             let currentCacheValue = cache[key] ?? "idle"
 
-            // Map vibed status to VibeGrid's "active"/"idle".
-            // Only UPGRADE from idle→active, never downgrade. vibed's remote
-            // detection (SSH caffeinate/scrollback) can miss activity that the
-            // local screen-content detector or tmux fallback already caught.
-            let vibedActive = vibedStatus == "active"
-            let newStatus: String
-            if vibedActive {
-                newStatus = "active"
-            } else if currentCacheValue == "active" {
-                // Keep existing "active" — don't let vibed downgrade it
-                newStatus = "active"
-            } else {
-                newStatus = "idle"
-            }
+            // vibed is the source of truth — override unconditionally.
+            // If vibed's remote detection is wrong, fix it in vibed.
+            let newStatus = vibedStatus == "active" ? "active" : "idle"
 
             // Ensure the profile cache reflects the tool type from vibed,
             // so that UI styling (activity colors, indicators) applies correctly.

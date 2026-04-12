@@ -2292,7 +2292,7 @@ function renderPlacementEditor() {
   const { placement, readOnly } = displayPlacementContext();
 
   ids.placementEditor.classList.toggle("hidden", !placement);
-  ids.placementEditorEmpty.classList.add("hidden");
+  ids.placementEditorEmpty.classList.toggle("hidden", !!placement);
 
   if (!placement) {
     hidePlacementPreview();
@@ -4328,9 +4328,19 @@ function cloneShortcut() {
   pubsub.publishAll(['config', 'selection']);
 }
 
-function removeShortcut() {
+async function removeShortcut() {
   const shortcut = selectedShortcut();
   if (!shortcut) {
+    return;
+  }
+
+  const confirmed = await showConfirmDialog({
+    title: "Delete Shortcut",
+    message: `Delete "${shortcut.name}"? This cannot be undone.`,
+    confirmLabel: "Delete",
+    tone: "danger",
+  });
+  if (!confirmed) {
     return;
   }
 
@@ -4381,10 +4391,21 @@ function addPlacement(mode) {
   pubsub.publishAll(['config', 'selection']);
 }
 
-function removePlacement() {
+async function removePlacement() {
   const shortcut = selectedShortcut();
   const placement = selectedPlacement();
   if (!shortcut || !placement) {
+    return;
+  }
+
+  const stepName = placement.title || `Step ${shortcut.placements.indexOf(placement) + 1}`;
+  const confirmed = await showConfirmDialog({
+    title: "Delete Step",
+    message: `Delete "${stepName}" from ${shortcut.name}?`,
+    confirmLabel: "Delete",
+    tone: "danger",
+  });
+  if (!confirmed) {
     return;
   }
 

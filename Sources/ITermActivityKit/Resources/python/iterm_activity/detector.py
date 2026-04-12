@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import re
 import time
 from typing import Optional
 
@@ -344,10 +345,10 @@ class Detector:
         if lowercased.startswith("http://") or lowercased.startswith("https://"):
             return False
 
-        if __import__("re").search(r"^[>:$#%❯›].{0,6}$", line):
+        if re.search(r"^[>:$#%❯›].{0,6}$", line):
             return True
 
-        if __import__("re").search(r"^(context|tokens)\s+\S+", line, flags=__import__("re").IGNORECASE):
+        if re.search(r"^(context|tokens)\s+\S+", line, flags=re.IGNORECASE):
             return True
 
         return False
