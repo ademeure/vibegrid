@@ -874,6 +874,41 @@ final class AppState {
             return
         }
 
+        overlayVibedSessionActivityCore(
+            sessions: sessions,
+            cache: &cache,
+            profileCache: &profileCache,
+            sessionNameCache: sessionNameCache,
+            runtimeWindowIDByKey: runtimeWindowIDByKey,
+            lastActiveAt: &lastActiveAt,
+            now: Date(),
+            log: { component, message in logger.log(component, message) }
+        )
+    }
+
+    /// Pure core for the vibed overlay. Testable without a vibed state file or
+    /// the shared logger instance.
+    ///
+    /// Matching strategy (in priority order):
+    ///   1. window_id (pty-...) → runtimeWindowIDByKey (most reliable)
+    ///   2. session name → sessionNameCache (fallback for sessions where the
+    ///      iTerm window was created by a previous mux session but now runs a
+    ///      different tmux session — the window_id still links them)
+    ///
+    /// When multiple vibed sessions match the same snapshot key (e.g. a stale
+    /// detached local-159 coexisting with an active neb-4-mcp sharing the same
+    /// iTerm window), the winner is deterministic: active beats idle, ties
+    /// broken by freshest updated_at.
+    static func overlayVibedSessionActivityCore(
+        sessions: [String: Any],
+        cache: inout [String: String],
+        profileCache: inout [String: String],
+        sessionNameCache: [String: String],
+        runtimeWindowIDByKey: [String: String],
+        lastActiveAt: inout [String: Date],
+        now: Date,
+        log: (String, String) -> Void
+    ) {
         // Build reverse maps for matching. Session names can legitimately map to
         // multiple snapshot keys (e.g. the same tmux session attached from two
         // iTerm windows), so session-name fallback is 1:many.
@@ -886,12 +921,6 @@ final class AppState {
             snapshotKeysBySessionName[sessionName, default: []].append(snapshotKey)
         }
 
-        // Vibed can carry stale entries that share the same window_id as a
-        // currently-attached session (e.g. local-159 still listed after the
-        // iTerm window switched to neb-4-mcp). Iterating dict order would
-        // pick a non-deterministic winner per cycle and cause active/idle
-        // flicker. Resolve by collecting all matches per snapshot key and
-        // picking the freshest one — break ties with active > idle.
         struct VibedMatch {
             let session: [String: Any]
             let matchedVia: String
@@ -964,16 +993,33 @@ final class AppState {
             }
 
             if newStatus != currentCacheValue {
-                logger.log(
+                log(
                     "vibed-overlay",
                     "key=\(key) session=\(sessionName) matched=\(matchedVia) vibed=\(vibedStatus) reason=\(activityReason) was=\(currentCacheValue) now=\(newStatus)"
                 )
                 cache[key] = newStatus
                 if newStatus == "active" {
-                    lastActiveAt[key] = Date()
+                    lastActiveAt[key] = now
                 }
             }
         }
+    }
+
+    /// Compute the effective "active" state for iTerm activity indicators,
+    /// holding the active classification for `holdSeconds` past the last
+    /// observed active timestamp so that brief idle blips don't flip the
+    /// indicator. Mirrors the hold logic in ITermActivityOverlayController.
+    static func iTermIndicatorIsActive(
+        currentlyActive: Bool,
+        lastActiveAt: Date?,
+        now: Date,
+        holdSeconds: TimeInterval
+    ) -> Bool {
+        if currentlyActive { return true }
+        if let lastActiveAt, now.timeIntervalSince(lastActiveAt) < holdSeconds {
+            return true
+        }
+        return false
     }
 
     private static func findMuxBinary() -> String? {
@@ -2155,15 +2201,12 @@ final class AppState {
             // so brief vibed/detector idle blips (e.g. while the user types in the prompt)
             // don't flip the indicator. The overlay path already does this — match it here.
             let currentlyActive = iTermActivityCache[snapshot.key] == "active"
-            let isActive: Bool
-            if currentlyActive {
-                isActive = true
-            } else if let lastActive = iTermLastActiveAt[snapshot.key],
-                      now.timeIntervalSince(lastActive) < holdSeconds {
-                isActive = true
-            } else {
-                isActive = false
-            }
+            let isActive = Self.iTermIndicatorIsActive(
+                currentlyActive: currentlyActive,
+                lastActiveAt: iTermLastActiveAt[snapshot.key],
+                now: now,
+                holdSeconds: holdSeconds
+            )
             let statusKey = hasRecentInput ? "suppressed" : (isActive ? "active" : "idle")
 
             if bgTintEnabled && iTermCurrentBgTintStatus[windowID] != statusKey {
