@@ -126,20 +126,21 @@ final class AppState {
         }
         windowManager.onCloseWindowOverride = { [weak self] key in
             guard let self else {
-                NSLog("VibeGrid: close override — self is nil for key=%@", key)
+                WindowListDebugLogger.log("close-mux", "override self is nil for key=\(key)")
                 return
             }
             guard self.config.settings.moveEverythingCloseMuxKill else {
-                NSLog("VibeGrid: close override — moveEverythingCloseMuxKill disabled for key=%@", key)
+                WindowListDebugLogger.log("close-mux", "moveEverythingCloseMuxKill disabled for key=\(key)")
                 return
             }
             guard let sessionName = self.iTermSessionNameCache[key] else {
-                NSLog("VibeGrid: close override — no session in cache for key=%@ (cache has %d entries: %@)",
-                      key, self.iTermSessionNameCache.count,
-                      self.iTermSessionNameCache.map { "\($0.key)=\($0.value)" }.joined(separator: ", "))
+                WindowListDebugLogger.log(
+                    "close-mux",
+                    "no session in cache for key=\(key) cacheSize=\(self.iTermSessionNameCache.count)"
+                )
                 return
             }
-            NSLog("VibeGrid: close override — dispatching mux kill for key=%@ session=%@", key, sessionName)
+            WindowListDebugLogger.log("close-mux", "dispatching mux kill for key=\(key) session=\(sessionName)")
             // Kill the mux session async — the caller AX-closes the window
             // immediately so the user gets instant visual feedback.
             DispatchQueue.global(qos: .utility).async {
@@ -778,11 +779,11 @@ final class AppState {
     @discardableResult
     static func muxKill(sessionName: String) -> Bool {
         guard let muxBin = findMuxBinary() else {
-            NSLog("VibeGrid: mux binary not found, falling back to AX close")
+            WindowListDebugLogger.log("close-mux", "mux binary not found, falling back to AX close (session=\(sessionName))")
             return false
         }
         let killArg = muxKillArgument(from: sessionName)
-        NSLog("VibeGrid: mux kill %@ (from session name %@)", killArg, sessionName)
+        WindowListDebugLogger.log("close-mux", "mux kill \(killArg) (from session name \(sessionName))")
         let process = Process()
         process.executableURL = URL(fileURLWithPath: muxBin)
         process.arguments = ["kill", killArg]
@@ -793,19 +794,19 @@ final class AppState {
             // Timeout after 10s — remote sessions need SSH roundtrips.
             // This runs async so the timeout doesn't block the UI.
             if semaphore.wait(timeout: .now() + 10) == .timedOut {
-                NSLog("VibeGrid: mux kill timed out for session %@, falling back to AX close", sessionName)
+                WindowListDebugLogger.log("close-mux", "mux kill timed out for session \(sessionName), falling back to AX close")
                 process.terminate()
                 return false
             }
             if process.terminationStatus == 0 {
-                NSLog("VibeGrid: mux kill succeeded for session %@", sessionName)
+                WindowListDebugLogger.log("close-mux", "mux kill succeeded for session \(sessionName)")
                 return true
             } else {
-                NSLog("VibeGrid: mux kill exited with status %d for session %@", process.terminationStatus, sessionName)
+                WindowListDebugLogger.log("close-mux", "mux kill exited with status \(process.terminationStatus) for session \(sessionName)")
                 return false
             }
         } catch {
-            NSLog("VibeGrid: mux kill failed for session %@: %@", sessionName, error.localizedDescription)
+            WindowListDebugLogger.log("close-mux", "mux kill failed for session \(sessionName): \(error.localizedDescription)")
             return false
         }
     }
