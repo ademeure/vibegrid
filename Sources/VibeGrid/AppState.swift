@@ -884,19 +884,30 @@ final class AppState {
             snapshotKeyBySessionName[sessionName] = snapshotKey
         }
 
+        // Vibed can carry stale entries that share the same window_id as a
+        // currently-attached session (e.g. local-159 still listed after the
+        // iTerm window switched to neb-4-mcp). Iterating dict order would
+        // pick a non-deterministic winner per cycle and cause active/idle
+        // flicker. Resolve by collecting all matches per snapshot key and
+        // picking the freshest one — break ties with active > idle.
+        struct VibedMatch {
+            let session: [String: Any]
+            let matchedVia: String
+            let updatedAt: Double
+            let isActive: Bool
+        }
+        var matchesByKey: [String: VibedMatch] = [:]
+
         for (_, sessionValue) in sessions {
             guard let session = sessionValue as? [String: Any] else { continue }
 
-            // Only override Claude/Codex sessions (trust vibed's tool field)
             let tool = session["tool"] as? String ?? ""
             guard tool == "claude" || tool == "codex" else { continue }
 
             let sessionName = session["name"] as? String ?? ""
 
-            // Try matching: window_id first, then session name
             var snapshotKey: String?
             var matchedVia = ""
-
             if let windowID = session["window_id"] as? String,
                !windowID.isEmpty,
                let key = snapshotKeyByWindowID[windowID] {
@@ -907,12 +918,34 @@ final class AppState {
                 snapshotKey = key
                 matchedVia = "session_name"
             }
-
             guard let key = snapshotKey else { continue }
 
+            let updatedAt = session["updated_at"] as? Double ?? 0
+            let isActive = (session["status"] as? String) == "active"
+            let candidate = VibedMatch(session: session, matchedVia: matchedVia, updatedAt: updatedAt, isActive: isActive)
+
+            if let existing = matchesByKey[key] {
+                // Prefer active over idle; if both same status, prefer freshest updated_at.
+                let preferNew: Bool
+                if candidate.isActive != existing.isActive {
+                    preferNew = candidate.isActive
+                } else {
+                    preferNew = candidate.updatedAt > existing.updatedAt
+                }
+                if preferNew { matchesByKey[key] = candidate }
+            } else {
+                matchesByKey[key] = candidate
+            }
+        }
+
+        for (key, match) in matchesByKey {
+            let session = match.session
+            let tool = session["tool"] as? String ?? ""
+            let sessionName = session["name"] as? String ?? ""
             let vibedStatus = session["status"] as? String ?? ""
             let activityReason = session["activity_reason"] as? String ?? ""
             let currentCacheValue = cache[key] ?? "idle"
+            let matchedVia = match.matchedVia
 
             // vibed is the source of truth — override unconditionally.
             // If vibed's remote detection is wrong, fix it in vibed.
@@ -945,10 +978,10 @@ final class AppState {
     }
 
     private static func findMuxBinary() -> String? {
-        // Same search order as the Python worker
         let candidates = [
+            NSString("~/.local/bin/mux").expandingTildeInPath,
             "/usr/local/bin/mux",
-            NSString("~/github/mux/mux").expandingTildeInPath,
+            "/opt/homebrew/bin/mux",
         ]
         for path in candidates {
             if FileManager.default.isExecutableFile(atPath: path) {
@@ -2090,7 +2123,9 @@ final class AppState {
         let activeRGBLight = Self.parseHexColor(config.settings.moveEverythingITermRecentActivityActiveColorLight) ?? (r: 26, g: 117, b: 53)
         let idleRGBLight = Self.parseHexColor(config.settings.moveEverythingITermRecentActivityIdleColorLight) ?? (r: 160, g: 48, b: 48)
 
-        let inputCutoff = Date().addingTimeInterval(-config.settings.moveEverythingITermActivityHoldSeconds)
+        let now = Date()
+        let holdSeconds = config.settings.moveEverythingITermActivityHoldSeconds
+        let inputCutoff = now.addingTimeInterval(-holdSeconds)
 
         var activeWindowIDs = Set<String>()
 
@@ -2114,7 +2149,19 @@ final class AppState {
                     .map { $0 > inputCutoff } ?? false
             }
 
-            let isActive = iTermActivityCache[snapshot.key] == "active"
+            // Hold the "active" state for holdSeconds after the last active observation
+            // so brief vibed/detector idle blips (e.g. while the user types in the prompt)
+            // don't flip the indicator. The overlay path already does this — match it here.
+            let currentlyActive = iTermActivityCache[snapshot.key] == "active"
+            let isActive: Bool
+            if currentlyActive {
+                isActive = true
+            } else if let lastActive = iTermLastActiveAt[snapshot.key],
+                      now.timeIntervalSince(lastActive) < holdSeconds {
+                isActive = true
+            } else {
+                isActive = false
+            }
             let statusKey = hasRecentInput ? "suppressed" : (isActive ? "active" : "idle")
 
             if bgTintEnabled && iTermCurrentBgTintStatus[windowID] != statusKey {

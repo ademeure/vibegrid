@@ -62,7 +62,7 @@ def _rename_mux_session(tty: str, new_name: str) -> str | None:
         import shutil
         mux_bin = shutil.which("mux")
         if not mux_bin:
-            for p in ["/usr/local/bin/mux", os.path.expanduser("~/github/mux/mux")]:
+            for p in [os.path.expanduser("~/.local/bin/mux"), "/usr/local/bin/mux", "/opt/homebrew/bin/mux"]:
                 if os.path.isfile(p):
                     mux_bin = p
                     break
