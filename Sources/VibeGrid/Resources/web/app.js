@@ -234,6 +234,7 @@ const ids = {
   moveEverythingITermActivityHoldSecondsSetting: document.getElementById("moveEverythingITermActivityHoldSecondsSetting"),
   moveEverythingITermActivityOverlayOpacitySetting: document.getElementById("moveEverythingITermActivityOverlayOpacitySetting"),
   moveEverythingITermActivityBackgroundTintEnabledSetting: document.getElementById("moveEverythingITermActivityBackgroundTintEnabledSetting"),
+  moveEverythingITermActivityBackgroundTintPersistentSetting: document.getElementById("moveEverythingITermActivityBackgroundTintPersistentSetting"),
   moveEverythingITermActivityTabColorEnabledSetting: document.getElementById("moveEverythingITermActivityTabColorEnabledSetting"),
   moveEverythingITermRecentActivityActiveColorSetting: document.getElementById("moveEverythingITermRecentActivityActiveColorSetting"),
   moveEverythingITermRecentActivityIdleColorSetting: document.getElementById("moveEverythingITermRecentActivityIdleColorSetting"),
@@ -1165,6 +1166,11 @@ function renderMoveEverythingModal() {
       settings.moveEverythingITermActivityBackgroundTintEnabled
     );
   }
+  if (ids.moveEverythingITermActivityBackgroundTintPersistentSetting) {
+    ids.moveEverythingITermActivityBackgroundTintPersistentSetting.checked = Boolean(
+      settings.moveEverythingITermActivityBackgroundTintPersistent
+    );
+  }
   if (ids.moveEverythingITermActivityTabColorEnabledSetting) {
     ids.moveEverythingITermActivityTabColorEnabledSetting.checked = Boolean(
       settings.moveEverythingITermActivityTabColorEnabled
@@ -2019,6 +2025,11 @@ function updateMoveEverythingSettings() {
   if (ids.moveEverythingITermActivityBackgroundTintEnabledSetting) {
     settings.moveEverythingITermActivityBackgroundTintEnabled = Boolean(
       ids.moveEverythingITermActivityBackgroundTintEnabledSetting.checked
+    );
+  }
+  if (ids.moveEverythingITermActivityBackgroundTintPersistentSetting) {
+    settings.moveEverythingITermActivityBackgroundTintPersistent = Boolean(
+      ids.moveEverythingITermActivityBackgroundTintPersistentSetting.checked
     );
   }
   if (ids.moveEverythingITermActivityTabColorEnabledSetting) {
@@ -5945,6 +5956,10 @@ function normalizeSettings(settings) {
       source.moveEverythingITermActivityBackgroundTintEnabled ??
         defaults.moveEverythingITermActivityBackgroundTintEnabled
     ),
+    moveEverythingITermActivityBackgroundTintPersistent: Boolean(
+      source.moveEverythingITermActivityBackgroundTintPersistent ??
+        defaults.moveEverythingITermActivityBackgroundTintPersistent
+    ),
     moveEverythingITermActivityTabColorEnabled: Boolean(
       source.moveEverythingITermActivityTabColorEnabled ??
         defaults.moveEverythingITermActivityTabColorEnabled
@@ -6267,6 +6282,7 @@ function createDefaultConfig() {
       moveEverythingITermActivityHoldSeconds: 7,
       moveEverythingITermActivityOverlayOpacity: 0.0,
       moveEverythingITermActivityBackgroundTintEnabled: false,
+      moveEverythingITermActivityBackgroundTintPersistent: true,
       moveEverythingITermActivityTabColorEnabled: false,
       moveEverythingActiveWindowHighlightColorize: true,
       moveEverythingActiveWindowHighlightColor: "#4D88D4",
@@ -7014,6 +7030,7 @@ function wireEvents() {
   on(ids.moveEverythingITermActivityOverlayOpacitySetting, "change", updateMoveEverythingSettings);
   on(ids.moveEverythingITermActivityOverlayOpacitySetting, "input", updateMoveEverythingSettings);
   on(ids.moveEverythingITermActivityBackgroundTintEnabledSetting, "change", updateMoveEverythingSettings);
+  on(ids.moveEverythingITermActivityBackgroundTintPersistentSetting, "change", updateMoveEverythingSettings);
   on(ids.moveEverythingITermActivityTabColorEnabledSetting, "change", updateMoveEverythingSettings);
   on(ids.moveEverythingActiveWindowHighlightColorizeSetting, "change", updateMoveEverythingSettings);
   on(ids.moveEverythingActiveWindowHighlightColorSetting, "change", updateMoveEverythingSettings);
