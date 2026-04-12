@@ -1,6 +1,17 @@
 # VibeGrid Windows/Go Audit Report
 
-Generated 2026-04-11. Covers every Go file in `windows/vibegrid-win11/`.
+Generated 2026-04-11. Updated 2026-04-11 after manual verification of findings.
+Covers every Go file in `windows/vibegrid-win11/`.
+
+> **Note**: Several initial audit findings were verified as false positives:
+> - icons.go alpha==0: `image.NewNRGBA` zero-initializes pixels; `continue` is correct
+> - tray.go GDI leak: cleanup already exists at line 463
+> - tray.go double-close: single goroutine with `LockOSThread`, no race
+> - hotkey ID collision: `id++` is inside success path, correct
+> - getWindowText buffer: `GetWindowTextLengthW` returns 0 on error per MSDN
+> - Missing `ready`/`requestState` bridge: already handled at line 1467
+>
+> Findings below have been verified and reflect ground truth.
 
 ## Files
 
@@ -17,56 +28,9 @@ Generated 2026-04-11. Covers every Go file in `windows/vibegrid-win11/`.
 
 ## 1. Bugs
 
-### Critical
+### Verified bugs (fixed)
 
-#### icons.go:221-235 — Division by zero in icon alpha un-premultiplication
-
-When converting HICON to PNG, the code un-premultiplies alpha. If alpha is 0, division by zero occurs:
-```go
-fa := float64(a)
-img.Pix[i*4+0] = byte(float64(px[2]) * 255.0 / fa) // a == 0 → NaN/Inf
-```
-The `if a == 0 { continue }` branch skips setting the pixel, leaving it uninitialized.
-
-**Fix**: Set pixel to fully transparent `RGBA(0,0,0,0)` when alpha is 0.
-
----
-
-#### tray.go:453-465 — GDI resource leak on CreateDIBSection failure
-
-If the color bitmap is created successfully but the mask bitmap fails, the color bitmap is leaked (no cleanup path).
-
-**Fix**: Call `DeleteObject(hColor)` before returning 0 when hMask creation fails.
-
----
-
-#### main.go:438-445 — Hotkey ID collision on registration failure
-
-When `RegisterHotKey` fails, `id++` still executes, but the failed ID isn't recorded. On subsequent unregister cycles, IDs don't match registered hotkeys, causing wrong hotkeys to be unregistered.
-
-**Fix**: Increment `id` unconditionally (before the call, or always after), so IDs stay sequential regardless of success/failure.
-
----
-
-#### tray.go:206-242 — Double-close panic on ready channel
-
-The `readyClosed` flag is checked and set without synchronization. If the tray thread restarts rapidly, two goroutines could both see `readyClosed == false` and both call `close(ready)`, causing a panic.
-
-**Fix**: Use `sync.Once` for the ready channel close.
-
----
-
-### High
-
-#### main.go:142-150 — getWindowText buffer overrun risk
-
-`GetWindowTextLengthW` returns `uintptr`. On error it returns 0 (handled), but a negative error code cast to `uintptr` becomes a very large value, causing an enormous allocation.
-
-**Fix**: Cast to `int64` and reject values ≤ 0.
-
----
-
-#### main.go:326-392 — Hotkey loop crash is unrecoverable
+#### main.go:326-392 — Hotkey loop crash is unrecoverable (FIXED)
 
 If `GetMessageW` returns -1 (Win32 error), the hotkey thread exits permanently. The watchdog at main:1945+ logs warnings but never restarts the thread. Hotkeys are dead until app restart.
 

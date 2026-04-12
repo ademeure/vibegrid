@@ -173,7 +173,11 @@ func getProcessName(hwnd uintptr) string {
 
 func getWorkArea() rect {
 	var r rect
-	procSystemParametersInfoW.Call(spiGetWorkArea, 0, uintptr(unsafe.Pointer(&r)), 0)
+	ret, _, _ := procSystemParametersInfoW.Call(spiGetWorkArea, 0, uintptr(unsafe.Pointer(&r)), 0)
+	if ret == 0 || (r.Right-r.Left) <= 0 || (r.Bottom-r.Top) <= 0 {
+		// Fallback: assume a reasonable 1920x1080 work area
+		return rect{Left: 0, Top: 0, Right: 1920, Bottom: 1040}
+	}
 	return r
 }
 
@@ -325,66 +329,79 @@ func modifiersToWin32(mods []string) uint32 {
 // It registers hotkeys and dispatches placement actions when they fire.
 func (hm *hotkeyManager) startHotkeyLoop() {
 	ready := make(chan struct{})
+	readyClosed := false
 	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				buf := make([]byte, 4096)
-				n := runtime.Stack(buf, false)
-				hm.logger.Printf("FATAL: hotkey thread panicked: %v\n%s", r, buf[:n])
-			}
-			hm.logger.Printf("FATAL: hotkey thread exited unexpectedly")
-		}()
 		runtime.LockOSThread()
 
-		tid, _, _ := procGetCurrentThreadId.Call()
-		hm.threadID = uint32(tid)
-		hm.logger.Printf("hotkey thread started (tid=%d)", hm.threadID)
-		close(ready)
-
-		hm.registerAll()
-
-		type msgStruct struct {
-			hwnd    uintptr
-			message uint32
-			wParam  uintptr
-			lParam  uintptr
-			time    uint32
-			ptX     int32
-			ptY     int32
-		}
-		var msg msgStruct
-
-		for {
-			ret, _, err := procGetMessageW.Call(
-				uintptr(unsafe.Pointer(&msg)), 0, 0, 0,
-			)
-			threadHealth.hotkey.Store(time.Now().UnixMilli())
-			if ret == 0 {
-				hm.logger.Printf("hotkey thread: GetMessageW returned WM_QUIT")
-				break
+		for attempt := 0; ; attempt++ {
+			if attempt > 0 {
+				hm.logger.Printf("hotkey: restarting message loop (attempt %d) after 2s delay", attempt+1)
+				time.Sleep(2 * time.Second)
 			}
-			if int32(ret) == -1 {
-				hm.logger.Printf("hotkey thread: GetMessageW error: %v", err)
-				break
-			}
-			if msg.message == wmHotkey {
-				hm.onHotkey(int(msg.wParam))
-			} else if msg.message == wmUser {
-				// Re-register hotkeys (triggered by config save)
-				hm.registerAll()
-			} else if msg.message == wmUserCapture {
-				if msg.wParam == 1 {
-					// Begin capture: unregister all hotkeys
-					for _, rh := range hm.registered {
-						procUnregisterHotKey.Call(0, uintptr(rh.id))
+
+			func() {
+				defer func() {
+					if r := recover(); r != nil {
+						buf := make([]byte, 4096)
+						n := runtime.Stack(buf, false)
+						hm.logger.Printf("FATAL: hotkey thread panicked: %v\n%s", r, buf[:n])
 					}
-					hm.logger.Printf("hotkey: all hotkeys unregistered for capture")
-				} else {
-					// End capture: re-register
-					hm.registerAll()
-					hm.logger.Printf("hotkey: hotkeys re-registered after capture")
+				}()
+
+				tid, _, _ := procGetCurrentThreadId.Call()
+				hm.threadID = uint32(tid)
+				hm.logger.Printf("hotkey thread started (tid=%d, attempt %d)", hm.threadID, attempt+1)
+				if !readyClosed {
+					readyClosed = true
+					close(ready)
 				}
-			}
+
+				hm.registerAll()
+
+				type msgStruct struct {
+					hwnd    uintptr
+					message uint32
+					wParam  uintptr
+					lParam  uintptr
+					time    uint32
+					ptX     int32
+					ptY     int32
+				}
+				var msg msgStruct
+
+				for {
+					ret, _, err := procGetMessageW.Call(
+						uintptr(unsafe.Pointer(&msg)), 0, 0, 0,
+					)
+					threadHealth.hotkey.Store(time.Now().UnixMilli())
+					if ret == 0 {
+						hm.logger.Printf("hotkey thread: GetMessageW returned WM_QUIT — will restart")
+						return
+					}
+					if int32(ret) == -1 {
+						hm.logger.Printf("hotkey thread: GetMessageW error: %v — will restart", err)
+						return
+					}
+					if msg.message == wmHotkey {
+						hm.onHotkey(int(msg.wParam))
+					} else if msg.message == wmUser {
+						// Re-register hotkeys (triggered by config save)
+						hm.registerAll()
+					} else if msg.message == wmUserCapture {
+						if msg.wParam == 1 {
+							// Begin capture: unregister all hotkeys
+							for _, rh := range hm.registered {
+								procUnregisterHotKey.Call(0, uintptr(rh.id))
+							}
+							hm.logger.Printf("hotkey: all hotkeys unregistered for capture")
+						} else {
+							// End capture: re-register
+							hm.registerAll()
+							hm.logger.Printf("hotkey: hotkeys re-registered after capture")
+						}
+					}
+				}
+			}()
 		}
 	}()
 	<-ready
@@ -1800,6 +1817,17 @@ func securityMiddleware(next http.Handler, token string) http.Handler {
 
 		next.ServeHTTP(w, r)
 	})
+}
+
+func init() {
+	// Set per-monitor DPI awareness before any Win32 calls so that
+	// GetWindowRect and SystemParametersInfo use the same coordinate space.
+	// DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2 = -4
+	if proc, err := syscall.LoadDLL("user32.dll"); err == nil {
+		if fn, err := proc.FindProc("SetProcessDpiAwarenessContext"); err == nil {
+			fn.Call(^uintptr(3)) // -4 as uintptr
+		}
+	}
 }
 
 func main() {

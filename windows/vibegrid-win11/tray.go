@@ -287,6 +287,7 @@ func (t *trayIcon) showContextMenu() {
 	if hMenu == 0 {
 		return
 	}
+	defer procDestroyMenu.Call(hMenu)
 
 	appendMenuItem(hMenu, menuOpenBrowser, "Open VibeGrid")
 	appendMenuItem(hMenu, menuQuit, "Quit")
@@ -305,8 +306,6 @@ func (t *trayIcon) showContextMenu() {
 		0, t.hwnd, 0,
 	)
 	// TrackPopupMenu posts WM_COMMAND to t.hwnd, handled by trayWndProc
-
-	procDestroyMenu.Call(hMenu)
 
 	// Per MSDN: post a benign message after TrackPopupMenu so the window
 	// processes it and can dismiss properly.
