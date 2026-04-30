@@ -1385,6 +1385,28 @@ body.narrow-mode:not(.narrow-sequences) #placementEditor {
   display: none !important;
 }
 
+/* In narrow-sequences mode, the editor panel and the placement editor get
+   condensed so the sequence stays usable at small height. Hide most
+   checkboxes, the step title field, the display-target picker, and the
+   per-sequence description text. The sequence list itself, the hotkey
+   capture row, and the mode/add/delete buttons remain. */
+body.narrow-mode.narrow-sequences .editor-header .toggle-line,
+body.narrow-mode.narrow-sequences .editor-header .retile-designation,
+body.narrow-mode.narrow-sequences .sequence-header > p,
+body.narrow-mode.narrow-sequences .placement-meta > .field,
+body.narrow-mode.narrow-sequences .placement-meta-text small {
+  display: none !important;
+}
+body.narrow-mode.narrow-sequences .editor-header {
+  gap: 4px;
+}
+body.narrow-mode.narrow-sequences .placement-meta {
+  gap: 4px;
+}
+body.narrow-mode.narrow-sequences .sequence-header {
+  margin-bottom: 4px;
+}
+
 .add-step-btn {
   background: linear-gradient(135deg, #29956b, #1a7651) !important;
   color: #f2fff7 !important;

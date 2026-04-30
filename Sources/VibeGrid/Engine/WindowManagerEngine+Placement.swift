@@ -313,6 +313,7 @@ extension WindowManagerEngine {
             if isResetAction,
                let restoreCursor = shortcutPreFirstStepCursorPosition(cycleKey: cycleKey) {
                 warpCursorToCocoaPoint(restoreCursor)
+                refocusControlCenterIfCursorIsOverIt(cocoaPoint: restoreCursor)
             } else {
                 warpCursorToCocoaPoint(CGPoint(x: targetRect.midX, y: targetRect.midY))
             }
@@ -460,6 +461,7 @@ extension WindowManagerEngine {
             if isResetAction,
                let restoreCursor = shortcutPreFirstStepCursorPosition(cycleKey: resolvedCycleKey) {
                 warpCursorToCocoaPoint(restoreCursor)
+                refocusControlCenterIfCursorIsOverIt(cocoaPoint: restoreCursor)
             } else {
                 warpCursorToCocoaPoint(CGPoint(x: targetRect.midX, y: targetRect.midY))
             }
@@ -1158,16 +1160,23 @@ extension WindowManagerEngine {
     /// have moved focus to the manipulated window; without this, the user is
     /// looking at their cursor over the Control Center but typing into the
     /// previously-focused app.
+    ///
+    /// Runs the check after a 10ms delay so the platform has a chance to
+    /// settle window focus from the placement that just ran before we
+    /// re-evaluate where the cursor ended up.
     func refocusControlCenterIfCursorIsOverIt(cocoaPoint: CGPoint) {
-        guard let window = NSApp.windows.first(where: isControlCenterWindow),
-              window.isVisible,
-              !window.isMiniaturized,
-              window.frame.contains(cocoaPoint),
-              !window.isKeyWindow else {
-            return
+        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(10)) { [weak self] in
+            guard let self else { return }
+            guard let window = NSApp.windows.first(where: self.isControlCenterWindow),
+                  window.isVisible,
+                  !window.isMiniaturized,
+                  window.frame.contains(cocoaPoint),
+                  !window.isKeyWindow else {
+                return
+            }
+            window.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
         }
-        window.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
     }
 
     func registrationIssues() -> [HotKeyRegistrationIssue] {

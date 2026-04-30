@@ -2589,8 +2589,8 @@ function renderShortcutEditor() {
     useForRetilingSelect.value = shortcut.useForRetiling || "no";
   }
   renderUseForRetilingError();
-  ids.settingGridCols.value = clampInt(state.config.settings.defaultGridColumns, 1, 24);
-  ids.settingGridRows.value = clampInt(state.config.settings.defaultGridRows, 1, 20);
+  ids.settingGridCols.value = clampInt(state.config.settings.defaultGridColumns, 1, 50);
+  ids.settingGridRows.value = clampInt(state.config.settings.defaultGridRows, 1, 50);
   ids.settingGap.value = clampInt(state.config.settings.gap, 0, 80);
   ids.settingDefaultCycleDisplaysOnWrap.checked = Boolean(
     state.config.settings.defaultCycleDisplaysOnWrap
@@ -4385,8 +4385,8 @@ function renderSettingsModal() {
     return;
   }
 
-  ids.settingGridCols.value = clampInt(state.config.settings.defaultGridColumns, 1, 24);
-  ids.settingGridRows.value = clampInt(state.config.settings.defaultGridRows, 1, 20);
+  ids.settingGridCols.value = clampInt(state.config.settings.defaultGridColumns, 1, 50);
+  ids.settingGridRows.value = clampInt(state.config.settings.defaultGridRows, 1, 50);
   ids.settingGap.value = clampInt(state.config.settings.gap, 0, 80);
   ids.settingDefaultCycleDisplaysOnWrap.checked = Boolean(
     state.config.settings.defaultCycleDisplaysOnWrap
@@ -4955,12 +4955,18 @@ function addPlacement(mode) {
   }
 
   const current = selectedPlacement();
-  const placement = mode === "freeform" ? defaultFreeformPlacement() : defaultGridPlacement();
-  if (mode === "grid" && current?.grid) {
-    placement.grid.columns = current.grid.columns;
-    placement.grid.rows = current.grid.rows;
-    placement.grid.width = Math.max(1, Math.floor(current.grid.columns / 2));
-    placement.grid.height = current.grid.rows;
+  let placement;
+  if (mode === "clone" && current) {
+    placement = clonePlacement(current);
+  } else {
+    const fallbackMode = mode === "clone" ? "grid" : mode;
+    placement = fallbackMode === "freeform" ? defaultFreeformPlacement() : defaultGridPlacement();
+    if (fallbackMode === "grid" && current?.grid) {
+      placement.grid.columns = current.grid.columns;
+      placement.grid.rows = current.grid.rows;
+      placement.grid.width = Math.max(1, Math.floor(current.grid.columns / 2));
+      placement.grid.height = current.grid.rows;
+    }
   }
   const currentIndex = current ? shortcut.placements.findIndex(p => p.id === current.id) : -1;
   if (currentIndex >= 0) {
@@ -4971,6 +4977,12 @@ function addPlacement(mode) {
   state.selectedPlacementId = placement.id;
   markDirty();
   pubsub.publishAll(['config', 'selection']);
+}
+
+function clonePlacement(source) {
+  const copy = JSON.parse(JSON.stringify(source));
+  copy.id = uid("step");
+  return copy;
 }
 
 function removePlacement() {
@@ -5574,8 +5586,8 @@ function renderUseForRetilingError() {
 function updateSettings() {
   const previousSettings = { ...state.config.settings };
 
-  state.config.settings.defaultGridColumns = clampInt(Number(ids.settingGridCols.value), 1, 24);
-  state.config.settings.defaultGridRows = clampInt(Number(ids.settingGridRows.value), 1, 20);
+  state.config.settings.defaultGridColumns = clampInt(Number(ids.settingGridCols.value), 1, 50);
+  state.config.settings.defaultGridRows = clampInt(Number(ids.settingGridRows.value), 1, 50);
   state.config.settings.gap = clampInt(Number(ids.settingGap.value), 0, 80);
   state.config.settings.defaultCycleDisplaysOnWrap = Boolean(
     ids.settingDefaultCycleDisplaysOnWrap.checked
@@ -5664,8 +5676,8 @@ function ensureGrid(placement) {
     placement.grid = { columns: 12, rows: 8, x: 0, y: 0, width: 6, height: 8 };
   }
 
-  placement.grid.columns = clampInt(placement.grid.columns, 1, 24);
-  placement.grid.rows = clampInt(placement.grid.rows, 1, 20);
+  placement.grid.columns = clampInt(placement.grid.columns, 1, 50);
+  placement.grid.rows = clampInt(placement.grid.rows, 1, 50);
   placement.grid.x = clampInt(placement.grid.x, 0, placement.grid.columns - 1);
   placement.grid.y = clampInt(placement.grid.y, 0, placement.grid.rows - 1);
   placement.grid.width = clampInt(placement.grid.width, 1, placement.grid.columns - placement.grid.x);
@@ -5799,12 +5811,49 @@ function updateGridDimensions() {
   }
 
   const grid = ensureGrid(placement);
-  grid.columns = clampInt(Number(ids.gridCols.value), 1, 24);
-  grid.rows = clampInt(Number(ids.gridRows.value), 1, 20);
+  grid.columns = clampInt(Number(ids.gridCols.value), 1, 50);
+  grid.rows = clampInt(Number(ids.gridRows.value), 1, 50);
   ensureGrid(placement);
   markDirty();
   renderGridCanvas();
   requestPlacementPreview(placement);
+}
+
+let gridDimensionsDebounceTimer = null;
+const GRID_DIMENSION_DEBOUNCE_MS = 500;
+function debouncedUpdateGridDimensions() {
+  if (gridDimensionsDebounceTimer !== null) {
+    clearTimeout(gridDimensionsDebounceTimer);
+  }
+  gridDimensionsDebounceTimer = setTimeout(() => {
+    gridDimensionsDebounceTimer = null;
+    updateGridDimensions();
+  }, GRID_DIMENSION_DEBOUNCE_MS);
+}
+function flushGridDimensionsDebounce() {
+  if (gridDimensionsDebounceTimer !== null) {
+    clearTimeout(gridDimensionsDebounceTimer);
+    gridDimensionsDebounceTimer = null;
+  }
+  updateGridDimensions();
+}
+
+let settingsDebounceTimer = null;
+function debouncedUpdateSettings() {
+  if (settingsDebounceTimer !== null) {
+    clearTimeout(settingsDebounceTimer);
+  }
+  settingsDebounceTimer = setTimeout(() => {
+    settingsDebounceTimer = null;
+    updateSettings();
+  }, GRID_DIMENSION_DEBOUNCE_MS);
+}
+function flushSettingsDebounce() {
+  if (settingsDebounceTimer !== null) {
+    clearTimeout(settingsDebounceTimer);
+    settingsDebounceTimer = null;
+  }
+  updateSettings();
 }
 
 function updateFreeRange(field, value) {
@@ -6439,8 +6488,8 @@ function normalizeSettings(settings) {
     source.moveEverythingMoveOnSelection ?? defaults.moveEverythingMoveOnSelection
   );
   return {
-    defaultGridColumns: clampInt(Number(source.defaultGridColumns), 1, 24),
-    defaultGridRows: clampInt(Number(source.defaultGridRows), 1, 20),
+    defaultGridColumns: clampInt(Number(source.defaultGridColumns), 1, 50),
+    defaultGridRows: clampInt(Number(source.defaultGridRows), 1, 50),
     gap: clampInt(Number(source.gap), 0, 80),
     defaultCycleDisplaysOnWrap: Boolean(source.defaultCycleDisplaysOnWrap),
     controlCenterSticky: source.controlCenterSticky === undefined ? true : Boolean(source.controlCenterSticky),
@@ -6907,8 +6956,8 @@ function uid(prefix) {
 }
 
 function defaultGridPlacement() {
-  const columns = clampInt(state.config?.settings?.defaultGridColumns ?? 12, 1, 24);
-  const rows = clampInt(state.config?.settings?.defaultGridRows ?? 8, 1, 20);
+  const columns = clampInt(state.config?.settings?.defaultGridColumns ?? 12, 1, 50);
+  const rows = clampInt(state.config?.settings?.defaultGridRows ?? 8, 1, 50);
   return {
     id: uid("step"),
     title: "",
@@ -7591,7 +7640,7 @@ function wireEvents() {
   });
   const addStepInEditorBtn = document.getElementById("addStepInEditorBtn");
   if (addStepInEditorBtn) {
-    addStepInEditorBtn.addEventListener("click", () => addPlacement("grid"));
+    addStepInEditorBtn.addEventListener("click", () => addPlacement("clone"));
   }
   ids.flipHorizontalBtn.addEventListener("click", () => flipSelectedPlacement("horizontal"));
   ids.flipVerticalBtn.addEventListener("click", () => flipSelectedPlacement("vertical"));
@@ -7757,8 +7806,10 @@ function wireEvents() {
     ids.resetBeforeFirstStepMoveCursor.addEventListener("change", (event) => updateResetBeforeFirstStepMoveCursor(event.target.checked));
   }
   document.getElementById("useForRetiling").addEventListener("change", (event) => updateUseForRetiling(event.target.value));
-  ids.settingGridCols.addEventListener("input", updateSettings);
-  ids.settingGridRows.addEventListener("input", updateSettings);
+  ids.settingGridCols.addEventListener("input", debouncedUpdateSettings);
+  ids.settingGridRows.addEventListener("input", debouncedUpdateSettings);
+  ids.settingGridCols.addEventListener("change", flushSettingsDebounce);
+  ids.settingGridRows.addEventListener("change", flushSettingsDebounce);
   ids.settingGap.addEventListener("input", updateSettings);
   ids.settingDefaultCycleDisplaysOnWrap.addEventListener("change", updateSettings);
   ids.settingControlCenterSticky.addEventListener("change", updateSettings);
@@ -7801,8 +7852,10 @@ function wireEvents() {
   ids.modeGridBtn.addEventListener("click", () => setPlacementMode("grid"));
   ids.modeFreeBtn.addEventListener("click", () => setPlacementMode("freeform"));
 
-  ids.gridCols.addEventListener("input", updateGridDimensions);
-  ids.gridRows.addEventListener("input", updateGridDimensions);
+  ids.gridCols.addEventListener("input", debouncedUpdateGridDimensions);
+  ids.gridRows.addEventListener("input", debouncedUpdateGridDimensions);
+  ids.gridCols.addEventListener("change", flushGridDimensionsDebounce);
+  ids.gridRows.addEventListener("change", flushGridDimensionsDebounce);
 
   ids.gridCanvas.addEventListener("mousedown", (event) => {
     if (event.button !== 0) {
