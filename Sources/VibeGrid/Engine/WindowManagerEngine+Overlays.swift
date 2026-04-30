@@ -39,6 +39,12 @@ extension WindowManagerEngine {
 
         if let hoveredKey = moveEverythingHoveredWindowKey,
            hoveredKey == managedWindow.key {
+            // When move-to-center / move-to-side is active, suppress all
+            // overlays for the hovered window — the window itself is being
+            // visibly repositioned, so no purple/blue overlay is needed.
+            if shouldApplyMoveEverythingAdvancedHoverLayout(to: managedWindow) {
+                return nil
+            }
             return .moveEverythingHover
         }
 
@@ -89,7 +95,13 @@ extension WindowManagerEngine {
         }
 
         moveEverythingOverlayLastFrame = normalizedOverlayFrame
-        moveEverythingOverlay.showPersistent(frame: normalizedOverlayFrame, style: overlayPresentation)
+        let hoverMultiplier = overlayPresentation == .moveEverythingHover
+            ? config.settings.moveEverythingHoverOverlayOpacity : 1.0
+        moveEverythingOverlay.showPersistent(
+            frame: normalizedOverlayFrame,
+            style: overlayPresentation,
+            opacityMultiplier: hoverMultiplier
+        )
         refreshMoveEverythingSupplementalOverlays(for: managedWindow)
         startMoveEverythingOverlaySyncTimerIfNeeded()
     }
@@ -120,22 +132,12 @@ extension WindowManagerEngine {
     func moveEverythingSupplementalOverlayFrames(
         for managedWindow: MoveEverythingManagedWindow
     ) -> (bottom: CGRect, original: CGRect)? {
-        guard isMoveEverythingActive,
-              moveEverythingShowOverlays,
-              shouldApplyMoveEverythingAdvancedHoverLayout(to: managedWindow),
-              let hoveredKey = moveEverythingHoveredWindowKey,
-              hoveredKey == managedWindow.key,
-              let originalFrame = moveEverythingHoverAdvancedOriginalFrameByWindowKey[managedWindow.key] else {
-            return nil
-        }
-
-        let bottomFrame = (currentWindowRect(for: managedWindow.window) ??
-            moveEverythingAdvancedHoverRect(for: originalFrame))?.integral
-        guard let bottomFrame else {
-            return nil
-        }
-
-        return (bottom: bottomFrame, original: originalFrame.integral)
+        // Supplemental (faint purple "bottom" + blue "original position")
+        // overlays were only shown during move-to-center / move-to-side.
+        // Per user request, no overlays at all should appear for the hovered
+        // window during those modes, so this is always nil.
+        _ = managedWindow
+        return nil
     }
 
     func refreshMoveEverythingSupplementalOverlays(for managedWindow: MoveEverythingManagedWindow) {

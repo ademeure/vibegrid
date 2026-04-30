@@ -218,6 +218,36 @@ struct Settings: Codable {
         }
     }
 
+    enum MoveEverythingRetileSide: String, Codable {
+        /// Pick the side opposite to the Control Center (current default behavior).
+        case auto
+        /// Force retiled windows onto the left half of the available frame.
+        case left
+        /// Force retiled windows onto the right half of the available frame.
+        case right
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.singleValueContainer()
+            let rawValue = (try? container.decode(String.self))?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased() ?? ""
+
+            switch rawValue {
+            case "left":
+                self = .left
+            case "right":
+                self = .right
+            default:
+                self = .auto
+            }
+        }
+
+        func encode(to encoder: Encoder) throws {
+            var container = encoder.singleValueContainer()
+            try container.encode(rawValue)
+        }
+    }
+
     enum MoveEverythingMoveOnSelectionMode: String, Codable {
         case never
         case miniControlCenterOnTop
@@ -257,6 +287,7 @@ struct Settings: Codable {
     var animationDuration: Double
     var controlCenterScale: Double
     var largerFonts: Bool
+    var fontSizeAdjustPt: Int
     var themeMode: ThemeMode
     var moveEverythingMoveOnSelection: MoveEverythingMoveOnSelectionMode
     var moveEverythingCenterWidthPercent: Double
@@ -265,15 +296,20 @@ struct Settings: Codable {
     var moveEverythingOverlayDuration: Double
     var moveEverythingStartAlwaysOnTop: Bool
     var moveEverythingStartMoveToBottom: Bool
+    var moveEverythingStartMoveToCenter: Bool
     var moveEverythingStartDontMoveVibeGrid: Bool
+    var controlCenterSticky: Bool
     var moveEverythingAdvancedControlCenterHover: Bool
     var moveEverythingStickyHoverStealFocus: Bool
     var moveEverythingCloseHideHotkeysOutsideMode: Bool
     var moveEverythingCloseMuxKill: Bool
+    var moveEverythingCloseSmart: Bool
+    var moveEverythingCloseSmartDelaySeconds: Double
     var moveEverythingExcludePinnedWindows: Bool
     var moveEverythingRetileOrder: MoveEverythingRetileOrder
     var moveEverythingITermGroupByRepository: Bool
     var moveEverythingMiniRetileWidthPercent: Double
+    var moveEverythingRetileSide: MoveEverythingRetileSide
     var moveEverythingBackgroundRefreshInterval: Double
     var moveEverythingITermRecentActivityTimeout: Double
     var moveEverythingITermRecentActivityBuffer: Double
@@ -285,6 +321,7 @@ struct Settings: Codable {
     var moveEverythingITermActivityTintIntensity: Double
     var moveEverythingITermActivityHoldSeconds: Double
     var moveEverythingITermActivityOverlayOpacity: Double
+    var moveEverythingHoverOverlayOpacity: Double
     var moveEverythingITermActivityBackgroundTintEnabled: Bool
     var moveEverythingITermActivityBackgroundTintPersistent: Bool
     var moveEverythingITermActivityTabColorEnabled: Bool
@@ -305,6 +342,11 @@ struct Settings: Codable {
     var moveEverythingITermBadgeFromTitle: Bool
     var moveEverythingITermTitleFromBadge: Bool
     var moveEverythingITermTitleAllCaps: Bool
+    var moveEverythingClaudeCodeRepoPrefix: Bool
+    var moveEverythingClaudeCodeRepoPrefixColor: String
+    var moveEverythingClaudeCodeRepoPrefixColorLight: String
+    var moveEverythingActivityEnabled: Bool
+    var moveEverythingVibedActivityEnabled: Bool
     var controlCenterFrameX: Double?
     var controlCenterFrameY: Double?
     var controlCenterFrameWidth: Double?
@@ -316,6 +358,15 @@ struct Settings: Codable {
     var moveEverythingQuickViewHotkey: Hotkey?
     var moveEverythingUndoWindowMovementHotkey: Hotkey?
     var moveEverythingRedoWindowMovementHotkey: Hotkey?
+    var moveEverythingUndoWindowMovementForFocusedWindowHotkey: Hotkey?
+    var moveEverythingRedoWindowMovementForFocusedWindowHotkey: Hotkey?
+    var moveEverythingShowAllHiddenWindowsHotkey: Hotkey?
+    var moveEverythingRetile1Hotkey: Hotkey?
+    var moveEverythingRetile1Mode: MoveEverythingRetileShortcutMode
+    var moveEverythingRetile2Hotkey: Hotkey?
+    var moveEverythingRetile2Mode: MoveEverythingRetileShortcutMode
+    var moveEverythingRetile3Hotkey: Hotkey?
+    var moveEverythingRetile3Mode: MoveEverythingRetileShortcutMode
 
     static var `default`: Settings {
         Settings(
@@ -326,6 +377,7 @@ struct Settings: Codable {
             animationDuration: 0.0,
             controlCenterScale: 1.0,
             largerFonts: true,
+            fontSizeAdjustPt: 2,
             themeMode: .system,
             moveEverythingMoveOnSelection: .miniControlCenterOnTop,
             moveEverythingCenterWidthPercent: 33,
@@ -334,15 +386,20 @@ struct Settings: Codable {
             moveEverythingOverlayDuration: 2,
             moveEverythingStartAlwaysOnTop: false,
             moveEverythingStartMoveToBottom: false,
+            moveEverythingStartMoveToCenter: false,
             moveEverythingStartDontMoveVibeGrid: false,
+            controlCenterSticky: true,
             moveEverythingAdvancedControlCenterHover: true,
             moveEverythingStickyHoverStealFocus: false,
             moveEverythingCloseHideHotkeysOutsideMode: false,
             moveEverythingCloseMuxKill: true,
+            moveEverythingCloseSmart: false,
+            moveEverythingCloseSmartDelaySeconds: 5,
             moveEverythingExcludePinnedWindows: false,
             moveEverythingRetileOrder: .leftToRight,
             moveEverythingITermGroupByRepository: true,
             moveEverythingMiniRetileWidthPercent: 25,
+            moveEverythingRetileSide: .auto,
             moveEverythingBackgroundRefreshInterval: 2,
             moveEverythingITermRecentActivityTimeout: 1,
             moveEverythingITermRecentActivityBuffer: 4,
@@ -354,6 +411,7 @@ struct Settings: Codable {
             moveEverythingITermActivityTintIntensity: 0.25,
             moveEverythingITermActivityHoldSeconds: 7.0,
             moveEverythingITermActivityOverlayOpacity: 0.0,
+            moveEverythingHoverOverlayOpacity: 1.0,
             moveEverythingITermActivityBackgroundTintEnabled: false,
             moveEverythingITermActivityBackgroundTintPersistent: true,
             moveEverythingITermActivityTabColorEnabled: false,
@@ -374,6 +432,11 @@ struct Settings: Codable {
             moveEverythingITermBadgeFromTitle: true,
             moveEverythingITermTitleFromBadge: true,
             moveEverythingITermTitleAllCaps: false,
+            moveEverythingClaudeCodeRepoPrefix: false,
+            moveEverythingClaudeCodeRepoPrefixColor: "#7B9ECA",
+            moveEverythingClaudeCodeRepoPrefixColorLight: "#3A6CA8",
+            moveEverythingActivityEnabled: true,
+            moveEverythingVibedActivityEnabled: false,
             moveEverythingQuickViewVerticalMode: .fromCursor,
             controlCenterFrameX: nil,
             controlCenterFrameY: nil,
@@ -384,7 +447,16 @@ struct Settings: Codable {
             moveEverythingNameWindowHotkey: nil,
             moveEverythingQuickViewHotkey: nil,
             moveEverythingUndoWindowMovementHotkey: nil,
-            moveEverythingRedoWindowMovementHotkey: nil
+            moveEverythingRedoWindowMovementHotkey: nil,
+            moveEverythingUndoWindowMovementForFocusedWindowHotkey: nil,
+            moveEverythingRedoWindowMovementForFocusedWindowHotkey: nil,
+            moveEverythingShowAllHiddenWindowsHotkey: nil,
+            moveEverythingRetile1Hotkey: nil,
+            moveEverythingRetile1Mode: .full,
+            moveEverythingRetile2Hotkey: nil,
+            moveEverythingRetile2Mode: .iterm,
+            moveEverythingRetile3Hotkey: nil,
+            moveEverythingRetile3Mode: .hybrid
         )
     }
 
@@ -396,6 +468,7 @@ struct Settings: Codable {
         animationDuration: Double,
         controlCenterScale: Double = 1.0,
         largerFonts: Bool = true,
+        fontSizeAdjustPt: Int = 2,
         themeMode: ThemeMode = .system,
         moveEverythingMoveOnSelection: MoveEverythingMoveOnSelectionMode = .miniControlCenterOnTop,
         moveEverythingCenterWidthPercent: Double = 33,
@@ -404,15 +477,20 @@ struct Settings: Codable {
         moveEverythingOverlayDuration: Double = 2,
         moveEverythingStartAlwaysOnTop: Bool = false,
         moveEverythingStartMoveToBottom: Bool = false,
+        moveEverythingStartMoveToCenter: Bool = false,
         moveEverythingStartDontMoveVibeGrid: Bool = false,
+        controlCenterSticky: Bool = true,
         moveEverythingAdvancedControlCenterHover: Bool = true,
         moveEverythingStickyHoverStealFocus: Bool = false,
         moveEverythingCloseHideHotkeysOutsideMode: Bool = false,
         moveEverythingCloseMuxKill: Bool = true,
+        moveEverythingCloseSmart: Bool = false,
+        moveEverythingCloseSmartDelaySeconds: Double = 5,
         moveEverythingExcludePinnedWindows: Bool = false,
         moveEverythingRetileOrder: MoveEverythingRetileOrder = .leftToRight,
         moveEverythingITermGroupByRepository: Bool = true,
         moveEverythingMiniRetileWidthPercent: Double = 25,
+        moveEverythingRetileSide: MoveEverythingRetileSide = .auto,
         moveEverythingBackgroundRefreshInterval: Double = 2,
         moveEverythingITermRecentActivityTimeout: Double = 1,
         moveEverythingITermRecentActivityBuffer: Double = 4,
@@ -424,6 +502,7 @@ struct Settings: Codable {
         moveEverythingITermActivityTintIntensity: Double = 0.25,
         moveEverythingITermActivityHoldSeconds: Double = 7.0,
         moveEverythingITermActivityOverlayOpacity: Double = 0.14,
+        moveEverythingHoverOverlayOpacity: Double = 1.0,
         moveEverythingITermActivityBackgroundTintEnabled: Bool = false,
         moveEverythingITermActivityBackgroundTintPersistent: Bool = true,
         moveEverythingITermActivityTabColorEnabled: Bool = false,
@@ -444,6 +523,11 @@ struct Settings: Codable {
         moveEverythingITermBadgeFromTitle: Bool = false,
         moveEverythingITermTitleFromBadge: Bool = true,
         moveEverythingITermTitleAllCaps: Bool = false,
+        moveEverythingClaudeCodeRepoPrefix: Bool = false,
+        moveEverythingClaudeCodeRepoPrefixColor: String = "#7B9ECA",
+        moveEverythingClaudeCodeRepoPrefixColorLight: String = "#3A6CA8",
+        moveEverythingActivityEnabled: Bool = true,
+        moveEverythingVibedActivityEnabled: Bool = false,
         moveEverythingQuickViewVerticalMode: MoveEverythingQuickViewVerticalMode = .fromCursor,
         controlCenterFrameX: Double? = nil,
         controlCenterFrameY: Double? = nil,
@@ -454,7 +538,16 @@ struct Settings: Codable {
         moveEverythingNameWindowHotkey: Hotkey? = nil,
         moveEverythingQuickViewHotkey: Hotkey? = nil,
         moveEverythingUndoWindowMovementHotkey: Hotkey? = nil,
-        moveEverythingRedoWindowMovementHotkey: Hotkey? = nil
+        moveEverythingRedoWindowMovementHotkey: Hotkey? = nil,
+        moveEverythingUndoWindowMovementForFocusedWindowHotkey: Hotkey? = nil,
+        moveEverythingRedoWindowMovementForFocusedWindowHotkey: Hotkey? = nil,
+        moveEverythingShowAllHiddenWindowsHotkey: Hotkey? = nil,
+        moveEverythingRetile1Hotkey: Hotkey? = nil,
+        moveEverythingRetile1Mode: MoveEverythingRetileShortcutMode = .full,
+        moveEverythingRetile2Hotkey: Hotkey? = nil,
+        moveEverythingRetile2Mode: MoveEverythingRetileShortcutMode = .iterm,
+        moveEverythingRetile3Hotkey: Hotkey? = nil,
+        moveEverythingRetile3Mode: MoveEverythingRetileShortcutMode = .hybrid
     ) {
         self.defaultGridColumns = defaultGridColumns
         self.defaultGridRows = defaultGridRows
@@ -463,6 +556,7 @@ struct Settings: Codable {
         self.animationDuration = animationDuration
         self.controlCenterScale = controlCenterScale
         self.largerFonts = largerFonts
+        self.fontSizeAdjustPt = fontSizeAdjustPt
         self.themeMode = themeMode
         self.moveEverythingMoveOnSelection = moveEverythingMoveOnSelection
         self.moveEverythingCenterWidthPercent = moveEverythingCenterWidthPercent
@@ -471,15 +565,20 @@ struct Settings: Codable {
         self.moveEverythingOverlayDuration = moveEverythingOverlayDuration
         self.moveEverythingStartAlwaysOnTop = moveEverythingStartAlwaysOnTop
         self.moveEverythingStartMoveToBottom = moveEverythingStartMoveToBottom
+        self.moveEverythingStartMoveToCenter = moveEverythingStartMoveToCenter
         self.moveEverythingStartDontMoveVibeGrid = moveEverythingStartDontMoveVibeGrid
+        self.controlCenterSticky = controlCenterSticky
         self.moveEverythingAdvancedControlCenterHover = moveEverythingAdvancedControlCenterHover
         self.moveEverythingStickyHoverStealFocus = moveEverythingStickyHoverStealFocus
         self.moveEverythingCloseHideHotkeysOutsideMode = moveEverythingCloseHideHotkeysOutsideMode
         self.moveEverythingCloseMuxKill = moveEverythingCloseMuxKill
+        self.moveEverythingCloseSmart = moveEverythingCloseSmart
+        self.moveEverythingCloseSmartDelaySeconds = moveEverythingCloseSmartDelaySeconds
         self.moveEverythingExcludePinnedWindows = moveEverythingExcludePinnedWindows
         self.moveEverythingRetileOrder = moveEverythingRetileOrder
         self.moveEverythingITermGroupByRepository = moveEverythingITermGroupByRepository
         self.moveEverythingMiniRetileWidthPercent = moveEverythingMiniRetileWidthPercent
+        self.moveEverythingRetileSide = moveEverythingRetileSide
         self.moveEverythingBackgroundRefreshInterval = moveEverythingBackgroundRefreshInterval
         self.moveEverythingITermRecentActivityTimeout = moveEverythingITermRecentActivityTimeout
         self.moveEverythingITermRecentActivityBuffer = moveEverythingITermRecentActivityBuffer
@@ -491,6 +590,7 @@ struct Settings: Codable {
         self.moveEverythingITermActivityTintIntensity = moveEverythingITermActivityTintIntensity
         self.moveEverythingITermActivityHoldSeconds = moveEverythingITermActivityHoldSeconds
         self.moveEverythingITermActivityOverlayOpacity = moveEverythingITermActivityOverlayOpacity
+        self.moveEverythingHoverOverlayOpacity = moveEverythingHoverOverlayOpacity
         self.moveEverythingITermActivityBackgroundTintEnabled = moveEverythingITermActivityBackgroundTintEnabled
         self.moveEverythingITermActivityBackgroundTintPersistent = moveEverythingITermActivityBackgroundTintPersistent
         self.moveEverythingITermActivityTabColorEnabled = moveEverythingITermActivityTabColorEnabled
@@ -511,6 +611,11 @@ struct Settings: Codable {
         self.moveEverythingITermBadgeFromTitle = moveEverythingITermBadgeFromTitle
         self.moveEverythingITermTitleFromBadge = moveEverythingITermTitleFromBadge
         self.moveEverythingITermTitleAllCaps = moveEverythingITermTitleAllCaps
+        self.moveEverythingClaudeCodeRepoPrefix = moveEverythingClaudeCodeRepoPrefix
+        self.moveEverythingClaudeCodeRepoPrefixColor = moveEverythingClaudeCodeRepoPrefixColor
+        self.moveEverythingClaudeCodeRepoPrefixColorLight = moveEverythingClaudeCodeRepoPrefixColorLight
+        self.moveEverythingActivityEnabled = moveEverythingActivityEnabled
+        self.moveEverythingVibedActivityEnabled = moveEverythingVibedActivityEnabled
         self.moveEverythingQuickViewVerticalMode = moveEverythingQuickViewVerticalMode
         self.controlCenterFrameX = controlCenterFrameX
         self.controlCenterFrameY = controlCenterFrameY
@@ -522,6 +627,15 @@ struct Settings: Codable {
         self.moveEverythingQuickViewHotkey = moveEverythingQuickViewHotkey
         self.moveEverythingUndoWindowMovementHotkey = moveEverythingUndoWindowMovementHotkey
         self.moveEverythingRedoWindowMovementHotkey = moveEverythingRedoWindowMovementHotkey
+        self.moveEverythingUndoWindowMovementForFocusedWindowHotkey = moveEverythingUndoWindowMovementForFocusedWindowHotkey
+        self.moveEverythingRedoWindowMovementForFocusedWindowHotkey = moveEverythingRedoWindowMovementForFocusedWindowHotkey
+        self.moveEverythingShowAllHiddenWindowsHotkey = moveEverythingShowAllHiddenWindowsHotkey
+        self.moveEverythingRetile1Hotkey = moveEverythingRetile1Hotkey
+        self.moveEverythingRetile1Mode = moveEverythingRetile1Mode
+        self.moveEverythingRetile2Hotkey = moveEverythingRetile2Hotkey
+        self.moveEverythingRetile2Mode = moveEverythingRetile2Mode
+        self.moveEverythingRetile3Hotkey = moveEverythingRetile3Hotkey
+        self.moveEverythingRetile3Mode = moveEverythingRetile3Mode
     }
 
     enum CodingKeys: String, CodingKey {
@@ -532,6 +646,7 @@ struct Settings: Codable {
         case animationDuration
         case controlCenterScale
         case largerFonts
+        case fontSizeAdjustPt
         case themeMode
         case darkMode
         case moveEverythingMoveOnSelection
@@ -541,15 +656,20 @@ struct Settings: Codable {
         case moveEverythingOverlayDuration
         case moveEverythingStartAlwaysOnTop
         case moveEverythingStartMoveToBottom
+        case moveEverythingStartMoveToCenter
         case moveEverythingStartDontMoveVibeGrid
+        case controlCenterSticky
         case moveEverythingAdvancedControlCenterHover
         case moveEverythingStickyHoverStealFocus
         case moveEverythingCloseHideHotkeysOutsideMode
         case moveEverythingCloseMuxKill
+        case moveEverythingCloseSmart
+        case moveEverythingCloseSmartDelaySeconds
         case moveEverythingExcludePinnedWindows
         case moveEverythingRetileOrder
         case moveEverythingITermGroupByRepository
         case moveEverythingMiniRetileWidthPercent
+        case moveEverythingRetileSide
         case moveEverythingBackgroundRefreshInterval
         case moveEverythingITermRecentActivityTimeout
         case moveEverythingITermRecentActivityBuffer
@@ -561,6 +681,7 @@ struct Settings: Codable {
         case moveEverythingITermActivityTintIntensity
         case moveEverythingITermActivityHoldSeconds
         case moveEverythingITermActivityOverlayOpacity
+        case moveEverythingHoverOverlayOpacity
         case moveEverythingITermActivityBackgroundTintEnabled
         case moveEverythingITermActivityBackgroundTintPersistent
         case moveEverythingITermActivityTabColorEnabled
@@ -581,6 +702,11 @@ struct Settings: Codable {
         case moveEverythingITermBadgeFromTitle
         case moveEverythingITermTitleFromBadge
         case moveEverythingITermTitleAllCaps
+        case moveEverythingClaudeCodeRepoPrefix
+        case moveEverythingClaudeCodeRepoPrefixColor
+        case moveEverythingClaudeCodeRepoPrefixColorLight
+        case moveEverythingActivityEnabled
+        case moveEverythingVibedActivityEnabled
         case controlCenterFrameX
         case controlCenterFrameY
         case controlCenterFrameWidth
@@ -592,6 +718,15 @@ struct Settings: Codable {
         case moveEverythingQuickViewVerticalMode
         case moveEverythingUndoWindowMovementHotkey
         case moveEverythingRedoWindowMovementHotkey
+        case moveEverythingUndoWindowMovementForFocusedWindowHotkey
+        case moveEverythingRedoWindowMovementForFocusedWindowHotkey
+        case moveEverythingShowAllHiddenWindowsHotkey
+        case moveEverythingRetile1Hotkey
+        case moveEverythingRetile1Mode
+        case moveEverythingRetile2Hotkey
+        case moveEverythingRetile2Mode
+        case moveEverythingRetile3Hotkey
+        case moveEverythingRetile3Mode
     }
 
     init(from decoder: Decoder) throws {
@@ -603,6 +738,7 @@ struct Settings: Codable {
         animationDuration = try container.decodeIfPresent(Double.self, forKey: .animationDuration) ?? 0
         controlCenterScale = try container.decodeIfPresent(Double.self, forKey: .controlCenterScale) ?? 1.0
         largerFonts = try container.decodeIfPresent(Bool.self, forKey: .largerFonts) ?? true
+        fontSizeAdjustPt = try container.decodeIfPresent(Int.self, forKey: .fontSizeAdjustPt) ?? (largerFonts ? 2 : 0)
         moveEverythingMoveOnSelection = try container.decodeIfPresent(
             MoveEverythingMoveOnSelectionMode.self,
             forKey: .moveEverythingMoveOnSelection
@@ -613,7 +749,9 @@ struct Settings: Codable {
         moveEverythingOverlayDuration = try container.decodeIfPresent(Double.self, forKey: .moveEverythingOverlayDuration) ?? 2
         moveEverythingStartAlwaysOnTop = try container.decodeIfPresent(Bool.self, forKey: .moveEverythingStartAlwaysOnTop) ?? false
         moveEverythingStartMoveToBottom = try container.decodeIfPresent(Bool.self, forKey: .moveEverythingStartMoveToBottom) ?? false
+        moveEverythingStartMoveToCenter = try container.decodeIfPresent(Bool.self, forKey: .moveEverythingStartMoveToCenter) ?? false
         moveEverythingStartDontMoveVibeGrid = try container.decodeIfPresent(Bool.self, forKey: .moveEverythingStartDontMoveVibeGrid) ?? false
+        controlCenterSticky = try container.decodeIfPresent(Bool.self, forKey: .controlCenterSticky) ?? true
         moveEverythingAdvancedControlCenterHover = try container.decodeIfPresent(Bool.self, forKey: .moveEverythingAdvancedControlCenterHover) ?? true
         moveEverythingStickyHoverStealFocus = try container.decodeIfPresent(Bool.self, forKey: .moveEverythingStickyHoverStealFocus) ?? false
         moveEverythingCloseHideHotkeysOutsideMode = try container.decodeIfPresent(
@@ -621,6 +759,11 @@ struct Settings: Codable {
             forKey: .moveEverythingCloseHideHotkeysOutsideMode
         ) ?? false
         moveEverythingCloseMuxKill = try container.decodeIfPresent(Bool.self, forKey: .moveEverythingCloseMuxKill) ?? true
+        moveEverythingCloseSmart = try container.decodeIfPresent(Bool.self, forKey: .moveEverythingCloseSmart) ?? false
+        moveEverythingCloseSmartDelaySeconds = try container.decodeIfPresent(
+            Double.self,
+            forKey: .moveEverythingCloseSmartDelaySeconds
+        ) ?? 5
         moveEverythingExcludePinnedWindows = try container.decodeIfPresent(Bool.self, forKey: .moveEverythingExcludePinnedWindows) ?? false
         moveEverythingRetileOrder = try container.decodeIfPresent(
             MoveEverythingRetileOrder.self,
@@ -631,6 +774,7 @@ struct Settings: Codable {
             forKey: .moveEverythingITermGroupByRepository
         ) ?? true
         moveEverythingMiniRetileWidthPercent = try container.decodeIfPresent(Double.self, forKey: .moveEverythingMiniRetileWidthPercent) ?? 25
+        moveEverythingRetileSide = try container.decodeIfPresent(MoveEverythingRetileSide.self, forKey: .moveEverythingRetileSide) ?? .auto
         moveEverythingBackgroundRefreshInterval = try container.decodeIfPresent(Double.self, forKey: .moveEverythingBackgroundRefreshInterval) ?? 2
         moveEverythingITermRecentActivityTimeout = try container.decodeIfPresent(
             Double.self,
@@ -672,6 +816,10 @@ struct Settings: Codable {
             Double.self,
             forKey: .moveEverythingITermActivityOverlayOpacity
         ) ?? 0.14
+        moveEverythingHoverOverlayOpacity = try container.decodeIfPresent(
+            Double.self,
+            forKey: .moveEverythingHoverOverlayOpacity
+        ) ?? 1.0
         moveEverythingITermActivityBackgroundTintEnabled = try container.decodeIfPresent(
             Bool.self,
             forKey: .moveEverythingITermActivityBackgroundTintEnabled
@@ -740,6 +888,26 @@ struct Settings: Codable {
             Bool.self,
             forKey: .moveEverythingITermTitleAllCaps
         ) ?? false
+        moveEverythingClaudeCodeRepoPrefix = try container.decodeIfPresent(
+            Bool.self,
+            forKey: .moveEverythingClaudeCodeRepoPrefix
+        ) ?? false
+        moveEverythingClaudeCodeRepoPrefixColor = try container.decodeIfPresent(
+            String.self,
+            forKey: .moveEverythingClaudeCodeRepoPrefixColor
+        ) ?? "#7B9ECA"
+        moveEverythingClaudeCodeRepoPrefixColorLight = try container.decodeIfPresent(
+            String.self,
+            forKey: .moveEverythingClaudeCodeRepoPrefixColorLight
+        ) ?? "#3A6CA8"
+        moveEverythingActivityEnabled = try container.decodeIfPresent(
+            Bool.self,
+            forKey: .moveEverythingActivityEnabled
+        ) ?? true
+        moveEverythingVibedActivityEnabled = try container.decodeIfPresent(
+            Bool.self,
+            forKey: .moveEverythingVibedActivityEnabled
+        ) ?? false
         moveEverythingQuickViewVerticalMode = try container.decodeIfPresent(
             MoveEverythingQuickViewVerticalMode.self,
             forKey: .moveEverythingQuickViewVerticalMode
@@ -760,6 +928,42 @@ struct Settings: Codable {
             Hotkey.self,
             forKey: .moveEverythingRedoWindowMovementHotkey
         )
+        moveEverythingUndoWindowMovementForFocusedWindowHotkey = try container.decodeIfPresent(
+            Hotkey.self,
+            forKey: .moveEverythingUndoWindowMovementForFocusedWindowHotkey
+        )
+        moveEverythingRedoWindowMovementForFocusedWindowHotkey = try container.decodeIfPresent(
+            Hotkey.self,
+            forKey: .moveEverythingRedoWindowMovementForFocusedWindowHotkey
+        )
+        moveEverythingShowAllHiddenWindowsHotkey = try container.decodeIfPresent(
+            Hotkey.self,
+            forKey: .moveEverythingShowAllHiddenWindowsHotkey
+        )
+        moveEverythingRetile1Hotkey = try container.decodeIfPresent(
+            Hotkey.self,
+            forKey: .moveEverythingRetile1Hotkey
+        )
+        moveEverythingRetile1Mode = try container.decodeIfPresent(
+            MoveEverythingRetileShortcutMode.self,
+            forKey: .moveEverythingRetile1Mode
+        ) ?? .full
+        moveEverythingRetile2Hotkey = try container.decodeIfPresent(
+            Hotkey.self,
+            forKey: .moveEverythingRetile2Hotkey
+        )
+        moveEverythingRetile2Mode = try container.decodeIfPresent(
+            MoveEverythingRetileShortcutMode.self,
+            forKey: .moveEverythingRetile2Mode
+        ) ?? .iterm
+        moveEverythingRetile3Hotkey = try container.decodeIfPresent(
+            Hotkey.self,
+            forKey: .moveEverythingRetile3Hotkey
+        )
+        moveEverythingRetile3Mode = try container.decodeIfPresent(
+            MoveEverythingRetileShortcutMode.self,
+            forKey: .moveEverythingRetile3Mode
+        ) ?? .hybrid
         if let decodedThemeMode = try container.decodeIfPresent(ThemeMode.self, forKey: .themeMode) {
             themeMode = decodedThemeMode
         } else {
@@ -777,6 +981,7 @@ struct Settings: Codable {
         try container.encode(animationDuration, forKey: .animationDuration)
         try container.encode(controlCenterScale, forKey: .controlCenterScale)
         try container.encode(largerFonts, forKey: .largerFonts)
+        try container.encode(fontSizeAdjustPt, forKey: .fontSizeAdjustPt)
         try container.encode(themeMode, forKey: .themeMode)
         try container.encode(moveEverythingMoveOnSelection, forKey: .moveEverythingMoveOnSelection)
         try container.encode(moveEverythingCenterWidthPercent, forKey: .moveEverythingCenterWidthPercent)
@@ -785,7 +990,9 @@ struct Settings: Codable {
         try container.encode(moveEverythingOverlayDuration, forKey: .moveEverythingOverlayDuration)
         try container.encode(moveEverythingStartAlwaysOnTop, forKey: .moveEverythingStartAlwaysOnTop)
         try container.encode(moveEverythingStartMoveToBottom, forKey: .moveEverythingStartMoveToBottom)
+        try container.encode(moveEverythingStartMoveToCenter, forKey: .moveEverythingStartMoveToCenter)
         try container.encode(moveEverythingStartDontMoveVibeGrid, forKey: .moveEverythingStartDontMoveVibeGrid)
+        try container.encode(controlCenterSticky, forKey: .controlCenterSticky)
         try container.encode(moveEverythingAdvancedControlCenterHover, forKey: .moveEverythingAdvancedControlCenterHover)
         try container.encode(moveEverythingStickyHoverStealFocus, forKey: .moveEverythingStickyHoverStealFocus)
         try container.encode(
@@ -793,10 +1000,13 @@ struct Settings: Codable {
             forKey: .moveEverythingCloseHideHotkeysOutsideMode
         )
         try container.encode(moveEverythingCloseMuxKill, forKey: .moveEverythingCloseMuxKill)
+        try container.encode(moveEverythingCloseSmart, forKey: .moveEverythingCloseSmart)
+        try container.encode(moveEverythingCloseSmartDelaySeconds, forKey: .moveEverythingCloseSmartDelaySeconds)
         try container.encode(moveEverythingExcludePinnedWindows, forKey: .moveEverythingExcludePinnedWindows)
         try container.encode(moveEverythingRetileOrder, forKey: .moveEverythingRetileOrder)
         try container.encode(moveEverythingITermGroupByRepository, forKey: .moveEverythingITermGroupByRepository)
         try container.encode(moveEverythingMiniRetileWidthPercent, forKey: .moveEverythingMiniRetileWidthPercent)
+        try container.encode(moveEverythingRetileSide, forKey: .moveEverythingRetileSide)
         try container.encode(moveEverythingBackgroundRefreshInterval, forKey: .moveEverythingBackgroundRefreshInterval)
         try container.encode(moveEverythingITermRecentActivityTimeout, forKey: .moveEverythingITermRecentActivityTimeout)
         try container.encode(moveEverythingITermRecentActivityBuffer, forKey: .moveEverythingITermRecentActivityBuffer)
@@ -811,6 +1021,7 @@ struct Settings: Codable {
         try container.encode(moveEverythingITermActivityTintIntensity, forKey: .moveEverythingITermActivityTintIntensity)
         try container.encode(moveEverythingITermActivityHoldSeconds, forKey: .moveEverythingITermActivityHoldSeconds)
         try container.encode(moveEverythingITermActivityOverlayOpacity, forKey: .moveEverythingITermActivityOverlayOpacity)
+        try container.encode(moveEverythingHoverOverlayOpacity, forKey: .moveEverythingHoverOverlayOpacity)
         try container.encode(moveEverythingITermActivityBackgroundTintEnabled, forKey: .moveEverythingITermActivityBackgroundTintEnabled)
         try container.encode(moveEverythingITermActivityBackgroundTintPersistent, forKey: .moveEverythingITermActivityBackgroundTintPersistent)
         try container.encode(moveEverythingITermActivityTabColorEnabled, forKey: .moveEverythingITermActivityTabColorEnabled)
@@ -834,6 +1045,11 @@ struct Settings: Codable {
         try container.encode(moveEverythingITermBadgeFromTitle, forKey: .moveEverythingITermBadgeFromTitle)
         try container.encode(moveEverythingITermTitleFromBadge, forKey: .moveEverythingITermTitleFromBadge)
         try container.encode(moveEverythingITermTitleAllCaps, forKey: .moveEverythingITermTitleAllCaps)
+        try container.encode(moveEverythingClaudeCodeRepoPrefix, forKey: .moveEverythingClaudeCodeRepoPrefix)
+        try container.encode(moveEverythingClaudeCodeRepoPrefixColor, forKey: .moveEverythingClaudeCodeRepoPrefixColor)
+        try container.encode(moveEverythingClaudeCodeRepoPrefixColorLight, forKey: .moveEverythingClaudeCodeRepoPrefixColorLight)
+        try container.encode(moveEverythingActivityEnabled, forKey: .moveEverythingActivityEnabled)
+        try container.encode(moveEverythingVibedActivityEnabled, forKey: .moveEverythingVibedActivityEnabled)
         try container.encode(moveEverythingQuickViewVerticalMode, forKey: .moveEverythingQuickViewVerticalMode)
         try container.encodeIfPresent(controlCenterFrameX, forKey: .controlCenterFrameX)
         try container.encodeIfPresent(controlCenterFrameY, forKey: .controlCenterFrameY)
@@ -851,6 +1067,42 @@ struct Settings: Codable {
             moveEverythingRedoWindowMovementHotkey,
             forKey: .moveEverythingRedoWindowMovementHotkey
         )
+        try container.encodeIfPresent(
+            moveEverythingUndoWindowMovementForFocusedWindowHotkey,
+            forKey: .moveEverythingUndoWindowMovementForFocusedWindowHotkey
+        )
+        try container.encodeIfPresent(
+            moveEverythingRedoWindowMovementForFocusedWindowHotkey,
+            forKey: .moveEverythingRedoWindowMovementForFocusedWindowHotkey
+        )
+        try container.encodeIfPresent(
+            moveEverythingShowAllHiddenWindowsHotkey,
+            forKey: .moveEverythingShowAllHiddenWindowsHotkey
+        )
+        try container.encodeIfPresent(moveEverythingRetile1Hotkey, forKey: .moveEverythingRetile1Hotkey)
+        try container.encode(moveEverythingRetile1Mode, forKey: .moveEverythingRetile1Mode)
+        try container.encodeIfPresent(moveEverythingRetile2Hotkey, forKey: .moveEverythingRetile2Hotkey)
+        try container.encode(moveEverythingRetile2Mode, forKey: .moveEverythingRetile2Mode)
+        try container.encodeIfPresent(moveEverythingRetile3Hotkey, forKey: .moveEverythingRetile3Hotkey)
+        try container.encode(moveEverythingRetile3Mode, forKey: .moveEverythingRetile3Mode)
+    }
+}
+
+enum MoveEverythingRetileShortcutMode: String, Codable, CaseIterable {
+    case full
+    case mini
+    case iterm
+    case nonITerm
+    case hybrid
+
+    var displayName: String {
+        switch self {
+        case .full: return "Full Retile"
+        case .mini: return "Mini Retile"
+        case .iterm: return "iTerm Retile"
+        case .nonITerm: return "Non-iTerm Retile"
+        case .hybrid: return "Hybrid Retile"
+        }
     }
 }
 
@@ -861,6 +1113,12 @@ enum MoveEverythingHotkeyAction: String, CaseIterable {
     case quickView
     case undoWindowMovement
     case redoWindowMovement
+    case undoWindowMovementForFocusedWindow
+    case redoWindowMovementForFocusedWindow
+    case showAllHiddenWindows
+    case retile1
+    case retile2
+    case retile3
 
     var displayName: String {
         switch self {
@@ -876,6 +1134,18 @@ enum MoveEverythingHotkeyAction: String, CaseIterable {
             return "Undo Window Movement"
         case .redoWindowMovement:
             return "Redo Window Movement"
+        case .undoWindowMovementForFocusedWindow:
+            return "Undo Window Movement (Focused Window)"
+        case .redoWindowMovementForFocusedWindow:
+            return "Redo Window Movement (Focused Window)"
+        case .showAllHiddenWindows:
+            return "Show All Hidden Windows"
+        case .retile1:
+            return "Retile 1"
+        case .retile2:
+            return "Retile 2"
+        case .retile3:
+            return "Retile 3"
         }
     }
 }
@@ -895,6 +1165,31 @@ extension Settings {
             return moveEverythingUndoWindowMovementHotkey
         case .redoWindowMovement:
             return moveEverythingRedoWindowMovementHotkey
+        case .undoWindowMovementForFocusedWindow:
+            return moveEverythingUndoWindowMovementForFocusedWindowHotkey
+        case .redoWindowMovementForFocusedWindow:
+            return moveEverythingRedoWindowMovementForFocusedWindowHotkey
+        case .showAllHiddenWindows:
+            return moveEverythingShowAllHiddenWindowsHotkey
+        case .retile1:
+            return moveEverythingRetile1Hotkey
+        case .retile2:
+            return moveEverythingRetile2Hotkey
+        case .retile3:
+            return moveEverythingRetile3Hotkey
+        }
+    }
+
+    func moveEverythingRetileMode(for action: MoveEverythingHotkeyAction) -> MoveEverythingRetileShortcutMode? {
+        switch action {
+        case .retile1:
+            return moveEverythingRetile1Mode
+        case .retile2:
+            return moveEverythingRetile2Mode
+        case .retile3:
+            return moveEverythingRetile3Mode
+        default:
+            return nil
         }
     }
 }
@@ -905,8 +1200,10 @@ struct ShortcutConfig: Codable, Identifiable {
     var enabled: Bool
     var hotkey: Hotkey
     var cycleDisplaysOnWrap: Bool
-    var controlCenterOnly: Bool
+    var canMoveControlCenter: Bool
     var ignoreExcludePinnedWindows: Bool
+    var resetBeforeFirstStep: Bool
+    var resetBeforeFirstStepMoveCursor: Bool
     var useForRetiling: String
     var placements: [PlacementStep]
 
@@ -916,8 +1213,10 @@ struct ShortcutConfig: Codable, Identifiable {
         enabled: Bool = true,
         hotkey: Hotkey,
         cycleDisplaysOnWrap: Bool = false,
-        controlCenterOnly: Bool = false,
+        canMoveControlCenter: Bool = false,
         ignoreExcludePinnedWindows: Bool = false,
+        resetBeforeFirstStep: Bool = false,
+        resetBeforeFirstStepMoveCursor: Bool = false,
         useForRetiling: String = "no",
         placements: [PlacementStep]
     ) {
@@ -926,15 +1225,18 @@ struct ShortcutConfig: Codable, Identifiable {
         self.enabled = enabled
         self.hotkey = hotkey
         self.cycleDisplaysOnWrap = cycleDisplaysOnWrap
-        self.controlCenterOnly = controlCenterOnly
+        self.canMoveControlCenter = canMoveControlCenter
         self.ignoreExcludePinnedWindows = ignoreExcludePinnedWindows
+        self.resetBeforeFirstStep = resetBeforeFirstStep
+        self.resetBeforeFirstStepMoveCursor = resetBeforeFirstStepMoveCursor
         self.useForRetiling = useForRetiling
         self.placements = placements
     }
 
     enum CodingKeys: String, CodingKey {
         case id, name, enabled, hotkey
-        case cycleDisplaysOnWrap, controlCenterOnly, ignoreExcludePinnedWindows
+        case cycleDisplaysOnWrap, canMoveControlCenter, controlCenterOnly, ignoreExcludePinnedWindows
+        case resetBeforeFirstStep, resetBeforeFirstStepMoveCursor
         case useForRetiling, placements
     }
 
@@ -945,8 +1247,17 @@ struct ShortcutConfig: Codable, Identifiable {
         enabled = try container.decodeIfPresent(Bool.self, forKey: .enabled) ?? true
         hotkey = try container.decode(Hotkey.self, forKey: .hotkey)
         cycleDisplaysOnWrap = try container.decodeIfPresent(Bool.self, forKey: .cycleDisplaysOnWrap) ?? false
-        controlCenterOnly = try container.decodeIfPresent(Bool.self, forKey: .controlCenterOnly) ?? false
+        if let value = try container.decodeIfPresent(Bool.self, forKey: .canMoveControlCenter) {
+            canMoveControlCenter = value
+        } else {
+            // Legacy: `controlCenterOnly: true` used to force-target the control center regardless of focus.
+            // Migrate to the new flag: same shortcut now moves the CC when focused (the common case), but
+            // no longer forces focus to the CC.
+            canMoveControlCenter = try container.decodeIfPresent(Bool.self, forKey: .controlCenterOnly) ?? false
+        }
         ignoreExcludePinnedWindows = try container.decodeIfPresent(Bool.self, forKey: .ignoreExcludePinnedWindows) ?? false
+        resetBeforeFirstStep = try container.decodeIfPresent(Bool.self, forKey: .resetBeforeFirstStep) ?? false
+        resetBeforeFirstStepMoveCursor = try container.decodeIfPresent(Bool.self, forKey: .resetBeforeFirstStepMoveCursor) ?? false
         useForRetiling = try container.decodeIfPresent(String.self, forKey: .useForRetiling) ?? "no"
         placements = try container.decode([PlacementStep].self, forKey: .placements)
     }
@@ -958,8 +1269,10 @@ struct ShortcutConfig: Codable, Identifiable {
         try container.encode(enabled, forKey: .enabled)
         try container.encode(hotkey, forKey: .hotkey)
         try container.encode(cycleDisplaysOnWrap, forKey: .cycleDisplaysOnWrap)
-        try container.encode(controlCenterOnly, forKey: .controlCenterOnly)
+        try container.encode(canMoveControlCenter, forKey: .canMoveControlCenter)
         try container.encode(ignoreExcludePinnedWindows, forKey: .ignoreExcludePinnedWindows)
+        try container.encode(resetBeforeFirstStep, forKey: .resetBeforeFirstStep)
+        try container.encode(resetBeforeFirstStepMoveCursor, forKey: .resetBeforeFirstStepMoveCursor)
         try container.encode(useForRetiling, forKey: .useForRetiling)
         try container.encode(placements, forKey: .placements)
     }
@@ -1104,6 +1417,13 @@ extension AppConfig {
             copy.settings.moveEverythingOverlayDuration = 2
         }
         copy.settings.moveEverythingOverlayDuration = min(max(copy.settings.moveEverythingOverlayDuration, 0.2), 8)
+        if !copy.settings.moveEverythingCloseSmartDelaySeconds.isFinite {
+            copy.settings.moveEverythingCloseSmartDelaySeconds = 5
+        }
+        copy.settings.moveEverythingCloseSmartDelaySeconds = min(
+            max(copy.settings.moveEverythingCloseSmartDelaySeconds, 0.5),
+            120
+        )
         if !copy.settings.moveEverythingBackgroundRefreshInterval.isFinite {
             copy.settings.moveEverythingBackgroundRefreshInterval = 2
         }
@@ -1131,6 +1451,13 @@ extension AppConfig {
         copy.settings.moveEverythingITermActivityOverlayOpacity = min(
             max(copy.settings.moveEverythingITermActivityOverlayOpacity, 0),
             1
+        )
+        if !copy.settings.moveEverythingHoverOverlayOpacity.isFinite {
+            copy.settings.moveEverythingHoverOverlayOpacity = 1.0
+        }
+        copy.settings.moveEverythingHoverOverlayOpacity = min(
+            max(copy.settings.moveEverythingHoverOverlayOpacity, 0),
+            2
         )
         copy.settings.moveEverythingITermRecentActivityActiveText = copy.settings.moveEverythingITermRecentActivityActiveText
             .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1174,6 +1501,9 @@ extension AppConfig {
         copy.settings.moveEverythingRedoWindowMovementHotkey = normalizeHotkey(
             copy.settings.moveEverythingRedoWindowMovementHotkey
         )
+        copy.settings.moveEverythingRetile1Hotkey = normalizeHotkey(copy.settings.moveEverythingRetile1Hotkey)
+        copy.settings.moveEverythingRetile2Hotkey = normalizeHotkey(copy.settings.moveEverythingRetile2Hotkey)
+        copy.settings.moveEverythingRetile3Hotkey = normalizeHotkey(copy.settings.moveEverythingRetile3Hotkey)
 
         var seenShortcutIDs: Set<String> = []
         copy.shortcuts = copy.shortcuts.map { shortcut in

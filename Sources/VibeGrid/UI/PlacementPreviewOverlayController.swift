@@ -32,7 +32,7 @@ final class PlacementPreviewOverlayController {
             case .moveEverythingHoverBottom:
                 return NSColor.systemPurple.withAlphaComponent(0.095)
             case .moveEverythingHoverOriginal:
-                return NSColor.systemGreen.withAlphaComponent(0.34)
+                return NSColor.systemBlue.withAlphaComponent(0.12)
             case .activityActive:
                 return NSColor.systemGreen.withAlphaComponent(0.14)
             case .activityIdle:
@@ -57,7 +57,7 @@ final class PlacementPreviewOverlayController {
             case .moveEverythingHoverBottom:
                 return NSColor.systemPurple.withAlphaComponent(0.016)
             case .moveEverythingHoverOriginal:
-                return NSColor.systemGreen.withAlphaComponent(0.09)
+                return NSColor.systemBlue.withAlphaComponent(0.03)
             case .activityActive:
                 return NSColor.systemGreen.withAlphaComponent(0.032)
             case .activityIdle:
@@ -104,7 +104,7 @@ final class PlacementPreviewOverlayController {
         scheduleHide(after: duration)
     }
 
-    func showPersistent(frame: CGRect, style: Style) {
+    func showPersistent(frame: CGRect, style: Style, opacityMultiplier: Double = 1.0) {
         guard frame.width > 0, frame.height > 0 else {
             hide()
             return
@@ -118,7 +118,15 @@ final class PlacementPreviewOverlayController {
         hideWorkItem?.cancel()
         hideWorkItem = nil
         applyWindowLevel(style: style, on: overlayWindow)
-        (overlayWindow.contentView as? PlacementPreviewOverlayView)?.apply(style: style)
+        if opacityMultiplier != 1.0, let view = overlayWindow.contentView as? PlacementPreviewOverlayView {
+            let m = max(0, opacityMultiplier)
+            let border = style.borderColor.withAlphaComponent(style.borderColor.alphaComponent * m)
+            let fill = style.fillColor.withAlphaComponent(style.fillColor.alphaComponent * m)
+            view.layer?.borderColor = border.cgColor
+            view.layer?.backgroundColor = fill.cgColor
+        } else {
+            (overlayWindow.contentView as? PlacementPreviewOverlayView)?.apply(style: style)
+        }
         overlayWindow.setFrame(frame.integral, display: true)
         overlayWindow.orderFrontRegardless()
     }

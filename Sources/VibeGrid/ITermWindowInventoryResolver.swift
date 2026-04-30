@@ -15,6 +15,13 @@ struct ITermWindowInventoryResolver {
         let windowNumber: Int
         let name: String
         let frame: CGRect
+        let bgR: Int
+        let bgG: Int
+        let bgB: Int
+        let bgRLight: Int
+        let bgGLight: Int
+        let bgBLight: Int
+        let bgUseSeparate: Bool
     }
 
     static func fetchInventory(debugContext: String? = nil) -> [WindowDescriptor] {
@@ -168,12 +175,69 @@ struct ITermWindowInventoryResolver {
                         return value.strip()
                 return ""
 
+            async def _build_profile_bg_cache(connection):
+                cache = {}
+                try:
+                    all_profiles = await iterm2.PartialProfile.async_get(connection)
+                    for profile in all_profiles:
+                        try:
+                            guid = profile.guid
+                            if not guid:
+                                continue
+                            use_separate = bool(getattr(profile, "use_separate_colors_for_light_and_dark_mode", None))
+                            if use_separate:
+                                bd = profile.background_color_dark
+                                bl = profile.background_color_light
+                                cache[guid] = {
+                                    "dark": (round(bd.red), round(bd.green), round(bd.blue)),
+                                    "light": (round(bl.red), round(bl.green), round(bl.blue)),
+                                    "separate": True,
+                                }
+                            else:
+                                bg = profile.background_color
+                                rgb = (round(bg.red), round(bg.green), round(bg.blue))
+                                cache[guid] = {"dark": rgb, "light": rgb, "separate": False}
+                        except Exception:
+                            pass
+                except Exception:
+                    pass
+                return cache
+
+            async def _bg_colors(window, profile_bg_cache):
+                try:
+                    session = window.current_tab.current_session
+                    if session is None:
+                        return {}
+                    profile = await session.async_get_profile()
+                    guid = profile.guid
+                    info = profile_bg_cache.get(guid)
+                    if info is None and hasattr(profile, "original_guid") and profile.original_guid:
+                        info = profile_bg_cache.get(profile.original_guid)
+                    if info is None and profile_bg_cache:
+                        info = next(iter(profile_bg_cache.values()))
+                    if info is None:
+                        return {}
+                    dark = info["dark"]
+                    light = info["light"]
+                    return {
+                        "bg_r": dark[0],
+                        "bg_g": dark[1],
+                        "bg_b": dark[2],
+                        "bg_r_light": light[0],
+                        "bg_g_light": light[1],
+                        "bg_b_light": light[2],
+                        "bg_separate": info["separate"],
+                    }
+                except Exception:
+                    return {}
+
             async def main(connection):
                 app = await iterm2.async_get_app(connection)
+                profile_bg_cache = await _build_profile_bg_cache(connection)
                 windows = []
                 for window in app.windows:
                     frame = window.frame
-                    windows.append({
+                    entry = {
                         "window_id": window.window_id,
                         "window_number": window.window_number,
                         "title": await _window_title(window),
@@ -183,7 +247,9 @@ struct ITermWindowInventoryResolver {
                             "width": frame.size.width,
                             "height": frame.size.height,
                         },
-                    })
+                    }
+                    entry.update(await _bg_colors(window, profile_bg_cache))
+                    windows.append(entry)
                 print(json.dumps(windows))
 
             iterm2.run_until_complete(main, retry=False)
@@ -257,11 +323,25 @@ struct ITermWindowInventoryResolver {
             let y = (bounds["y"] as? NSNumber)?.doubleValue ?? 0
             let width = (bounds["width"] as? NSNumber)?.doubleValue ?? 0
             let height = (bounds["height"] as? NSNumber)?.doubleValue ?? 0
+            let bgR = (rawWindow["bg_r"] as? Int) ?? 0
+            let bgG = (rawWindow["bg_g"] as? Int) ?? 0
+            let bgB = (rawWindow["bg_b"] as? Int) ?? 0
+            let bgRLight = (rawWindow["bg_r_light"] as? Int) ?? bgR
+            let bgGLight = (rawWindow["bg_g_light"] as? Int) ?? bgG
+            let bgBLight = (rawWindow["bg_b_light"] as? Int) ?? bgB
+            let bgUseSeparate = (rawWindow["bg_separate"] as? Bool) ?? false
             return RuntimeWindowDescriptor(
                 windowID: windowID,
                 windowNumber: windowNumber,
                 name: title,
-                frame: CGRect(x: x, y: y, width: width, height: height)
+                frame: CGRect(x: x, y: y, width: width, height: height),
+                bgR: bgR,
+                bgG: bgG,
+                bgB: bgB,
+                bgRLight: bgRLight,
+                bgGLight: bgGLight,
+                bgBLight: bgBLight,
+                bgUseSeparate: bgUseSeparate
             )
         }
 

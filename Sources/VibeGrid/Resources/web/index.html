@@ -30,7 +30,6 @@
           <button id="settingsBtn" class="btn primary">Settings</button>
           <button id="hideBtn" class="btn warning">Hide</button>
           <button id="exitBtn" class="btn danger">Exit</button>
-          <span class="narrow-mode-notice">narrow mode: resize for more</span>
         </div>
       </header>
       <section id="hotkeyIssueBanner" class="hotkey-issues hidden"></section>
@@ -81,13 +80,23 @@
               </label>
 
               <label class="toggle-line">
-                <input id="controlCenterOnly" type="checkbox" />
-                Control center only (always focus and move only the control center)
+                <input id="canMoveControlCenter" type="checkbox" />
+                Can move control center (only moves it when it's currently focused)
               </label>
 
               <label class="toggle-line">
                 <input id="ignoreExcludePinnedWindows" type="checkbox" />
                 Ignore pinned window exclusion (use full screen area)
+              </label>
+
+              <label class="toggle-line">
+                <input id="resetBeforeFirstStep" type="checkbox" />
+                Reset window to its pre-sequence position/size on wrap back to step 1
+              </label>
+
+              <label class="toggle-line sub-toggle">
+                <input id="resetBeforeFirstStepMoveCursor" type="checkbox" />
+                (+move cursor) — warp cursor to the center of each step; restore its saved position on reset
               </label>
 
               <div class="toggle-line retile-designation">
@@ -152,6 +161,10 @@
                   <label class="toggle-line move-everything-top-toggle">
                     <input id="moveEverythingAlwaysOnTop" type="checkbox" />
                     <span id="moveEverythingAlwaysOnTopLabel">Always On Top</span>
+                  </label>
+                  <label class="toggle-line move-everything-top-toggle">
+                    <input id="moveEverythingMoveToCenter" type="checkbox" />
+                    <span id="moveEverythingMoveToCenterLabel">Move To Center</span>
                   </label>
                   <label class="toggle-line move-everything-top-toggle">
                     <input id="moveEverythingMoveToBottom" type="checkbox" />
@@ -263,6 +276,13 @@
           </div>
         </div>
       </div>
+      <div id="actionModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="actionTitle">
+        <div class="modal-card">
+          <h3 id="actionTitle">Choose Action</h3>
+          <p id="actionMessage"></p>
+          <div id="actionButtons" class="modal-actions action-modal-buttons"></div>
+        </div>
+      </div>
       <div id="settingsModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
         <div class="modal-card settings-card">
           <h3 id="settingsTitle">Settings</h3>
@@ -297,9 +317,9 @@
                 </div>
               </label>
             </div>
-            <label class="toggle-line">
-              <input id="settingLargerFonts" type="checkbox" />
-              Larger fonts (+2pt)
+            <label>
+              Font size adjust (pt)
+              <input id="settingFontSizeAdjustPt" type="number" min="-4" max="8" step="1" />
             </label>
           </div>
           <div class="settings-section">
@@ -321,6 +341,10 @@
             <label class="toggle-line">
               <input id="settingDefaultCycleDisplaysOnWrap" type="checkbox" />
               New shortcuts cycle to the next display when they wrap from last step to first
+            </label>
+            <label class="toggle-line">
+              <input id="settingControlCenterSticky" type="checkbox" />
+              Sticky control center (placement shortcuts don't move it; use "Can move control center" on a shortcut to override)
             </label>
           </div>
           <div class="settings-section">
@@ -357,17 +381,47 @@
               Kill mux session when closing iTerm windows
             </label>
             <label class="toggle-line move-everything-modal-toggle">
+              <input id="moveEverythingCloseSmartSetting" type="checkbox" />
+              Smart close (hide first, kill if still hidden)
+            </label>
+            <div class="settings-grid" style="margin-top: 4px;">
+              <label>
+                Smart close delay (sec)
+                <input id="moveEverythingCloseSmartDelaySecondsSetting" type="number" min="0.5" max="120" step="0.5" />
+              </label>
+            </div>
+            <label class="toggle-line move-everything-modal-toggle">
               <input id="moveEverythingExcludePinnedWindowsSetting" type="checkbox" />
               Exclude pinned windows from placement area
             </label>
             <div class="settings-grid" style="margin-top: 8px;">
               <label>
+                Move-to-Center/Side Width (%)
+                <input id="moveEverythingCenterWidthPercentSetting" type="number" min="10" max="100" />
+              </label>
+              <label>
+                Move-to-Center/Side Height (%)
+                <input id="moveEverythingCenterHeightPercentSetting" type="number" min="10" max="100" />
+              </label>
+              <label>
                 Mini Retile Width (%)
                 <input id="moveEverythingMiniRetileWidthPercentSetting" type="number" min="5" max="100" />
               </label>
               <label>
+                Retile Side
+                <select id="moveEverythingRetileSideSetting">
+                  <option value="auto">Auto (opposite Control Center)</option>
+                  <option value="left">Force Left</option>
+                  <option value="right">Force Right</option>
+                </select>
+              </label>
+              <label>
                 Window List Refresh (sec)
                 <input id="moveEverythingBackgroundRefreshIntervalSetting" type="number" min="0.5" max="30" step="0.1" />
+              </label>
+              <label>
+                Hover Overlay Opacity
+                <input id="moveEverythingHoverOverlayOpacitySetting" type="number" min="0" max="2" step="0.05" />
               </label>
               <label>
                 Retile Order
@@ -389,9 +443,25 @@
               <input id="moveEverythingITermGroupByRepositorySetting" type="checkbox" />
               Group iTerm windows by repository when retiling
             </label>
+            <label class="toggle-line move-everything-modal-toggle" style="margin-top: 8px;">
+              <input id="moveEverythingClaudeCodeRepoPrefixSetting" type="checkbox" />
+              Show <em>repo</em>: title for Claude Code windows
+            </label>
+            <div class="settings-grid" style="margin-top: 8px;">
+              <label>Repo prefix — Dark<input id="moveEverythingClaudeCodeRepoPrefixColorSetting" type="color" /></label>
+              <label>Repo prefix — Light<input id="moveEverythingClaudeCodeRepoPrefixColorLightSetting" type="color" /></label>
+            </div>
           </div>
           <div class="settings-section">
             <h4>iTerm2 Integration</h4>
+            <label class="toggle-line move-everything-modal-toggle" style="margin-top: 4px; margin-bottom: 8px;">
+              <input id="moveEverythingActivityEnabledSetting" type="checkbox" />
+              Enable activity detection (iTerm screen polling)
+            </label>
+            <label class="toggle-line move-everything-modal-toggle" style="margin-top: 4px; margin-bottom: 8px;">
+              <input id="moveEverythingVibedActivityEnabledSetting" type="checkbox" />
+              Use vibed daemon (localhost:7483) for activity detection
+            </label>
             <div class="settings-grid">
               <label>
                 Activity Hold (sec)
@@ -484,6 +554,63 @@
                 <button class="btn tiny capture" type="button" data-me-record="moveEverythingRedoWindowMovementHotkey">Record</button>
                 <button class="btn tiny ghost" type="button" data-me-clear="moveEverythingRedoWindowMovementHotkey">Clear</button>
               </div>
+              <div class="move-hotkey-row">
+                <div class="move-hotkey-meta"><strong>Undo Movement (Focused Window)</strong><small>Optional · per-window history</small></div>
+                <span id="moveEverythingUndoWindowMovementForFocusedWindowPreview" class="hotkey-preview move-hotkey-preview"></span>
+                <button class="btn tiny capture" type="button" data-me-record="moveEverythingUndoWindowMovementForFocusedWindowHotkey">Record</button>
+                <button class="btn tiny ghost" type="button" data-me-clear="moveEverythingUndoWindowMovementForFocusedWindowHotkey">Clear</button>
+              </div>
+              <div class="move-hotkey-row">
+                <div class="move-hotkey-meta"><strong>Redo Movement (Focused Window)</strong><small>Optional · per-window history</small></div>
+                <span id="moveEverythingRedoWindowMovementForFocusedWindowPreview" class="hotkey-preview move-hotkey-preview"></span>
+                <button class="btn tiny capture" type="button" data-me-record="moveEverythingRedoWindowMovementForFocusedWindowHotkey">Record</button>
+                <button class="btn tiny ghost" type="button" data-me-clear="moveEverythingRedoWindowMovementForFocusedWindowHotkey">Clear</button>
+              </div>
+              <div class="move-hotkey-row">
+                <div class="move-hotkey-meta"><strong>Show All Hidden Windows</strong><small>Optional</small></div>
+                <span id="moveEverythingShowAllHiddenWindowsPreview" class="hotkey-preview move-hotkey-preview"></span>
+                <button class="btn tiny capture" type="button" data-me-record="moveEverythingShowAllHiddenWindowsHotkey">Record</button>
+                <button class="btn tiny ghost" type="button" data-me-clear="moveEverythingShowAllHiddenWindowsHotkey">Clear</button>
+              </div>
+              <div class="move-hotkey-row move-hotkey-row--with-mode">
+                <div class="move-hotkey-meta"><strong>Retile 1</strong><small>Optional</small></div>
+                <span id="moveEverythingRetile1Preview" class="hotkey-preview move-hotkey-preview"></span>
+                <button class="btn tiny capture" type="button" data-me-record="moveEverythingRetile1Hotkey">Record</button>
+                <button class="btn tiny ghost" type="button" data-me-clear="moveEverythingRetile1Hotkey">Clear</button>
+                <select id="moveEverythingRetile1ModeSetting" class="move-hotkey-mode-select">
+                  <option value="full">Full</option>
+                  <option value="mini">Mini</option>
+                  <option value="iterm">iTerm only</option>
+                  <option value="nonITerm">Non-iTerm only</option>
+                  <option value="hybrid">Hybrid</option>
+                </select>
+              </div>
+              <div class="move-hotkey-row move-hotkey-row--with-mode">
+                <div class="move-hotkey-meta"><strong>Retile 2</strong><small>Optional</small></div>
+                <span id="moveEverythingRetile2Preview" class="hotkey-preview move-hotkey-preview"></span>
+                <button class="btn tiny capture" type="button" data-me-record="moveEverythingRetile2Hotkey">Record</button>
+                <button class="btn tiny ghost" type="button" data-me-clear="moveEverythingRetile2Hotkey">Clear</button>
+                <select id="moveEverythingRetile2ModeSetting" class="move-hotkey-mode-select">
+                  <option value="full">Full</option>
+                  <option value="mini">Mini</option>
+                  <option value="iterm">iTerm only</option>
+                  <option value="nonITerm">Non-iTerm only</option>
+                  <option value="hybrid">Hybrid</option>
+                </select>
+              </div>
+              <div class="move-hotkey-row move-hotkey-row--with-mode">
+                <div class="move-hotkey-meta"><strong>Retile 3</strong><small>Optional</small></div>
+                <span id="moveEverythingRetile3Preview" class="hotkey-preview move-hotkey-preview"></span>
+                <button class="btn tiny capture" type="button" data-me-record="moveEverythingRetile3Hotkey">Record</button>
+                <button class="btn tiny ghost" type="button" data-me-clear="moveEverythingRetile3Hotkey">Clear</button>
+                <select id="moveEverythingRetile3ModeSetting" class="move-hotkey-mode-select">
+                  <option value="full">Full</option>
+                  <option value="mini">Mini</option>
+                  <option value="iterm">iTerm only</option>
+                  <option value="nonITerm">Non-iTerm only</option>
+                  <option value="hybrid">Hybrid</option>
+                </select>
+              </div>
             </div>
           </div>
           </div>
@@ -556,7 +683,7 @@
           </div>
           </div>
           <div class="modal-actions">
-            <button id="moveEverythingSaveDefaultsBtn" class="btn ghost" type="button" title="Save window position, size, and Window List toggles (On Top / Sticky / Move To Side) as defaults for next launch">Save Position &amp; Defaults</button>
+            <button id="moveEverythingSaveDefaultsBtn" class="btn ghost" type="button" title="Save window position, size, and Window List toggles (On Top / Sticky / Move To Center / Move To Side) as defaults for next launch">Save Position &amp; Defaults</button>
             <button id="moveEverythingResetDefaultsBtn" class="btn ghost" type="button" title="Reset saved window position and Window List toggles to factory defaults">Reset Position &amp; Defaults</button>
           </div>
           <div class="modal-actions">

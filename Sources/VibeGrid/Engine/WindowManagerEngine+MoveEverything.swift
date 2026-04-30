@@ -42,6 +42,12 @@ extension WindowManagerEngine {
             refreshMoveEverythingFocusedWindowKeyIfNeeded(force: false)
             return moveEverythingFocusedWindowKey
         }
+        func moveEverythingHoveredWindowKeySnapshot() -> String? {
+            guard isMoveEverythingActive else {
+                return nil
+            }
+            return moveEverythingHoveredWindowKey
+        }
         func moveEverythingWindowInventory() -> MoveEverythingWindowInventory {
             let liveInventory = resolveMoveEverythingWindowInventory()
             let suppressedHiddenKeys = activeMoveEverythingSuppressedHiddenWindowKeys()
@@ -263,47 +269,45 @@ extension WindowManagerEngine {
             let fastVerificationWindow = min(0.12, clampedTimeout)
 
             return withTemporarilyDemotedControlCenterWindowLevel {
-                var didDeactivateControlCenterApp = false
+                NSApp.deactivate()
 
-                if !didDeactivateControlCenterApp {
-                    NSApp.deactivate()
-                    didDeactivateControlCenterApp = true
-                }
+                // Force the target app to be frontmost. AXRaise alone will
+                // reorder the target window visually, but keyboard focus stays
+                // with VibeGrid unless the target NSRunningApplication is
+                // activated — which is what actually routes keystrokes.
+                let targetApp = NSRunningApplication(processIdentifier: managedWindow.pid)
+                _ = targetApp?.activate(options: [.activateIgnoringOtherApps])
 
-                // Fast path: request focus once without forcing strict verification,
-                // then verify briefly before entering the slower retry loop.
-                if focusMoveEverythingWindow(
+                _ = focusMoveEverythingWindow(
                     managedWindow,
                     allowAppActivation: true,
                     requireActualFocus: false
-                ) && waitForMoveEverythingWindowToBecomeFocused(
-                    managedWindow,
-                    timeout: fastVerificationWindow
-                ) {
-                    return true
+                )
+
+                let frontmostDeadline = min(Date().addingTimeInterval(fastVerificationWindow), deadline)
+                while Date() < frontmostDeadline {
+                    if NSWorkspace.shared.frontmostApplication?.processIdentifier == managedWindow.pid
+                        && isMoveEverythingWindowFocused(managedWindow) {
+                        return true
+                    }
+                    _ = RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.01))
                 }
 
-                while true {
-                    if !didDeactivateControlCenterApp {
-                        NSApp.deactivate()
-                        didDeactivateControlCenterApp = true
-                    }
-
+                while Date() < deadline {
+                    _ = targetApp?.activate(options: [.activateIgnoringOtherApps])
                     if focusMoveEverythingWindow(
                         managedWindow,
                         allowAppActivation: true,
                         requireActualFocus: true
-                    ) || isMoveEverythingWindowFocused(managedWindow) {
+                    ),
+                    NSWorkspace.shared.frontmostApplication?.processIdentifier == managedWindow.pid {
                         return true
-                    }
-
-                    if Date() >= deadline {
-                        break
                     }
                     _ = RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.03))
                 }
 
-                return isMoveEverythingWindowFocused(managedWindow)
+                return NSWorkspace.shared.frontmostApplication?.processIdentifier == managedWindow.pid
+                    && isMoveEverythingWindowFocused(managedWindow)
             }
         }
         func warpMousePointerToMoveEverythingWindowCenter(
@@ -434,6 +438,26 @@ extension WindowManagerEngine {
             guard var runState = runStateLookup,
                   let targetIndex else {
                 return false
+            }
+
+            // Mux/tmux-attached iTerm windows can be safely closed instead of
+            // miniaturized: the session survives in mux and the window can be
+            // reattached later. Skip the close side-effect so the mux kill
+            // override does not fire.
+            let resolvedSession = muxSessionNameForKey?(key)
+            if let sessionName = resolvedSession, !sessionName.isEmpty {
+                WindowListDebugLogger.log(
+                    "hide-close-mux",
+                    "ME hide diverted to close for key=\(key) session=\(sessionName)"
+                )
+                return closeMoveEverythingWindow(at: targetIndex, fireCloseSideEffect: false)
+            } else {
+                WindowListDebugLogger.log(
+                    "hide-close-mux",
+                    "ME hide NOT diverted (no mux session) key=\(key) " +
+                        "resolved=\(resolvedSession.map { "'\($0)'" } ?? "nil") " +
+                        "providerSet=\(muxSessionNameForKey != nil)"
+                )
             }
 
             let managedWindow = runState.windows[targetIndex]
@@ -652,7 +676,8 @@ extension WindowManagerEngine {
         }
         func focusMoveEverythingWindow(
             withKey key: String,
-            movePointerToCenter: Bool = false
+            movePointerToCenter: Bool = false,
+            commitHoverPosition: Bool = false
         ) -> Bool {
             guard ensureMoveEverythingActiveForDirectAction() else {
                 return false
@@ -677,20 +702,22 @@ extension WindowManagerEngine {
                 )
             }
 
+            // If we're committing the hover position (double-click / Enter),
+            // drop the saved original-frame entry for this window so no later
+            // restore path — including the pointerleave triggered by the
+            // mouse warp — moves it back.
+            if commitHoverPosition {
+                moveEverythingHoverAdvancedOriginalFrameByWindowKey.removeValue(forKey: managedWindow.key)
+            }
+
             runState.currentIndex = existingIndex
             moveEverythingRunState = runState
 
             clearMoveEverythingExternalFocusOverlayState()
-            let didFocus = withTemporarilyDemotedControlCenterWindowLevel {
-                if focusMoveEverythingWindow(
-                    managedWindow,
-                    allowAppActivation: true,
-                    requireActualFocus: false
-                ) {
-                    return true
-                }
-                return isMoveEverythingWindowFocused(managedWindow)
-            }
+            let didFocus = focusMoveEverythingWindowForExplicitSelection(
+                managedWindow,
+                timeout: 0.3
+            )
             if didFocus {
                 moveEverythingSelectionSyncSuppressedUntil = Date().addingTimeInterval(
                     moveEverythingSelectionSyncSuppressionInterval
@@ -1105,9 +1132,20 @@ extension WindowManagerEngine {
             }
 
             let gap = max(CGFloat(config.settings.gap), 0)
-            let controlCenterIsOnRight = (
-                currentControlCenterFrameForMoveEverything()?.midX ?? 0
-            ) > fullAvailableFrame.midX
+            // `controlCenterIsOnRight = true` makes the retile pick the LEFT slice
+            // (opposite side from the CC). The user-facing setting expresses the
+            // *retile* side, so .left forces the leading slice (== CC-on-right).
+            let controlCenterIsOnRight: Bool
+            switch config.settings.moveEverythingRetileSide {
+            case .left:
+                controlCenterIsOnRight = true
+            case .right:
+                controlCenterIsOnRight = false
+            case .auto:
+                controlCenterIsOnRight = (
+                    currentControlCenterFrameForMoveEverything()?.midX ?? 0
+                ) > fullAvailableFrame.midX
+            }
             guard let targetFramesByKey = resolveTargetFramesByKey(
                 managedWindows,
                 fullAvailableFrame,
@@ -1812,7 +1850,37 @@ extension WindowManagerEngine {
             }
 
             moveEverythingMoveToBottom = effective
+            if moveEverythingMoveToBottom, moveEverythingMoveToCenter {
+                moveEverythingMoveToCenter = false
+                restoreAllMoveEverythingAdvancedHoverLayoutsIfNeeded(in: moveEverythingRunState)
+            }
             if !moveEverythingMoveToBottom {
+                restoreAllMoveEverythingAdvancedHoverLayoutsIfNeeded(in: moveEverythingRunState)
+                refreshMoveEverythingOverlayPresentation()
+                return
+            }
+
+            guard let runState = moveEverythingRunState,
+                  let hoveredKey = moveEverythingHoveredWindowKey,
+                  let hoveredWindow = runState.windows.first(where: { $0.key == hoveredKey }) else {
+                refreshMoveEverythingOverlayPresentation()
+                return
+            }
+            applyMoveEverythingAdvancedHoverLayoutIfNeeded(to: hoveredWindow)
+            refreshMoveEverythingOverlayPresentation()
+        }
+        func setMoveEverythingMoveToCenter(_ enabled: Bool) {
+            let effective = enabled && isMoveEverythingActive
+            guard effective != moveEverythingMoveToCenter else {
+                return
+            }
+
+            moveEverythingMoveToCenter = effective
+            if moveEverythingMoveToCenter, moveEverythingMoveToBottom {
+                moveEverythingMoveToBottom = false
+                restoreAllMoveEverythingAdvancedHoverLayoutsIfNeeded(in: moveEverythingRunState)
+            }
+            if !moveEverythingMoveToCenter {
                 restoreAllMoveEverythingAdvancedHoverLayoutsIfNeeded(in: moveEverythingRunState)
                 refreshMoveEverythingOverlayPresentation()
                 return
@@ -1861,7 +1929,7 @@ extension WindowManagerEngine {
             moveEverythingNarrowMode = enabled
 
             guard isMoveEverythingActive,
-                  moveEverythingMoveToBottom,
+                  (moveEverythingMoveToBottom || moveEverythingMoveToCenter),
                   let runState = moveEverythingRunState,
                   let hoveredKey = moveEverythingHoveredWindowKey,
                   let hoveredWindow = runState.windows.first(where: { $0.key == hoveredKey }) else {
@@ -1915,8 +1983,35 @@ extension WindowManagerEngine {
                 return true
             }
 
-            guard let hoveredKey = normalizedKey,
-                  let hoveredWindow = runState.windows.first(where: { $0.key == hoveredKey }),
+            guard let hoveredKey = normalizedKey else {
+                clearMoveEverythingHoveredWindowState(in: runState)
+                return false
+            }
+
+            // Hidden windows aren't tracked in runState.windows, but the user can
+            // still arrow/hover their rows in the window list. Accept the key for
+            // UI tracking and skip the visual side-effects (z-order, AX raise,
+            // advanced layout) — there's no live window to act on.
+            let hoveredWindowOpt = runState.windows.first(where: { $0.key == hoveredKey })
+            if hoveredWindowOpt == nil {
+                guard isHiddenMoveEverythingWindow(forKey: hoveredKey) else {
+                    clearMoveEverythingHoveredWindowState(in: runState)
+                    return false
+                }
+                if moveEverythingHoveredWindowKey == hoveredKey {
+                    return true
+                }
+                restoreAllMoveEverythingAdvancedHoverLayoutsSilentlyIfNeeded(in: runState)
+                restoreAllHoverElevatedWindowLevels()
+                if moveEverythingHoveredWindowKey == nil {
+                    moveEverythingFocusedKeyBeforeHover = moveEverythingFocusedWindowKey
+                }
+                moveEverythingHoveredWindowKey = hoveredKey
+                refreshMoveEverythingOverlayPresentation()
+                return true
+            }
+
+            guard let hoveredWindow = hoveredWindowOpt,
                   !isMoveEverythingControlCenterWindow(hoveredWindow) else {
                 clearMoveEverythingHoveredWindowState(in: runState)
                 return false
@@ -1933,22 +2028,40 @@ extension WindowManagerEngine {
                 moveEverythingFocusedKeyBeforeHover = moveEverythingFocusedWindowKey
             }
             moveEverythingHoveredWindowKey = hoveredWindow.key
-            let didPerformSmoothTransition = transitionMoveEverythingAdvancedHoverLayout(
-                from: previousHoveredKey,
-                to: hoveredWindow,
-                in: runState
-            )
-            if !didPerformSmoothTransition {
-                if let previousHoveredKey {
-                    restoreMoveEverythingAdvancedHoverLayoutSilentlyIfNeeded(forKey: previousHoveredKey, in: runState)
+            if proxyHoverSuppressFocusEffects {
+                // Proxy-hover: act like the move-to-center / move-to-side
+                // settings were disabled. We DO want the safe z-order pulse
+                // (CGS-only — brings target window above siblings, no AX, no
+                // app activation) so the user can see the window. We do NOT
+                // want the AX raise + NSApp.activate (focus theft) or the
+                // advanced-hover layout (physical window moves).
+                // pulseMoveEverythingHoveredWindowZOrderFast also calls
+                // restoreAllHoverElevatedWindowLevels first, so the previous
+                // hover's z-order elevation is undone before we elevate the
+                // new target — no stale stacking.
+                _ = pulseMoveEverythingHoveredWindowZOrderFast(hoveredWindow)
+                WindowListDebugLogger.log(
+                    "hover-raise",
+                    "hover key=\(hoveredWindow.key) app=\(hoveredWindow.appName) proxyHover=zOrderOnly"
+                )
+            } else {
+                let didPerformSmoothTransition = transitionMoveEverythingAdvancedHoverLayout(
+                    from: previousHoveredKey,
+                    to: hoveredWindow,
+                    in: runState
+                )
+                if !didPerformSmoothTransition {
+                    if let previousHoveredKey {
+                        restoreMoveEverythingAdvancedHoverLayoutSilentlyIfNeeded(forKey: previousHoveredKey, in: runState)
+                    }
+                    applyMoveEverythingAdvancedHoverLayoutIfNeeded(to: hoveredWindow)
+                    pulseMoveEverythingHoveredWindowToFront(hoveredWindow)
                 }
-                applyMoveEverythingAdvancedHoverLayoutIfNeeded(to: hoveredWindow)
-                pulseMoveEverythingHoveredWindowToFront(hoveredWindow)
+                WindowListDebugLogger.log(
+                    "hover-raise",
+                    "hover key=\(hoveredWindow.key) app=\(hoveredWindow.appName) smooth=\(didPerformSmoothTransition)"
+                )
             }
-            WindowListDebugLogger.log(
-                "hover-raise",
-                "hover key=\(hoveredWindow.key) app=\(hoveredWindow.appName) smooth=\(didPerformSmoothTransition)"
-            )
             refreshMoveEverythingOverlayPresentation()
             return true
         }
@@ -2106,6 +2219,7 @@ extension WindowManagerEngine {
             moveEverythingLastRetileUndoRecord = nil
             moveEverythingControlCenterFocusedLastKnown = false
             moveEverythingMoveToBottom = false
+            moveEverythingMoveToCenter = false
             moveEverythingPinnedWindowKeys.removeAll()
             hideMoveEverythingOverlay()
             invalidateMoveEverythingResolvedInventoryCache(clearCachedWindows: true)
@@ -2224,14 +2338,14 @@ extension WindowManagerEngine {
             _ = hideMoveEverythingWindow(withKey: runState.windows[runState.currentIndex].key)
         }
         @discardableResult
-        func closeMoveEverythingWindow(at index: Int) -> Bool {
+        func closeMoveEverythingWindow(at index: Int, fireCloseSideEffect: Bool = true) -> Bool {
             guard var runState = moveEverythingRunState,
                   runState.windows.indices.contains(index) else {
                 return false
             }
 
             let managedWindow = runState.windows[index]
-            guard closeMoveEverythingWindow(managedWindow) else {
+            guard closeMoveEverythingWindow(managedWindow, fireCloseSideEffect: fireCloseSideEffect) else {
                 // AX close failed, but an async side-effect (e.g. mux kill)
                 // may still terminate the window. Invalidate the inventory
                 // cache so the next prune cycle detects the removal.
@@ -2319,10 +2433,11 @@ extension WindowManagerEngine {
             )
 
             if let hoveredKey = moveEverythingHoveredWindowKey,
-               !liveVisibleKeys.contains(hoveredKey) {
+               !liveVisibleKeys.contains(hoveredKey),
+               !liveHiddenKeys.contains(hoveredKey) {
                 WindowListDebugLogger.log(
                     "hover-raise",
-                    "prune clearing stale hover key=\(hoveredKey) visibleNow=false"
+                    "prune clearing stale hover key=\(hoveredKey) visibleNow=false hiddenNow=false"
                 )
                 clearMoveEverythingHoveredWindowState(in: runState)
             }
@@ -2390,7 +2505,10 @@ extension WindowManagerEngine {
                 return previousRunState.windows[previousRunState.currentIndex].key
             }()
             if let hoveredKey = moveEverythingHoveredWindowKey,
-               !runState.windows.contains(where: { $0.key == hoveredKey }) {
+               !runState.windows.contains(where: { $0.key == hoveredKey }),
+               runState.hiddenWindowRestoreByKey[hoveredKey] == nil,
+               !resolvedInventory.hidden.contains(where: { $0.key == hoveredKey }),
+               !resolvedInventory.hiddenCoreGraphicsFallback.contains(where: { $0.key == hoveredKey }) {
                 moveEverythingHoveredWindowKey = nil
                 clearMoveEverythingHoveredWindowLock()
             }
@@ -2596,10 +2714,25 @@ extension WindowManagerEngine {
             return runState.windows[runState.currentIndex]
         }
         func pulseMoveEverythingHoveredWindowToFront(_ managedWindow: MoveEverythingManagedWindow) {
+            guard pulseMoveEverythingHoveredWindowZOrderFast(managedWindow) else {
+                return
+            }
+            pulseMoveEverythingHoveredWindowAXRaise(managedWindow)
+        }
+
+        /// Fast half of the hover pulse: only touches CGS (WindowServer) and
+        /// local state. Does NOT call AX or activate any app, so it never
+        /// blocks on a slow target process. Safe to run immediately before a
+        /// frame change so the window is already at hover z-order when it
+        /// moves — no same-frame z-order flicker.
+        @discardableResult
+        func pulseMoveEverythingHoveredWindowZOrderFast(
+            _ managedWindow: MoveEverythingManagedWindow
+        ) -> Bool {
             guard isMoveEverythingActive,
                   moveEverythingShowOverlays,
                   !isMoveEverythingControlCenterWindow(managedWindow) else {
-                return
+                return false
             }
 
             // Restore ALL previously-elevated windows before elevating the new one.
@@ -2616,11 +2749,34 @@ extension WindowManagerEngine {
             // even after we activate another app to bring its window to front.
             temporarilyPinControlCenterWindowOnTopForMoveEverything()
 
+            // CGS level + order change — does not round-trip through the
+            // target app's process.
+            elevateWindowForHover(managedWindow)
+            return true
+        }
+
+        /// Slow half of the hover pulse: AX raise (round-trips through the
+        /// target app) plus VibeGrid re-activation. Run this AFTER the frame
+        /// change so an unresponsive target app can't delay the move past a
+        /// vsync tick.
+        func pulseMoveEverythingHoveredWindowAXRaise(
+            _ managedWindow: MoveEverythingManagedWindow
+        ) {
+            guard isMoveEverythingActive,
+                  moveEverythingShowOverlays,
+                  !isMoveEverythingControlCenterWindow(managedWindow) else {
+                return
+            }
+
             let hoverRaise = raiseMoveEverythingWindowForHover(managedWindow)
 
             // Re-activate VibeGrid so the control center remains key for input.
-            NSApp.activate(ignoringOtherApps: true)
-            elevateWindowForHover(managedWindow)
+            // Skip during proxy-hover: there's no Control Center in use and
+            // activating VibeGrid would steal focus from the gating app,
+            // causing immediate hover release.
+            if !proxyHoverSuppressFocusEffects {
+                NSApp.activate(ignoringOtherApps: true)
+            }
 
             WindowListDebugLogger.log(
                 "hover-raise",
@@ -2769,7 +2925,21 @@ extension WindowManagerEngine {
             guard isMoveEverythingActive else {
                 return false
             }
-            guard moveEverythingMoveToBottom else {
+            // When proxy-hover is the source of the current hover, treat
+            // move-to-center / move-to-side as disabled: proxy-hover never
+            // physically moves the target, and downstream code uses this
+            // predicate both to decide whether to run the layout AND to
+            // decide whether to suppress the overlay (see
+            // moveEverythingOverlayPresentation). Without this opt-out, the
+            // overlay disappears for proxy-hover users who have those
+            // toggles enabled for normal use. We check both
+            // proxyHoverSuppressFocusEffects (true during the apply, before
+            // proxyHoverActiveWindowKey gets assigned) and the post-apply
+            // active key, so both windows of time are covered.
+            if proxyHoverSuppressFocusEffects || proxyHoverActiveWindowKey == managedWindow.key {
+                return false
+            }
+            guard moveEverythingMoveToBottom || moveEverythingMoveToCenter else {
                 return false
             }
             guard config.settings.moveEverythingMoveOnSelection == .miniControlCenterOnTop else {
@@ -2820,35 +2990,108 @@ extension WindowManagerEngine {
             var didHandleTransition = false
             beginMoveEverythingHoverFocusTransition()
 
-            // Restore previous hover layout without focusing that window.
-            if let previousKey {
-                restoreMoveEverythingAdvancedHoverLayoutSilentlyIfNeeded(forKey: previousKey, in: runState)
-                didHandleTransition = true
+            // Timing instrumentation. Every phase records its duration in
+            // microseconds for post-hoc flicker analysis.
+            let swapStart = DispatchTime.now().uptimeNanoseconds
+            var t_axGetOriginalFrame_us: UInt64 = 0
+            var t_cgsPulseFast_us: UInt64 = 0
+            var t_axSetNewFrame_us: UInt64 = 0
+            var t_axRestorePrev_us: UInt64 = 0
+            var t_axFocus_us: UInt64 = 0
+            var t_axRaise_us: UInt64 = 0
+            func elapsedMicros(since start: UInt64) -> UInt64 {
+                (DispatchTime.now().uptimeNanoseconds &- start) / 1_000
             }
 
-            // Focus new hovered window, apply layout, then return focus to control center.
+            // Ordering for a flicker-minimized hover swap:
+            //   1. CGS z-order flip — new window to hover level, previous
+            //      window drops to normal. Fast, no cross-process IPC.
+            //   2. AX set-frame — new window moves into center. It's already
+            //      at hover level, so the user sees it on top immediately.
+            //   3. AX set-frame — previous window silently moves back to its
+            //      original frame. Happens behind the new window (which is
+            //      at hover level) so it's not visually on top.
+            //   4. (Deferred) AX raise + app activation on the new window.
+            //      Slow; deferred so a stall can't stagger the frame moves.
+            //
+            // This does cost two cross-process AX frame moves per swap (one
+            // per app), which is the underlying cause of any residual flicker.
+            // Eliminating that fully would require bypassing AX with CGS
+            // direct-move SPI (CGSSetWindowBounds). That's a behavioral risk
+            // — some apps fight back on their next layout pass — so we keep
+            // AX for now and accept a small stagger.
+            //
             // Use the fast hover timeout to avoid main-thread stalls on slow apps.
-            if shouldApplyMoveEverythingAdvancedHoverLayout(to: hoveredWindow),
-               moveEverythingHoverAdvancedOriginalFrameByWindowKey[hoveredWindow.key] == nil,
-               let originalFrame = currentWindowRect(for: hoveredWindow.window, timeout: axFocusMessagingTimeout),
+            var deferredAXRaiseWindow: MoveEverythingManagedWindow?
+            let mayApplyAdvancedHover = shouldApplyMoveEverythingAdvancedHoverLayout(to: hoveredWindow)
+            let alreadyCentered = moveEverythingHoverAdvancedOriginalFrameByWindowKey[hoveredWindow.key] != nil
+
+            // (0) AX GET the new window's current frame. Cross-process IPC.
+            var originalFrame: CGRect?
+            if mayApplyAdvancedHover && !alreadyCentered {
+                let t0 = DispatchTime.now().uptimeNanoseconds
+                originalFrame = currentWindowRect(for: hoveredWindow.window, timeout: axFocusMessagingTimeout)
+                t_axGetOriginalFrame_us = elapsedMicros(since: t0)
+            }
+
+            if mayApplyAdvancedHover, !alreadyCentered,
+               let originalFrame,
                let hoverFrame = moveEverythingAdvancedHoverRect(for: originalFrame) {
                 moveEverythingHoverAdvancedOriginalFrameByWindowKey[hoveredWindow.key] = originalFrame
                 suppressMoveEverythingSelectionSyncForProgrammaticFocus()
-                _ = focusMoveEverythingWindow(
-                    hoveredWindow,
-                    allowAppActivation: true,
-                    requireActualFocus: false
-                )
+                // (1) Fast CGS-only z-order change. Synchronous to WindowServer,
+                // no round-trip through target app processes.
+                let t1 = DispatchTime.now().uptimeNanoseconds
+                pulseMoveEverythingHoveredWindowZOrderFast(hoveredWindow)
+                t_cgsPulseFast_us = elapsedMicros(since: t1)
                 didHandleTransition = true
-                if !setMoveEverythingWindowFrame(hoveredWindow, cocoaRect: hoverFrame) {
+                // (2) AX SET new window into center. Cross-process IPC to the
+                // NEW window's app. The app schedules a repaint at its next vsync.
+                let t2 = DispatchTime.now().uptimeNanoseconds
+                let setFrameOK = setMoveEverythingWindowFrame(hoveredWindow, cocoaRect: hoverFrame)
+                t_axSetNewFrame_us = elapsedMicros(since: t2)
+                if !setFrameOK {
                     moveEverythingHoverAdvancedOriginalFrameByWindowKey.removeValue(forKey: hoveredWindow.key)
                 } else {
-                    pulseMoveEverythingHoveredWindowToFront(hoveredWindow)
+                    deferredAXRaiseWindow = hoveredWindow
                 }
             } else {
                 raiseMoveEverythingWindowWithoutFocus(hoveredWindow)
                 didHandleTransition = true
             }
+
+            // (3) AX SET previous window back to its origin. Cross-process IPC
+            // to the PREVIOUS window's app. Its repaint also lands at its own
+            // app's next vsync — which is what causes the residual flicker: the
+            // two AX set-frame calls commit into two different vsync ticks.
+            if let previousKey {
+                let t3 = DispatchTime.now().uptimeNanoseconds
+                restoreMoveEverythingAdvancedHoverLayoutSilentlyIfNeeded(forKey: previousKey, in: runState)
+                t_axRestorePrev_us = elapsedMicros(since: t3)
+                didHandleTransition = true
+            }
+
+            // (4) Post-paint: AX focus + AX raise + NSApp.activate. Slow, but
+            // windows are already at their final frames so a stall here only
+            // delays focus, not visual position.
+            if let deferredAXRaiseWindow {
+                let t4a = DispatchTime.now().uptimeNanoseconds
+                _ = focusMoveEverythingWindow(
+                    deferredAXRaiseWindow,
+                    allowAppActivation: true,
+                    requireActualFocus: false
+                )
+                t_axFocus_us = elapsedMicros(since: t4a)
+                let t4b = DispatchTime.now().uptimeNanoseconds
+                pulseMoveEverythingHoveredWindowAXRaise(deferredAXRaiseWindow)
+                t_axRaise_us = elapsedMicros(since: t4b)
+            }
+
+            let t_total_us = elapsedMicros(since: swapStart)
+            WindowListDebugLogger.log(
+                "hover-swap-timing",
+                "to=\(hoveredWindow.key) app=\(hoveredWindow.appName) from=\(previousKey ?? "<none>") total=\(t_total_us)us getFrame=\(t_axGetOriginalFrame_us)us cgsPulse=\(t_cgsPulseFast_us)us setNew=\(t_axSetNewFrame_us)us restorePrev=\(t_axRestorePrev_us)us focus=\(t_axFocus_us)us axRaise=\(t_axRaise_us)us"
+            )
 
             guard didHandleTransition else {
                 endMoveEverythingHoverFocusTransition()
@@ -2877,7 +3120,11 @@ extension WindowManagerEngine {
                 "noFocus key=\(managedWindow.key) app=\(managedWindow.appName) raise=\(hoverRaise.result == .success ? "ok" : "err:\(hoverRaise.result.rawValue)") fallbackActivate=\(hoverRaise.didActivateApp)"
             )
 
-            NSApp.activate(ignoringOtherApps: true)
+            // Skip activating VibeGrid during proxy-hover (see comment in
+            // pulseMoveEverythingHoveredWindowAXRaise — same rationale).
+            if !proxyHoverSuppressFocusEffects {
+                NSApp.activate(ignoringOtherApps: true)
+            }
             elevateWindowForHover(managedWindow)
         }
         func restoreMoveEverythingAdvancedHoverLayoutIfNeeded(
@@ -3140,7 +3387,17 @@ extension WindowManagerEngine {
             moveEverythingFocusedWindowKey = newFocusedKey
         }
         func moveEverythingFocusedWindowKey(in windows: [MoveEverythingManagedWindow]) -> String? {
+            let ownPID = ProcessInfo.processInfo.processIdentifier
             if let focusedAXWindow = focusedWindow() {
+                var focusedPID: pid_t = 0
+                AXUIElementGetPid(focusedAXWindow, &focusedPID)
+                // When VibeGrid itself is focused (typically the control center),
+                // no managed window is the focused one — don't fall back to the
+                // frontmost layer-0 scan, which would stale-report the previously
+                // focused app's window.
+                if focusedPID == ownPID {
+                    return nil
+                }
                 if let matchedKey = moveEverythingMatchingWindowKey(
                     forFocusedAXWindow: focusedAXWindow,
                     among: windows
@@ -3150,6 +3407,9 @@ extension WindowManagerEngine {
             }
 
             guard let identity = frontmostLayerZeroWindowIdentity() else {
+                return nil
+            }
+            if identity.pid == ownPID {
                 return nil
             }
             let identityCandidates = windows.filter { managedWindow in
@@ -3288,6 +3548,22 @@ extension WindowManagerEngine {
             }
 
             let available = screen.visibleFrame
+            // Shared H% / V% for both Move-to-Center and Move-to-Side hover rects.
+            let widthFraction = min(max(config.settings.moveEverythingCenterWidthPercent / 100, 0.1), 1)
+            let heightFraction = min(max(config.settings.moveEverythingCenterHeightPercent / 100, 0.1), 1)
+            let targetWidth = max(available.width * widthFraction, 1)
+            let targetHeight = max(available.height * heightFraction, 1)
+
+            if moveEverythingMoveToCenter {
+                let x = available.midX - targetWidth / 2.0
+                let y = available.midY - targetHeight / 2.0
+                return CGRect(
+                    x: x,
+                    y: y,
+                    width: targetWidth,
+                    height: targetHeight
+                ).integral
+            }
             if moveEverythingNarrowMode, let controlCenterFrame {
                 let clampedMinX = min(max(controlCenterFrame.minX, available.minX), available.maxX)
                 let clampedMaxX = max(min(controlCenterFrame.maxX, available.maxX), available.minX)
@@ -3295,16 +3571,17 @@ extension WindowManagerEngine {
                 let rightWidth = max(available.maxX - clampedMaxX, 0)
                 let sideWidth = min(
                     max(leftWidth, rightWidth),
-                    max(available.width * moveEverythingNarrowModeMaxSideWidthFraction, 1)
+                    max(targetWidth, 1)
                 )
                 if sideWidth > 0 {
                     let useRightSide = rightWidth >= leftWidth
                     let x = useRightSide ? clampedMaxX : max(available.minX, clampedMinX - sideWidth)
+                    let y = available.midY - targetHeight / 2.0
                     return CGRect(
                         x: x,
-                        y: available.minY,
+                        y: y,
                         width: sideWidth,
-                        height: available.height
+                        height: targetHeight
                     ).integral
                 }
             }
@@ -3575,6 +3852,7 @@ extension WindowManagerEngine {
                     let previousInventory = self.moveEverythingResolvedInventoryCache
                     self.moveEverythingResolvedInventoryCache = refreshedInventory
                     self.moveEverythingResolvedInventoryLastRefreshAt = Date()
+                    self.capturePerWindowPollingSamples(from: refreshedInventory)
                     if !self.moveEverythingManagedWindowInventoryEqual(previousInventory, refreshedInventory) {
                         self.pruneMoveEverythingWindows(liveInventory: refreshedInventory)
                         self.onMoveEverythingInventoryRefreshed?()
@@ -3899,6 +4177,7 @@ extension WindowManagerEngine {
                     let previousInventory = self.moveEverythingResolvedInventoryCache
                     self.moveEverythingResolvedInventoryCache = refreshedInventory
                     self.moveEverythingResolvedInventoryLastRefreshAt = Date()
+                    self.capturePerWindowPollingSamples(from: refreshedInventory)
                     if !self.moveEverythingManagedWindowInventoryEqual(previousInventory, refreshedInventory) {
                         self.pruneMoveEverythingWindows(liveInventory: refreshedInventory)
                         self.onMoveEverythingInventoryRefreshed?()
@@ -4514,6 +4793,20 @@ extension WindowManagerEngine {
             }
             return false
         }
+        func isHiddenMoveEverythingWindow(forKey key: String) -> Bool {
+            if let runState = moveEverythingRunState,
+               runState.hiddenWindowRestoreByKey[key] != nil {
+                return true
+            }
+            let inventory = resolveMoveEverythingWindowInventory(forceRefresh: false)
+            if inventory.hidden.contains(where: { $0.key == key }) {
+                return true
+            }
+            if inventory.hiddenCoreGraphicsFallback.contains(where: { $0.key == key }) {
+                return true
+            }
+            return false
+        }
         func ensureControlCenterWindowVisibleForMoveEverything() {
             guard let window = NSApp.windows.first(where: isControlCenterWindow) else {
                 return
@@ -4529,13 +4822,20 @@ extension WindowManagerEngine {
             window.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
         }
-        func closeMoveEverythingWindow(_ managedWindow: MoveEverythingManagedWindow) -> Bool {
+        func closeMoveEverythingWindow(
+            _ managedWindow: MoveEverythingManagedWindow,
+            fireCloseSideEffect: Bool = true
+        ) -> Bool {
             if isMoveEverythingControlCenterWindow(managedWindow) {
                 return false
             }
 
-            // Fire side-effect (e.g. async mux session kill) before the normal close
-            onCloseWindowOverride?(managedWindow.key)
+            // Fire side-effect (e.g. async mux session kill) before the normal close.
+            // Hide-on-mux callers pass fireCloseSideEffect=false so the mux session
+            // survives the window close and can be reattached later.
+            if fireCloseSideEffect {
+                onCloseWindowOverride?(managedWindow.key, false)
+            }
 
             if managedWindow.pid == ProcessInfo.processInfo.processIdentifier,
                let ownWindow = ownWindow(for: managedWindow) {
@@ -4618,7 +4918,7 @@ extension WindowManagerEngine {
                 AXUIElementGetPid(focusedWindow, &pid)
                 if let windowNumber = resolvedAXWindowNumber(for: focusedWindow) {
                     let key = "\(pid)-\(windowNumber)"
-                    override(key)
+                    override(key, false)
                 }
             }
 
@@ -4636,8 +4936,179 @@ extension WindowManagerEngine {
 
             var pid: pid_t = 0
             AXUIElementGetPid(focusedWindow, &pid)
+
+            // Mux/tmux-attached iTerm windows: close instead of miniaturize so
+            // the user gets a real teardown of the window while the mux session
+            // is preserved for later reattach. No mux kill side-effect fires.
+            if let windowNumber = resolvedAXWindowNumber(for: focusedWindow) {
+                let key = "\(pid)-\(windowNumber)"
+                let resolvedSession = muxSessionNameForKey?(key)
+                if let sessionName = resolvedSession, !sessionName.isEmpty {
+                    WindowListDebugLogger.log(
+                        "hide-close-mux",
+                        "focused-hide diverted to close for key=\(key) session=\(sessionName)"
+                    )
+                    return closeAccessibilityWindow(focusedWindow)
+                } else {
+                    WindowListDebugLogger.log(
+                        "hide-close-mux",
+                        "focused-hide NOT diverted (no mux session) key=\(key) " +
+                            "resolved=\(resolvedSession.map { "'\($0)'" } ?? "nil")"
+                    )
+                }
+            } else {
+                WindowListDebugLogger.log(
+                    "hide-close-mux",
+                    "focused-hide NOT diverted (no AX window number) pid=\(pid)"
+                )
+            }
+
             return hideAccessibilityWindow(focusedWindow, pid: pid)
         }
+
+        /// Smart close entry point used when `moveEverythingCloseSmart` is enabled. Hides the
+        /// target window and schedules an actual kill after the configured delay; the kill is
+        /// skipped if the user un-hides the window in the meantime.
+        ///
+        /// The mux session name is resolved *at hide time* and captured in the work item, so
+        /// the deferred kill targets the session that was active when the user pressed close —
+        /// not whatever session the window happens to have active when the timer fires (which
+        /// could be a different pane if the user de-minimized, switched tabs, and re-minimized
+        /// during the grace delay).
+        func smartCloseCurrentWindow() {
+            let delay = max(0.5, config.settings.moveEverythingCloseSmartDelaySeconds)
+
+            if isMoveEverythingActive {
+                pruneMoveEverythingWindows()
+                guard let runState = moveEverythingRunState,
+                      runState.windows.indices.contains(runState.currentIndex) else {
+                    return
+                }
+                let managedWindow = runState.windows[runState.currentIndex]
+                if isMoveEverythingControlCenterWindow(managedWindow) {
+                    return
+                }
+                let capturedSessionName = muxSessionNameForKey?(managedWindow.key)
+                guard hideMoveEverythingWindow(managedWindow) else {
+                    WindowListDebugLogger.log(
+                        "smart-close",
+                        "hide failed for key=\(managedWindow.key); skipping scheduled kill"
+                    )
+                    return
+                }
+                scheduleSmartCloseKill(
+                    key: managedWindow.key,
+                    axWindow: managedWindow.window,
+                    capturedSessionName: capturedSessionName,
+                    delay: delay
+                )
+                return
+            }
+
+            if let ownFocusedWindow = frontmostOwnWindow() {
+                ownFocusedWindow.miniaturize(nil)
+                let windowNumber = ownFocusedWindow.windowNumber
+                let key = "own-\(windowNumber)"
+                scheduleSmartCloseKill(
+                    key: key,
+                    ownWindow: ownFocusedWindow,
+                    capturedSessionName: nil,
+                    delay: delay
+                )
+                return
+            }
+
+            guard let axWindow = focusedWindow() else {
+                return
+            }
+            var pid: pid_t = 0
+            AXUIElementGetPid(axWindow, &pid)
+            let key: String
+            if let windowNumber = resolvedAXWindowNumber(for: axWindow) {
+                key = "\(pid)-\(windowNumber)"
+            } else {
+                key = "ax-\(pid)"
+            }
+            let capturedSessionName = muxSessionNameForKey?(key)
+            guard hideAccessibilityWindow(axWindow, pid: pid) else {
+                WindowListDebugLogger.log("smart-close", "hide failed for pid=\(pid); skipping scheduled kill")
+                return
+            }
+            scheduleSmartCloseKill(
+                key: key,
+                axWindow: axWindow,
+                capturedSessionName: capturedSessionName,
+                delay: delay
+            )
+        }
+
+        private func scheduleSmartCloseKill(
+            key: String,
+            axWindow: AXUIElement? = nil,
+            ownWindow: NSWindow? = nil,
+            capturedSessionName: String?,
+            delay: TimeInterval
+        ) {
+            pendingSmartCloseWorkItemsByKey[key]?.cancel()
+            let workItem = DispatchWorkItem { [weak self] in
+                self?.pendingSmartCloseWorkItemsByKey.removeValue(forKey: key)
+                self?.executeSmartCloseKillIfStillHidden(
+                    key: key,
+                    axWindow: axWindow,
+                    ownWindow: ownWindow,
+                    capturedSessionName: capturedSessionName
+                )
+            }
+            pendingSmartCloseWorkItemsByKey[key] = workItem
+            let sessionTag = capturedSessionName.map { " session=\($0)" } ?? ""
+            WindowListDebugLogger.log(
+                "smart-close",
+                "scheduled kill for key=\(key)\(sessionTag) in \(String(format: "%.2f", delay))s"
+            )
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: workItem)
+        }
+
+        private func executeSmartCloseKillIfStillHidden(
+            key: String,
+            axWindow: AXUIElement?,
+            ownWindow: NSWindow?,
+            capturedSessionName: String?
+        ) {
+            if let ownWindow {
+                guard ownWindow.isMiniaturized || !ownWindow.isVisible else {
+                    WindowListDebugLogger.log("smart-close", "key=\(key) own window restored; skipping kill")
+                    return
+                }
+                WindowListDebugLogger.log("smart-close", "key=\(key) own window still hidden; closing")
+                ownWindow.performClose(nil)
+                if ownWindow.isVisible {
+                    ownWindow.orderOut(nil)
+                }
+                return
+            }
+
+            guard let axWindow else {
+                return
+            }
+            guard isWindowMinimized(axWindow) else {
+                WindowListDebugLogger.log("smart-close", "key=\(key) no longer minimized; skipping kill")
+                return
+            }
+            if let capturedSessionName {
+                WindowListDebugLogger.log(
+                    "smart-close",
+                    "key=\(key) still minimized; force-killing captured session=\(capturedSessionName)"
+                )
+                killMuxSessionByName?(capturedSessionName, true)
+            } else {
+                WindowListDebugLogger.log("smart-close", "key=\(key) still minimized; no captured session (non-iterm or unresolved)")
+            }
+            _ = closeAccessibilityWindow(axWindow)
+            if isMoveEverythingActive {
+                invalidateMoveEverythingResolvedInventoryCache()
+            }
+        }
+
         func revealMoveEverythingCoreGraphicsFallbackWindow(
             _ fallbackWindow: MoveEverythingCoreGraphicsFallbackWindow
         ) -> Bool {

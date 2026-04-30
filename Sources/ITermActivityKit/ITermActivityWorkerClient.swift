@@ -170,9 +170,17 @@ public final class ITermActivityWorkerClient {
 
         let entries = ((responseObject["entries"] as? [[String: Any]]) ?? []).compactMap(parseEntry)
         let activities = parseActivities(responseObject["activities"] as? [String: Any] ?? [:])
+        let cmdResults = ((responseObject["command_results"] as? [[String: Any]]) ?? []).map { dict in
+            ITermWindowActivityDetector.CommandResult(
+                op: (dict["op"] as? String) ?? "",
+                ok: (dict["ok"] as? Bool) ?? false,
+                error: (dict["error"] as? String) ?? ""
+            )
+        }
         return ITermWindowActivityDetector.PollResult(
             entries: entries,
             activitiesByWindowID: activities,
+            commandResults: cmdResults,
             rawOutput: responseText,
             stderrText: currentStderrTextLocked(fallback: ""),
             terminationStatus: safeTerminationStatusLocked(fallback: 0),

@@ -4,10 +4,13 @@ import CoreGraphics
 protocol WindowManagerEngineProtocol: AnyObject {
     var isMoveEverythingAlwaysOnTopEnabledProvider: (() -> Bool)? { get set }
     var onMoveEverythingModeChanged: ((Bool) -> Void)? { get set }
-    var onCloseWindowOverride: ((_ key: String) -> Void)? { get set }
+    var onCloseWindowOverride: ((_ key: String, _ force: Bool) -> Void)? { get set }
+    var muxSessionNameForKey: ((_ key: String) -> String?)? { get set }
+    var killMuxSessionByName: ((_ sessionName: String, _ force: Bool) -> Void)? { get set }
     var onMoveEverythingInventoryRefreshed: (() -> Void)? { get set }
     var onMoveEverythingNameWindowRequested: ((String) -> Void)? { get set }
     var onMoveEverythingQuickViewRequested: (() -> Void)? { get set }
+    var onRetileHotkeyFired: ((_ action: MoveEverythingHotkeyAction) -> Void)? { get set }
     var onMoveEverythingSavedWindowPositionsHistoryChanged: (([MoveEverythingSavedWindowPositionsSnapshot]) -> Void)? { get set }
     var isMoveEverythingActive: Bool { get }
     var moveEverythingHoveredWindowKey: String? { get }
@@ -22,6 +25,7 @@ protocol WindowManagerEngineProtocol: AnyObject {
     func registrationIssues() -> [HotKeyRegistrationIssue]
     func moveEverythingControlCenterFocused() -> Bool
     func moveEverythingFocusedWindowKeySnapshot() -> String?
+    func moveEverythingHoveredWindowKeySnapshot() -> String?
     func moveEverythingWindowInventory() -> MoveEverythingWindowInventory
     func toggleMoveEverythingMode() -> MoveEverythingToggleResult
     func closeMoveEverythingWindow(withKey key: String) -> Bool
@@ -34,7 +38,7 @@ protocol WindowManagerEngineProtocol: AnyObject {
     func seedMoveEverythingSavedWindowPositions(_ snapshots: [MoveEverythingSavedWindowPositionsSnapshot])
     func moveEverythingSavedPositionsPreviousAvailable() -> Bool
     func moveEverythingSavedPositionsNextAvailable() -> Bool
-    func focusMoveEverythingWindow(withKey key: String, movePointerToCenter: Bool) -> Bool
+    func focusMoveEverythingWindow(withKey key: String, movePointerToCenter: Bool, commitHoverPosition: Bool) -> Bool
     func centerMoveEverythingWindow(withKey key: String) -> Bool
     func maximizeMoveEverythingWindow(withKey key: String) -> Bool
     func retileVisibleMoveEverythingWindows() -> Bool
@@ -47,6 +51,7 @@ protocol WindowManagerEngineProtocol: AnyObject {
     func moveEverythingLastDirectActionError() -> String?
     func setMoveEverythingShowOverlays(_ enabled: Bool)
     func setMoveEverythingMoveToBottom(_ enabled: Bool)
+    func setMoveEverythingMoveToCenter(_ enabled: Bool)
     func setMoveEverythingDontMoveVibeGrid(_ enabled: Bool)
     func pinMoveEverythingWindow(withKey key: String)
     func unpinMoveEverythingWindow(withKey key: String)
@@ -54,4 +59,21 @@ protocol WindowManagerEngineProtocol: AnyObject {
     func setMoveEverythingPinMode(_ enabled: Bool)
     func setMoveEverythingNarrowMode(_ enabled: Bool)
     func setMoveEverythingHoveredWindow(withKey key: String?) -> Bool
+
+    @discardableResult
+    func setProxyHover(
+        gatingFocusPid: pid_t,
+        gatingFocusWindowNumber: Int?,
+        gatingFocusITermWindowID: String?,
+        targetPid: pid_t?,
+        targetWindowNumber: Int?,
+        targetITermWindowID: String?,
+        targetITermTTY: String?,
+        durationSeconds: TimeInterval
+    ) -> ProxyHoverSetResult
+
+    @discardableResult
+    func clearProxyHover(gatingFocusPid: pid_t) -> Bool
+    func clearAllProxyHover()
+    func currentProxyHoverSnapshot() -> [[String: Any]]
 }

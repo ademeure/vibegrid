@@ -430,6 +430,10 @@ input[type="number"] {
   pointer-events: none;
 }
 
+.toggle-line.sub-toggle {
+  padding-left: 22px;
+}
+
 .hotkey-preview {
   padding: 5px 8px;
   border-radius: 10px;
@@ -731,7 +735,9 @@ input[type="number"] {
 }
 
 .move-window-copy strong.title-short {
-  font-size: calc(14px + var(--fb));
+  /* No font-size bump: short titles in a sparsely populated list looked
+     disproportionately massive next to the surrounding chrome. Keep the
+     tighter line-height for density. */
   line-height: 1.1;
 }
 
@@ -1305,6 +1311,16 @@ body.narrow-mode .move-window-actions .btn.tiny[data-me-window-action="hide"]::a
   flex-wrap: wrap;
 }
 
+.action-modal-buttons {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.action-modal-buttons .btn {
+  justify-content: center;
+  text-align: center;
+}
+
 .narrow-mode-toggle {
   display: flex;
   gap: 0;
@@ -1361,6 +1377,12 @@ body.narrow-mode.narrow-sequences .layout {
 /* Hide the toggle's container in windows mode (narrow-mode without narrow-sequences) */
 body.narrow-mode:not(.narrow-sequences) .narrow-mode-toggle {
   grid-column: 1;
+}
+/* In narrow windows mode, the preview panel is dedicated to the move-everything
+   window list — hide the cycle-step placement editor and its empty state. */
+body.narrow-mode:not(.narrow-sequences) #placementEditorEmpty,
+body.narrow-mode:not(.narrow-sequences) #placementEditor {
+  display: none !important;
 }
 
 .add-step-btn {
@@ -1644,6 +1666,18 @@ body.narrow-mode:not(.narrow-sequences) .narrow-mode-toggle {
   background: #f4f9f0;
 }
 
+.move-hotkey-row--with-mode {
+  grid-template-columns: minmax(180px, 1fr) minmax(130px, 170px) auto auto minmax(130px, auto);
+}
+
+.move-hotkey-mode-select {
+  font-size: calc(12px + var(--fb));
+  padding: 4px 6px;
+  border-radius: 6px;
+  border: 1px solid #8ca58599;
+  background: #fff;
+}
+
 .move-hotkey-meta {
   display: flex;
   flex-direction: column;
@@ -1686,7 +1720,8 @@ body.narrow-mode .layout {
 
 body.narrow-mode .topbar {
   gap: 8px;
-  padding: 10px 12px 8px;
+  padding: 6px 10px 6px;
+  min-height: 0;
 }
 
 body.narrow-mode .topbar-actions {
@@ -1708,6 +1743,38 @@ body.narrow-mode .topbar-actions .pill {
 
 body.narrow-mode .shortcuts-panel,
 body.narrow-mode .editor-panel {
+  display: none !important;
+}
+
+/* Narrow-mode: shrink retile/bulk-action buttons and put Pin Windows on the
+   same row as the Retile buttons, right-aligned when there's space. */
+body.narrow-mode .move-everything-bulk-label {
+  font-size: calc(10px + var(--fb));
+}
+body.narrow-mode .move-everything-bulk-btn {
+  padding: 3px 7px;
+  font-size: calc(10px + var(--fb));
+  border-radius: 7px;
+}
+body.narrow-mode .move-everything-bulk-actions {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin-right: 0;
+}
+body.narrow-mode .move-everything-pin-mode-btn {
+  order: 0;
+  margin-left: auto;
+  align-self: flex-start;
+}
+body.narrow-mode .move-everything-native-controls {
+  order: 1;
+  flex-basis: 100%;
+}
+body.narrow-mode .move-everything-pin-cc-toggle {
+  order: 2;
+}
+
+body.narrow-mode .brand {
   display: none !important;
 }
 

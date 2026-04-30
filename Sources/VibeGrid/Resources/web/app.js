@@ -62,6 +62,7 @@ const state = {
   previewRequestFrame: null,
   pendingPreviewPlacement: null,
   confirmDialog: null,
+  actionDialog: null,
   permissions: {
     accessibility: false,
   },
@@ -82,12 +83,14 @@ const state = {
   moveEverythingControlCenterFocused: false,
   moveEverythingAlwaysOnTop: false,
   moveEverythingMoveToBottom: false,
+  moveEverythingMoveToCenter: false,
   moveEverythingDontMoveVibeGrid: false,
   moveEverythingPinnedWindowKeys: new Set(),
   moveEverythingPinMode: false,
   moveEverythingRuntimeTogglePending: {
     alwaysOnTop: null,
     moveToBottom: null,
+    moveToCenter: null,
     dontMoveVibeGrid: null,
   },
   moveEverythingWindows: {
@@ -98,6 +101,10 @@ const state = {
     savedPositionsNextAvailable: false,
   },
   moveEverythingHoveredWindowKey: null,
+  moveEverythingFrozenVisibleOrder: null,
+  moveEverythingLastPointerClient: null,
+  quickViewActive: false,
+  moveEverythingHoverNeedsReevaluation: false,
   moveEverythingFocusedWindowKey: null,
   moveEverythingEnsureRequestedAt: 0,
   moveEverythingNarrowMode: null,
@@ -134,8 +141,10 @@ const ids = {
   hotkeyPreview: document.getElementById("hotkeyPreview"),
   toggleShortcutEnabledBtn: document.getElementById("toggleShortcutEnabledBtn"),
   cycleDisplaysOnWrap: document.getElementById("cycleDisplaysOnWrap"),
-  controlCenterOnly: document.getElementById("controlCenterOnly"),
+  canMoveControlCenter: document.getElementById("canMoveControlCenter"),
   ignoreExcludePinnedWindows: document.getElementById("ignoreExcludePinnedWindows"),
+  resetBeforeFirstStep: document.getElementById("resetBeforeFirstStep"),
+  resetBeforeFirstStepMoveCursor: document.getElementById("resetBeforeFirstStepMoveCursor"),
   placementTitle: document.getElementById("placementTitle"),
   displayTarget: document.getElementById("displayTarget"),
   removePlacementBtn: document.getElementById("removePlacementBtn"),
@@ -143,10 +152,11 @@ const ids = {
   settingGridRows: document.getElementById("settingGridRows"),
   settingGap: document.getElementById("settingGap"),
   settingDefaultCycleDisplaysOnWrap: document.getElementById("settingDefaultCycleDisplaysOnWrap"),
+  settingControlCenterSticky: document.getElementById("settingControlCenterSticky"),
   settingThemeMode: document.getElementById("settingThemeMode"),
   settingControlCenterScale: document.getElementById("settingControlCenterScale"),
   applyControlCenterScaleBtn: document.getElementById("applyControlCenterScaleBtn"),
-  settingLargerFonts: document.getElementById("settingLargerFonts"),
+  settingFontSizeAdjustPt: document.getElementById("settingFontSizeAdjustPt"),
   settingLaunchAtLogin: document.getElementById("settingLaunchAtLogin"),
   openLoginItemsSettingsBtn: document.getElementById("openLoginItemsSettingsBtn"),
   settingsConfigPath: document.getElementById("settingsConfigPath"),
@@ -188,6 +198,8 @@ const ids = {
   moveEverythingAlwaysOnTopLabel: document.getElementById("moveEverythingAlwaysOnTopLabel"),
   moveEverythingMoveToBottom: document.getElementById("moveEverythingMoveToBottom"),
   moveEverythingMoveToBottomLabel: document.getElementById("moveEverythingMoveToBottomLabel"),
+  moveEverythingMoveToCenter: document.getElementById("moveEverythingMoveToCenter"),
+  moveEverythingMoveToCenterLabel: document.getElementById("moveEverythingMoveToCenterLabel"),
   moveEverythingDontMoveVibeGrid: document.getElementById("moveEverythingDontMoveVibeGrid"),
   moveEverythingPinModeBtn: document.getElementById("moveEverythingPinModeBtn"),
   settingsBtn: document.getElementById("settingsBtn"),
@@ -197,6 +209,10 @@ const ids = {
   confirmMessage: document.getElementById("confirmMessage"),
   confirmCancelBtn: document.getElementById("confirmCancelBtn"),
   confirmOkBtn: document.getElementById("confirmOkBtn"),
+  actionModal: document.getElementById("actionModal"),
+  actionTitle: document.getElementById("actionTitle"),
+  actionMessage: document.getElementById("actionMessage"),
+  actionButtons: document.getElementById("actionButtons"),
   settingsModal: document.getElementById("settingsModal"),
   colorsModal: document.getElementById("colorsModal"),
   colorsBtn: document.getElementById("colorsBtn"),
@@ -211,12 +227,19 @@ const ids = {
   moveEverythingStartAlwaysOnTopSetting: document.getElementById("moveEverythingStartAlwaysOnTopSetting"),
   moveEverythingStickyHoverStealFocusSetting: document.getElementById("moveEverythingStickyHoverStealFocusSetting"),
   moveEverythingCloseMuxKillSetting: document.getElementById("moveEverythingCloseMuxKillSetting"),
+  moveEverythingCloseSmartSetting: document.getElementById("moveEverythingCloseSmartSetting"),
+  moveEverythingCloseSmartDelaySecondsSetting: document.getElementById("moveEverythingCloseSmartDelaySecondsSetting"),
   moveEverythingExcludePinnedWindowsSetting: document.getElementById("moveEverythingExcludePinnedWindowsSetting"),
+  moveEverythingCenterWidthPercentSetting: document.getElementById("moveEverythingCenterWidthPercentSetting"),
+  moveEverythingCenterHeightPercentSetting: document.getElementById("moveEverythingCenterHeightPercentSetting"),
   moveEverythingMiniRetileWidthPercentSetting: document.getElementById("moveEverythingMiniRetileWidthPercentSetting"),
   moveEverythingBackgroundRefreshIntervalSetting: document.getElementById("moveEverythingBackgroundRefreshIntervalSetting"),
   moveEverythingRetileOrderSetting: document.getElementById("moveEverythingRetileOrderSetting"),
+  moveEverythingRetileSideSetting: document.getElementById("moveEverythingRetileSideSetting"),
   moveEverythingQuickViewVerticalModeSetting: document.getElementById("moveEverythingQuickViewVerticalModeSetting"),
   moveEverythingITermGroupByRepositorySetting: document.getElementById("moveEverythingITermGroupByRepositorySetting"),
+  moveEverythingActivityEnabledSetting: document.getElementById("moveEverythingActivityEnabledSetting"),
+  moveEverythingVibedActivityEnabledSetting: document.getElementById("moveEverythingVibedActivityEnabledSetting"),
   moveEverythingITermRecentActivityTimeoutSetting: document.getElementById("moveEverythingITermRecentActivityTimeoutSetting"),
   moveEverythingITermRecentActivityBufferSetting: document.getElementById("moveEverythingITermRecentActivityBufferSetting"),
   moveEverythingITermRecentActivityActiveTextSetting: document.getElementById("moveEverythingITermRecentActivityActiveTextSetting"),
@@ -233,6 +256,7 @@ const ids = {
   moveEverythingITermActivityTintIntensitySetting: document.getElementById("moveEverythingITermActivityTintIntensitySetting"),
   moveEverythingITermActivityHoldSecondsSetting: document.getElementById("moveEverythingITermActivityHoldSecondsSetting"),
   moveEverythingITermActivityOverlayOpacitySetting: document.getElementById("moveEverythingITermActivityOverlayOpacitySetting"),
+  moveEverythingHoverOverlayOpacitySetting: document.getElementById("moveEverythingHoverOverlayOpacitySetting"),
   moveEverythingITermActivityBackgroundTintEnabledSetting: document.getElementById("moveEverythingITermActivityBackgroundTintEnabledSetting"),
   moveEverythingITermActivityBackgroundTintPersistentSetting: document.getElementById("moveEverythingITermActivityBackgroundTintPersistentSetting"),
   moveEverythingITermActivityTabColorEnabledSetting: document.getElementById("moveEverythingITermActivityTabColorEnabledSetting"),
@@ -246,6 +270,9 @@ const ids = {
   moveEverythingWindowListIdleColorLightSetting: document.getElementById("moveEverythingWindowListIdleColorLightSetting"),
   moveEverythingITermBadgeTopMarginSetting: document.getElementById("moveEverythingITermBadgeTopMarginSetting"),
   moveEverythingITermBadgeRightMarginSetting: document.getElementById("moveEverythingITermBadgeRightMarginSetting"),
+  moveEverythingClaudeCodeRepoPrefixSetting: document.getElementById("moveEverythingClaudeCodeRepoPrefixSetting"),
+  moveEverythingClaudeCodeRepoPrefixColorSetting: document.getElementById("moveEverythingClaudeCodeRepoPrefixColorSetting"),
+  moveEverythingClaudeCodeRepoPrefixColorLightSetting: document.getElementById("moveEverythingClaudeCodeRepoPrefixColorLightSetting"),
   moveEverythingActiveWindowHighlightColorizeSetting: document.getElementById("moveEverythingActiveWindowHighlightColorizeSetting"),
   moveEverythingActiveWindowHighlightColorSetting: document.getElementById("moveEverythingActiveWindowHighlightColorSetting"),
   moveEverythingITermRecentActivityHint: document.getElementById("moveEverythingITermRecentActivityHint"),
@@ -255,6 +282,15 @@ const ids = {
   moveEverythingQuickViewPreview: document.getElementById("moveEverythingQuickViewPreview"),
   moveEverythingUndoWindowMovementPreview: document.getElementById("moveEverythingUndoWindowMovementPreview"),
   moveEverythingRedoWindowMovementPreview: document.getElementById("moveEverythingRedoWindowMovementPreview"),
+  moveEverythingUndoWindowMovementForFocusedWindowPreview: document.getElementById("moveEverythingUndoWindowMovementForFocusedWindowPreview"),
+  moveEverythingRedoWindowMovementForFocusedWindowPreview: document.getElementById("moveEverythingRedoWindowMovementForFocusedWindowPreview"),
+  moveEverythingShowAllHiddenWindowsPreview: document.getElementById("moveEverythingShowAllHiddenWindowsPreview"),
+  moveEverythingRetile1Preview: document.getElementById("moveEverythingRetile1Preview"),
+  moveEverythingRetile2Preview: document.getElementById("moveEverythingRetile2Preview"),
+  moveEverythingRetile3Preview: document.getElementById("moveEverythingRetile3Preview"),
+  moveEverythingRetile1ModeSetting: document.getElementById("moveEverythingRetile1ModeSetting"),
+  moveEverythingRetile2ModeSetting: document.getElementById("moveEverythingRetile2ModeSetting"),
+  moveEverythingRetile3ModeSetting: document.getElementById("moveEverythingRetile3ModeSetting"),
   moveEverythingCloseHideOutsideMode: document.getElementById("moveEverythingCloseHideOutsideMode"),
   moveEverythingWindowEditorModal: document.getElementById("moveEverythingWindowEditorModal"),
   moveEverythingWindowEditorTitle: document.getElementById("moveEverythingWindowEditorTitle"),
@@ -335,6 +371,12 @@ const moveEverythingHotkeyFieldOrder = [
   "moveEverythingQuickViewHotkey",
   "moveEverythingUndoWindowMovementHotkey",
   "moveEverythingRedoWindowMovementHotkey",
+  "moveEverythingUndoWindowMovementForFocusedWindowHotkey",
+  "moveEverythingRedoWindowMovementForFocusedWindowHotkey",
+  "moveEverythingShowAllHiddenWindowsHotkey",
+  "moveEverythingRetile1Hotkey",
+  "moveEverythingRetile2Hotkey",
+  "moveEverythingRetile3Hotkey",
 ];
 const moveEverythingHotkeyPreviewByField = {
   moveEverythingCloseWindowHotkey: ids.moveEverythingCloseWindowPreview,
@@ -343,7 +385,17 @@ const moveEverythingHotkeyPreviewByField = {
   moveEverythingQuickViewHotkey: ids.moveEverythingQuickViewPreview,
   moveEverythingUndoWindowMovementHotkey: ids.moveEverythingUndoWindowMovementPreview,
   moveEverythingRedoWindowMovementHotkey: ids.moveEverythingRedoWindowMovementPreview,
+  moveEverythingUndoWindowMovementForFocusedWindowHotkey: ids.moveEverythingUndoWindowMovementForFocusedWindowPreview,
+  moveEverythingRedoWindowMovementForFocusedWindowHotkey: ids.moveEverythingRedoWindowMovementForFocusedWindowPreview,
+  moveEverythingShowAllHiddenWindowsHotkey: ids.moveEverythingShowAllHiddenWindowsPreview,
+  moveEverythingRetile1Hotkey: ids.moveEverythingRetile1Preview,
+  moveEverythingRetile2Hotkey: ids.moveEverythingRetile2Preview,
+  moveEverythingRetile3Hotkey: ids.moveEverythingRetile3Preview,
 };
+const retileShortcutModes = ["full", "mini", "iterm", "nonITerm", "hybrid"];
+function normalizeRetileMode(value, fallback) {
+  return retileShortcutModes.includes(value) ? value : fallback;
+}
 let permissionPollTimer = null;
 let autosaveTimer = null;
 let configSaveGuardUntil = 0;
@@ -498,7 +550,9 @@ function receiveState(payload) {
         shortcut.cycleDisplaysOnWrap === undefined || shortcut.cycleDisplaysOnWrap === null
           ? Boolean(state.config.settings.defaultCycleDisplaysOnWrap)
           : Boolean(shortcut.cycleDisplaysOnWrap),
-      controlCenterOnly: Boolean(shortcut.controlCenterOnly),
+      canMoveControlCenter: Boolean(shortcut.canMoveControlCenter),
+      resetBeforeFirstStep: Boolean(shortcut.resetBeforeFirstStep),
+      resetBeforeFirstStepMoveCursor: Boolean(shortcut.resetBeforeFirstStepMoveCursor),
       useForRetiling: shortcut.useForRetiling || "no",
     }));
 
@@ -518,6 +572,8 @@ function receiveState(payload) {
   state.configPath = typeof payload?.configPath === "string" ? payload.configPath : "";
   state.configParseError = typeof payload?.configParseError === "string" ? payload.configParseError : "";
   state.launchAtLogin = normalizeLaunchAtLoginState(payload?.launchAtLogin);
+  const wasQuickViewActive = state.quickViewActive;
+  state.quickViewActive = Boolean(payload?.quickViewActive);
   state.moveEverythingActive = Boolean(payload?.moveEverythingActive);
   if (!state.moveEverythingActive && state.moveEverythingPinMode) {
     state.moveEverythingPinMode = false;
@@ -532,6 +588,10 @@ function receiveState(payload) {
     "moveToBottom",
     Boolean(payload?.moveEverythingMoveToBottom)
   );
+  state.moveEverythingMoveToCenter = resolveMoveEverythingRuntimeToggleValue(
+    "moveToCenter",
+    Boolean(payload?.moveEverythingMoveToCenter)
+  );
   state.moveEverythingDontMoveVibeGrid = resolveMoveEverythingRuntimeToggleValue(
     "dontMoveVibeGrid",
     Boolean(payload?.moveEverythingDontMoveVibeGrid)
@@ -539,8 +599,63 @@ function receiveState(payload) {
   state.moveEverythingPinnedWindowKeys = new Set(
     Array.isArray(payload?.moveEverythingPinnedWindowKeys) ? payload.moveEverythingPinnedWindowKeys : []
   );
+  // Detect a hovered window being closed/hidden out from under the cursor
+  // (e.g. hide/close hotkey while hovering): if the hovered key was visible
+  // before but isn't now, pre-set hover to the row that took its place and
+  // also flag for cursor-based re-evaluation. Either way, the highlight
+  // survives without requiring mouse movement.
+  const previousHoverKeyForReeval = state.moveEverythingHoveredWindowKey;
+  const previousVisibleListForReeval = previousHoverKeyForReeval
+    ? (state.moveEverythingWindows?.visible || [])
+    : null;
+  const previousHiddenListForReeval = previousHoverKeyForReeval
+    ? (state.moveEverythingWindows?.hidden || [])
+    : null;
   state.moveEverythingWindows = normalizeMoveEverythingWindowInventory(payload?.moveEverythingWindows);
+  if (previousHoverKeyForReeval) {
+    const previousVisibleIndex = previousVisibleListForReeval?.findIndex(
+      (w) => w.key === previousHoverKeyForReeval
+    ) ?? -1;
+    const previousHiddenIndex = previousHiddenListForReeval?.findIndex(
+      (w) => w.key === previousHoverKeyForReeval
+    ) ?? -1;
+    const nextVisible = state.moveEverythingWindows.visible || [];
+    const nextHidden = state.moveEverythingWindows.hidden || [];
+    const stillVisible = nextVisible.some((w) => w.key === previousHoverKeyForReeval);
+    const stillHidden = nextHidden.some((w) => w.key === previousHoverKeyForReeval);
+    let fallbackHoverKey = null;
+    if (previousVisibleIndex >= 0 && !stillVisible) {
+      // Hovered visible row was closed or hidden by hotkey.
+      // Only advance to the window directly below in the same app group.
+      const sortedBefore = [...previousVisibleListForReeval].sort(
+        compareMoveEverythingVisibleWindowsWithFrozenOrder
+      );
+      fallbackHoverKey = nextSameCategoryInMoveEverythingList(sortedBefore, previousHoverKeyForReeval);
+    } else if (previousHiddenIndex >= 0 && !stillHidden) {
+      // Hovered hidden row was closed by hotkey.
+      fallbackHoverKey = nextSameCategoryInMoveEverythingList(
+        previousHiddenListForReeval,
+        previousHoverKeyForReeval
+      );
+    }
+    if (fallbackHoverKey) {
+      state.moveEverythingHoveredWindowKey = fallbackHoverKey;
+      state.moveEverythingHoverNeedsReevaluation = true;
+    } else if ((previousVisibleIndex >= 0 && !stillVisible) ||
+               (previousHiddenIndex >= 0 && !stillHidden)) {
+      state.moveEverythingHoverNeedsReevaluation = true;
+    }
+  }
   state.moveEverythingFocusedWindowKey = String(payload?.moveEverythingFocusedWindowKey || "").trim() || null;
+  // Hover key was historically client-driven (mouse over the row in the web
+  // view). For server-driven hover (proxy-hover API) we accept it from the
+  // state push too — adopt the server value if it differs from local.
+  if (payload && Object.prototype.hasOwnProperty.call(payload, "moveEverythingHoveredWindowKey")) {
+    const serverHoverKey = String(payload.moveEverythingHoveredWindowKey || "").trim() || null;
+    if (serverHoverKey !== state.moveEverythingHoveredWindowKey) {
+      state.moveEverythingHoveredWindowKey = serverHoverKey;
+    }
+  }
   applyTheme();
   applyLargerFonts();
 
@@ -564,6 +679,28 @@ function receiveState(payload) {
   }
   state._lastReceivedConfigSig = state._currentConfigSig;
   state._lastMoveEverythingActive = state.moveEverythingActive;
+
+  // Feature: on Quick View entry, hover the first window row and warp the cursor onto it.
+  if (!wasQuickViewActive && state.quickViewActive) {
+    // Single rAF to let the DOM paint before measuring — the shrink-to-fit resize
+    // adjusts window height (not row positions), so one frame is sufficient.
+    requestAnimationFrame(() => {
+      const list = ids.moveEverythingWindowList;
+      if (!list) return;
+      const firstRow = list.querySelector('.move-window-row[data-me-window-key]:not(.hidden-window)');
+      if (!firstRow) return;
+      const key = String(firstRow.dataset.meWindowKey || '').trim();
+      if (key) {
+        setMoveEverythingHoveredWindow(key, { render: true, immediate: true });
+      }
+      const rect = firstRow.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) return;
+      sendToNative('warpCursorToControlCenterPoint', {
+        x: rect.left + rect.width / 2,
+        y: rect.top + rect.height / 2,
+      });
+    });
+  }
 
   updateAccessibilityState(state.permissions.accessibility);
   if (ids.yamlPreview) {
@@ -831,6 +968,14 @@ function syncMoveEverythingMoveToBottomLabels(isNarrow) {
   if (ids.moveEverythingMoveToBottomLabel) {
     ids.moveEverythingMoveToBottomLabel.textContent = moveToBottomLabel;
   }
+  const pinWindowsBtn = document.getElementById("moveEverythingPinModeBtn");
+  if (pinWindowsBtn) {
+    pinWindowsBtn.textContent = isNarrow ? "Pin" : "Pin Windows";
+  }
+  const reloadBtn = document.getElementById("reloadBtn");
+  if (reloadBtn) {
+    reloadBtn.textContent = isNarrow ? "Reload" : "Reload YAML";
+  }
 }
 
 function effectiveHotKeyIssues() {
@@ -1024,6 +1169,16 @@ function renderMoveEverythingModal() {
         settings.moveEverythingCloseMuxKill ?? true
       );
     }
+    if (ids.moveEverythingCloseSmartSetting) {
+      ids.moveEverythingCloseSmartSetting.checked = Boolean(
+        settings.moveEverythingCloseSmart ?? false
+      );
+    }
+    if (ids.moveEverythingCloseSmartDelaySecondsSetting) {
+      ids.moveEverythingCloseSmartDelaySecondsSetting.value = Number(
+        settings.moveEverythingCloseSmartDelaySeconds ?? 5
+      );
+    }
     if (ids.moveEverythingExcludePinnedWindowsSetting) {
       ids.moveEverythingExcludePinnedWindowsSetting.checked = Boolean(
         settings.moveEverythingExcludePinnedWindows
@@ -1066,7 +1221,28 @@ function renderMoveEverythingModal() {
   ids.moveEverythingCloseHideOutsideMode.checked = Boolean(
     settings.moveEverythingCloseHideHotkeysOutsideMode
   );
-  if (ids.moveEverythingMiniRetileWidthPercentSetting) {
+  // Don't clobber an input that the user is currently editing — number
+  // inputs only commit on blur, and state pushes from Swift happen
+  // frequently. Without this guard, typing 5→50 gets overwritten by a
+  // push in between keystrokes.
+  if (ids.moveEverythingCenterWidthPercentSetting &&
+      document.activeElement !== ids.moveEverythingCenterWidthPercentSetting) {
+    ids.moveEverythingCenterWidthPercentSetting.value = clampInt(
+      Math.round(Number(settings.moveEverythingCenterWidthPercent ?? 33)),
+      10,
+      100
+    );
+  }
+  if (ids.moveEverythingCenterHeightPercentSetting &&
+      document.activeElement !== ids.moveEverythingCenterHeightPercentSetting) {
+    ids.moveEverythingCenterHeightPercentSetting.value = clampInt(
+      Math.round(Number(settings.moveEverythingCenterHeightPercent ?? 70)),
+      10,
+      100
+    );
+  }
+  if (ids.moveEverythingMiniRetileWidthPercentSetting &&
+      document.activeElement !== ids.moveEverythingMiniRetileWidthPercentSetting) {
     ids.moveEverythingMiniRetileWidthPercentSetting.value = clampInt(
       Math.round(Number(settings.moveEverythingMiniRetileWidthPercent ?? 25)),
       5,
@@ -1080,6 +1256,9 @@ function renderMoveEverythingModal() {
       30
     );
   }
+  if (ids.moveEverythingRetileSideSetting) {
+    ids.moveEverythingRetileSideSetting.value = settings.moveEverythingRetileSide || "auto";
+  }
   if (ids.moveEverythingRetileOrderSetting) {
     ids.moveEverythingRetileOrderSetting.value = settings.moveEverythingRetileOrder || "leftToRight";
   }
@@ -1088,6 +1267,12 @@ function renderMoveEverythingModal() {
   }
   if (ids.moveEverythingITermGroupByRepositorySetting) {
     ids.moveEverythingITermGroupByRepositorySetting.checked = settings.moveEverythingITermGroupByRepository !== false;
+  }
+  if (ids.moveEverythingActivityEnabledSetting) {
+    ids.moveEverythingActivityEnabledSetting.checked = settings.moveEverythingActivityEnabled !== false;
+  }
+  if (ids.moveEverythingVibedActivityEnabledSetting) {
+    ids.moveEverythingVibedActivityEnabledSetting.checked = Boolean(settings.moveEverythingVibedActivityEnabled);
   }
   if (ids.moveEverythingITermRecentActivityTimeoutSetting) {
     ids.moveEverythingITermRecentActivityTimeoutSetting.value = clampNumber(
@@ -1155,6 +1340,13 @@ function renderMoveEverythingModal() {
       1, 60
     );
   }
+  if (ids.moveEverythingHoverOverlayOpacitySetting) {
+    ids.moveEverythingHoverOverlayOpacitySetting.value = clampNumber(
+      Number(settings.moveEverythingHoverOverlayOpacity ?? 1.0),
+      0,
+      2
+    );
+  }
   if (ids.moveEverythingITermActivityOverlayOpacitySetting) {
     ids.moveEverythingITermActivityOverlayOpacitySetting.value = clampNumber(
       Number(settings.moveEverythingITermActivityOverlayOpacity ?? 0.14),
@@ -1174,6 +1366,19 @@ function renderMoveEverythingModal() {
   if (ids.moveEverythingITermActivityTabColorEnabledSetting) {
     ids.moveEverythingITermActivityTabColorEnabledSetting.checked = Boolean(
       settings.moveEverythingITermActivityTabColorEnabled
+    );
+  }
+  if (ids.moveEverythingClaudeCodeRepoPrefixSetting) {
+    ids.moveEverythingClaudeCodeRepoPrefixSetting.checked = Boolean(settings.moveEverythingClaudeCodeRepoPrefix);
+  }
+  if (ids.moveEverythingClaudeCodeRepoPrefixColorSetting) {
+    ids.moveEverythingClaudeCodeRepoPrefixColorSetting.value = normalizeHexColor(
+      settings.moveEverythingClaudeCodeRepoPrefixColor, "#7B9ECA"
+    );
+  }
+  if (ids.moveEverythingClaudeCodeRepoPrefixColorLightSetting) {
+    ids.moveEverythingClaudeCodeRepoPrefixColorLightSetting.value = normalizeHexColor(
+      settings.moveEverythingClaudeCodeRepoPrefixColorLight, "#3A6CA8"
     );
   }
   if (ids.moveEverythingActiveWindowHighlightColorizeSetting) {
@@ -1244,6 +1449,24 @@ function renderMoveEverythingModal() {
     }
     preview.textContent = formatHotkey(settings[field]);
   }
+  if (ids.moveEverythingRetile1ModeSetting) {
+    ids.moveEverythingRetile1ModeSetting.value = normalizeRetileMode(
+      settings.moveEverythingRetile1Mode,
+      "full"
+    );
+  }
+  if (ids.moveEverythingRetile2ModeSetting) {
+    ids.moveEverythingRetile2ModeSetting.value = normalizeRetileMode(
+      settings.moveEverythingRetile2Mode,
+      "iterm"
+    );
+  }
+  if (ids.moveEverythingRetile3ModeSetting) {
+    ids.moveEverythingRetile3ModeSetting.value = normalizeRetileMode(
+      settings.moveEverythingRetile3Mode,
+      "hybrid"
+    );
+  }
 
   ids.moveEverythingRequirementsHint.classList.toggle("warning", false);
   ids.moveEverythingRequirementsHint.textContent = moveEverythingRequirementText(settings);
@@ -1285,15 +1508,26 @@ function applyOptimisticMoveEverythingWindowAction(action, key) {
   const hidden = Array.isArray(inventory.hidden) ? [...inventory.hidden] : [];
   const visibleIndex = visible.findIndex((item) => item.key === key);
   const hiddenIndex = hidden.findIndex((item) => item.key === key);
+  const wasHoveringActedKey = state.moveEverythingHoveredWindowKey === key;
 
   let didMutate = false;
+  let fallbackHoverKey = null;
   if (action === "close") {
     if (visibleIndex >= 0) {
+      // Sort before removal so we can find the next window in the same app group.
+      const sortedBefore = [...visible].sort(compareMoveEverythingVisibleWindowsWithFrozenOrder);
       visible.splice(visibleIndex, 1);
+      if (wasHoveringActedKey) {
+        fallbackHoverKey = nextSameCategoryInMoveEverythingList(sortedBefore, key);
+      }
       didMutate = true;
     }
     if (hiddenIndex >= 0) {
+      const sortedHiddenBefore = [...hidden];
       hidden.splice(hiddenIndex, 1);
+      if (wasHoveringActedKey && !fallbackHoverKey) {
+        fallbackHoverKey = nextSameCategoryInMoveEverythingList(sortedHiddenBefore, key);
+      }
       didMutate = true;
     }
     delete state.moveEverythingCustomWindowTitlesByKey[String(key)];
@@ -1302,12 +1536,17 @@ function applyOptimisticMoveEverythingWindowAction(action, key) {
     delete state.moveEverythingCustomTitleStaleSince[String(key)];
   } else if (action === "hide") {
     if (visibleIndex >= 0) {
+      // Sort before removal so we can find the next window in the same app group.
+      const sortedBefore = [...visible].sort(compareMoveEverythingVisibleWindowsWithFrozenOrder);
       const [windowItem] = visible.splice(visibleIndex, 1);
       if (hiddenIndex < 0) {
         hidden.unshift({
           ...windowItem,
           isCoreGraphicsFallback: true,
         });
+      }
+      if (wasHoveringActedKey) {
+        fallbackHoverKey = nextSameCategoryInMoveEverythingList(sortedBefore, key);
       }
       didMutate = true;
     }
@@ -1332,8 +1571,17 @@ function applyOptimisticMoveEverythingWindowAction(action, key) {
     savedPositionsPreviousAvailable: Boolean(inventory.savedPositionsPreviousAvailable),
     savedPositionsNextAvailable: Boolean(inventory.savedPositionsNextAvailable),
   };
-  if (state.moveEverythingHoveredWindowKey === key) {
-    setMoveEverythingHoveredWindow(null, { render: false, immediate: true });
+  if (wasHoveringActedKey) {
+    if (fallbackHoverKey) {
+      // Pre-set hover to the next-in-place row so the highlight survives even
+      // when end-of-render cursor hit-test misses (e.g. cursor over a gap).
+      setMoveEverythingHoveredWindow(fallbackHoverKey, { render: false, immediate: true });
+    } else {
+      setMoveEverythingHoveredWindow(null, { render: false, immediate: true });
+    }
+    // Flag the cursor-based reevaluate too: if the user's cursor is actually
+    // over a different row than the fallback, the cursor wins after render.
+    state.moveEverythingHoverNeedsReevaluation = true;
   }
   return true;
 }
@@ -1605,6 +1853,29 @@ function updateMoveEverythingMoveToBottom(enabled) {
   if (ids.moveEverythingMoveToBottom) {
     ids.moveEverythingMoveToBottom.checked = Boolean(enabled);
   }
+  if (enabled && state.moveEverythingMoveToCenter) {
+    setMoveEverythingRuntimeTogglePending("moveToCenter", false);
+    state.moveEverythingMoveToCenter = false;
+    if (ids.moveEverythingMoveToCenter) {
+      ids.moveEverythingMoveToCenter.checked = false;
+    }
+  }
+}
+
+function updateMoveEverythingMoveToCenter(enabled) {
+  setMoveEverythingRuntimeTogglePending("moveToCenter", Boolean(enabled));
+  sendToNative("setMoveEverythingMoveToCenter", { enabled: Boolean(enabled) });
+  state.moveEverythingMoveToCenter = Boolean(enabled);
+  if (ids.moveEverythingMoveToCenter) {
+    ids.moveEverythingMoveToCenter.checked = Boolean(enabled);
+  }
+  if (enabled && state.moveEverythingMoveToBottom) {
+    setMoveEverythingRuntimeTogglePending("moveToBottom", false);
+    state.moveEverythingMoveToBottom = false;
+    if (ids.moveEverythingMoveToBottom) {
+      ids.moveEverythingMoveToBottom.checked = false;
+    }
+  }
 }
 
 function updateMoveEverythingDontMoveVibeGrid(enabled) {
@@ -1688,6 +1959,14 @@ function setMoveEverythingHoveredWindow(key, options = {}) {
     return;
   }
   state.moveEverythingHoveredWindowKey = nextKey;
+  // Freeze the visible-window sort order for the duration of a hover session
+  // so renames or other metadata changes don't shuffle rows out from under
+  // the cursor. Capture once on null→key entry; clear on key→null exit.
+  if (previousKey === null && nextKey !== null) {
+    captureMoveEverythingFrozenVisibleOrder();
+  } else if (nextKey === null) {
+    state.moveEverythingFrozenVisibleOrder = null;
+  }
   queueMoveEverythingHoverSend(nextKey, immediate);
   if (render && moveEverythingWorkspaceVisible()) {
     const didPatchHoverRows = patchMoveEverythingHoveredRows(previousKey, nextKey);
@@ -1695,6 +1974,28 @@ function setMoveEverythingHoveredWindow(key, options = {}) {
       renderMoveEverythingWorkspace();
     }
   }
+}
+
+function reevaluateMoveEverythingHoverFromCursor() {
+  const pointer = state.moveEverythingLastPointerClient;
+  if (!pointer || !ids.moveEverythingWindowList) {
+    return;
+  }
+  const list = ids.moveEverythingWindowList;
+  const listRect = list.getBoundingClientRect();
+  if (pointer.x < listRect.left || pointer.x > listRect.right ||
+      pointer.y < listRect.top || pointer.y > listRect.bottom) {
+    return;
+  }
+  const target = document.elementFromPoint(pointer.x, pointer.y);
+  if (!(target instanceof Element) || !list.contains(target)) {
+    return;
+  }
+  const key = resolveMoveEverythingHoverKeyFromTarget(target, pointer.y);
+  if (key === undefined) {
+    return;
+  }
+  setMoveEverythingHoveredWindow(key, { render: true, immediate: true });
 }
 
 function moveEverythingRowByWindowKey(key) {
@@ -1922,9 +2223,35 @@ function updateMoveEverythingSettings() {
       ids.moveEverythingCloseMuxKillSetting.checked
     );
   }
+  if (ids.moveEverythingCloseSmartSetting) {
+    settings.moveEverythingCloseSmart = Boolean(
+      ids.moveEverythingCloseSmartSetting.checked
+    );
+  }
+  if (ids.moveEverythingCloseSmartDelaySecondsSetting) {
+    settings.moveEverythingCloseSmartDelaySeconds = clampNumber(
+      Number(ids.moveEverythingCloseSmartDelaySecondsSetting.value),
+      0.5,
+      120
+    );
+  }
   if (ids.moveEverythingExcludePinnedWindowsSetting) {
     settings.moveEverythingExcludePinnedWindows = Boolean(
       ids.moveEverythingExcludePinnedWindowsSetting.checked
+    );
+  }
+  if (ids.moveEverythingCenterWidthPercentSetting) {
+    settings.moveEverythingCenterWidthPercent = clampInt(
+      Number(ids.moveEverythingCenterWidthPercentSetting.value),
+      10,
+      100
+    );
+  }
+  if (ids.moveEverythingCenterHeightPercentSetting) {
+    settings.moveEverythingCenterHeightPercent = clampInt(
+      Number(ids.moveEverythingCenterHeightPercentSetting.value),
+      10,
+      100
     );
   }
   if (ids.moveEverythingMiniRetileWidthPercentSetting) {
@@ -1941,14 +2268,42 @@ function updateMoveEverythingSettings() {
       30
     );
   }
+  if (ids.moveEverythingRetileSideSetting) {
+    const side = ids.moveEverythingRetileSideSetting.value || "auto";
+    settings.moveEverythingRetileSide = (side === "left" || side === "right") ? side : "auto";
+  }
   if (ids.moveEverythingRetileOrderSetting) {
     settings.moveEverythingRetileOrder = ids.moveEverythingRetileOrderSetting.value || "leftToRight";
+  }
+  if (ids.moveEverythingRetile1ModeSetting) {
+    settings.moveEverythingRetile1Mode = normalizeRetileMode(
+      ids.moveEverythingRetile1ModeSetting.value,
+      "full"
+    );
+  }
+  if (ids.moveEverythingRetile2ModeSetting) {
+    settings.moveEverythingRetile2Mode = normalizeRetileMode(
+      ids.moveEverythingRetile2ModeSetting.value,
+      "iterm"
+    );
+  }
+  if (ids.moveEverythingRetile3ModeSetting) {
+    settings.moveEverythingRetile3Mode = normalizeRetileMode(
+      ids.moveEverythingRetile3ModeSetting.value,
+      "hybrid"
+    );
   }
   if (ids.moveEverythingQuickViewVerticalModeSetting) {
     settings.moveEverythingQuickViewVerticalMode = ids.moveEverythingQuickViewVerticalModeSetting.value || "fromCursor";
   }
   if (ids.moveEverythingITermGroupByRepositorySetting) {
     settings.moveEverythingITermGroupByRepository = Boolean(ids.moveEverythingITermGroupByRepositorySetting.checked);
+  }
+  if (ids.moveEverythingActivityEnabledSetting) {
+    settings.moveEverythingActivityEnabled = Boolean(ids.moveEverythingActivityEnabledSetting.checked);
+  }
+  if (ids.moveEverythingVibedActivityEnabledSetting) {
+    settings.moveEverythingVibedActivityEnabled = Boolean(ids.moveEverythingVibedActivityEnabledSetting.checked);
   }
   if (ids.moveEverythingITermRecentActivityTimeoutSetting) {
     settings.moveEverythingITermRecentActivityTimeout = clampNumber(
@@ -2016,6 +2371,13 @@ function updateMoveEverythingSettings() {
       1, 60
     );
   }
+  if (ids.moveEverythingHoverOverlayOpacitySetting) {
+    settings.moveEverythingHoverOverlayOpacity = clampNumber(
+      Number(ids.moveEverythingHoverOverlayOpacitySetting.value),
+      0,
+      2
+    );
+  }
   if (ids.moveEverythingITermActivityOverlayOpacitySetting) {
     settings.moveEverythingITermActivityOverlayOpacity = clampNumber(
       Number(ids.moveEverythingITermActivityOverlayOpacitySetting.value),
@@ -2035,6 +2397,19 @@ function updateMoveEverythingSettings() {
   if (ids.moveEverythingITermActivityTabColorEnabledSetting) {
     settings.moveEverythingITermActivityTabColorEnabled = Boolean(
       ids.moveEverythingITermActivityTabColorEnabledSetting.checked
+    );
+  }
+  if (ids.moveEverythingClaudeCodeRepoPrefixSetting) {
+    settings.moveEverythingClaudeCodeRepoPrefix = Boolean(ids.moveEverythingClaudeCodeRepoPrefixSetting.checked);
+  }
+  if (ids.moveEverythingClaudeCodeRepoPrefixColorSetting) {
+    settings.moveEverythingClaudeCodeRepoPrefixColor = normalizeHexColor(
+      ids.moveEverythingClaudeCodeRepoPrefixColorSetting.value, "#7B9ECA"
+    );
+  }
+  if (ids.moveEverythingClaudeCodeRepoPrefixColorLightSetting) {
+    settings.moveEverythingClaudeCodeRepoPrefixColorLight = normalizeHexColor(
+      ids.moveEverythingClaudeCodeRepoPrefixColorLightSetting.value, "#3A6CA8"
     );
   }
   if (ids.moveEverythingActiveWindowHighlightColorizeSetting) {
@@ -2135,9 +2510,10 @@ function renderShortcutList() {
     title.textContent = shortcut.name || "Untitled";
     const subtitle = document.createElement("p");
     const stateLabel = shortcut.enabled ? "" : " • Disabled";
-    const shortcutScopeLabel = shortcut.controlCenterOnly
-      ? "control center only"
-      : `${shortcut.placements.length} step${shortcut.placements.length === 1 ? "" : "s"}`;
+    const stepsLabel = `${shortcut.placements.length} step${shortcut.placements.length === 1 ? "" : "s"}`;
+    const shortcutScopeLabel = shortcut.canMoveControlCenter
+      ? `${stepsLabel} • can move CC`
+      : stepsLabel;
     const retileLabel = shortcut.useForRetiling && shortcut.useForRetiling !== "no"
       ? ` • retile: ${shortcut.useForRetiling}`
       : "";
@@ -2194,11 +2570,20 @@ function renderShortcutEditor() {
   ids.toggleShortcutEnabledBtn.classList.toggle("danger", !shortcut.enabled);
   ids.toggleShortcutEnabledBtn.classList.toggle("ghost", shortcut.enabled);
   ids.cycleDisplaysOnWrap.checked = Boolean(shortcut.cycleDisplaysOnWrap);
-  ids.controlCenterOnly.checked = Boolean(shortcut.controlCenterOnly);
+  ids.canMoveControlCenter.checked = Boolean(shortcut.canMoveControlCenter);
   const excludePinnedEnabled = Boolean(state.config.settings.moveEverythingExcludePinnedWindows);
   ids.ignoreExcludePinnedWindows.checked = Boolean(shortcut.ignoreExcludePinnedWindows);
   ids.ignoreExcludePinnedWindows.disabled = !excludePinnedEnabled;
   ids.ignoreExcludePinnedWindows.closest("label").classList.toggle("disabled", !excludePinnedEnabled);
+  if (ids.resetBeforeFirstStep) {
+    ids.resetBeforeFirstStep.checked = Boolean(shortcut.resetBeforeFirstStep);
+  }
+  if (ids.resetBeforeFirstStepMoveCursor) {
+    const resetEnabled = Boolean(shortcut.resetBeforeFirstStep);
+    ids.resetBeforeFirstStepMoveCursor.checked = Boolean(shortcut.resetBeforeFirstStepMoveCursor);
+    ids.resetBeforeFirstStepMoveCursor.disabled = !resetEnabled;
+    ids.resetBeforeFirstStepMoveCursor.closest("label").classList.toggle("disabled", !resetEnabled);
+  }
   const useForRetilingSelect = document.getElementById("useForRetiling");
   if (useForRetilingSelect) {
     useForRetilingSelect.value = shortcut.useForRetiling || "no";
@@ -2210,6 +2595,7 @@ function renderShortcutEditor() {
   ids.settingDefaultCycleDisplaysOnWrap.checked = Boolean(
     state.config.settings.defaultCycleDisplaysOnWrap
   );
+  ids.settingControlCenterSticky.checked = Boolean(state.config.settings.controlCenterSticky);
   syncThemeModeSelect(state.config.settings.themeMode);
   renderControlCenterScaleInput();
 
@@ -2372,6 +2758,9 @@ function renderMoveEverythingWorkspace() {
     if (ids.moveEverythingMoveToBottom) {
       ids.moveEverythingMoveToBottom.checked = Boolean(state.moveEverythingMoveToBottom);
     }
+    if (ids.moveEverythingMoveToCenter) {
+      ids.moveEverythingMoveToCenter.checked = Boolean(state.moveEverythingMoveToCenter);
+    }
     if (ids.moveEverythingDontMoveVibeGrid) {
       ids.moveEverythingDontMoveVibeGrid.checked = Boolean(state.moveEverythingDontMoveVibeGrid);
     }
@@ -2384,7 +2773,7 @@ function renderMoveEverythingWorkspace() {
   }
   state.moveEverythingActionButtonsCompact = moveEverythingActionCompactModeActive();
   const allVisible = Array.isArray(inventory.visible)
-    ? [...inventory.visible].sort(compareMoveEverythingVisibleWindowsByAppThenTitle)
+    ? [...inventory.visible].sort(compareMoveEverythingVisibleWindowsWithFrozenOrder)
     : [];
   const allHidden = Array.isArray(inventory.hidden)
     ? inventory.hidden.filter((w) => w.canRestore !== false)
@@ -2397,8 +2786,8 @@ function renderMoveEverythingWorkspace() {
   const hiddenWindows = allHidden.filter((w) => !hasMoveEverythingCustomWindowTitle(w));
   const namedITermVisibleWindows = namedVisibleWindows.filter((w) => isLikelyITermWindow(w));
   const namedITermHiddenWindows = namedHiddenWindows.filter((w) => isLikelyITermWindow(w));
-  const iTermVisibleWindows = visibleWindows.filter((w) => isLikelyITermWindow(w));
-  const iTermHiddenWindows = hiddenWindows.filter((w) => isLikelyITermWindow(w));
+  const iTermVisibleWindows = visibleWindows.filter((w) => isLikelyITermWindow(w) && !isGhostITermWindow(w));
+  const iTermHiddenWindows = hiddenWindows.filter((w) => isLikelyITermWindow(w) && !isGhostITermWindow(w));
   const namedOtherVisibleWindows = namedVisibleWindows.filter((w) => !isLikelyITermWindow(w));
   const namedOtherHiddenWindows = namedHiddenWindows.filter((w) => !isLikelyITermWindow(w));
   const otherVisibleWindows = visibleWindows.filter((w) => !isLikelyITermWindow(w));
@@ -2411,6 +2800,7 @@ function renderMoveEverythingWorkspace() {
       !allVisible.some((windowItem) => windowItem.key === state.moveEverythingHoveredWindowKey) &&
       !allHidden.some((windowItem) => windowItem.key === state.moveEverythingHoveredWindowKey)) {
     setMoveEverythingHoveredWindow(null, { render: false, immediate: true });
+    state.moveEverythingHoverNeedsReevaluation = true;
   }
   ids.moveEverythingWindowList.innerHTML = "";
 
@@ -2541,6 +2931,14 @@ function renderMoveEverythingWorkspace() {
 
   ids.moveEverythingWindowList.appendChild(fragment);
   applyMoveEverythingTitleSizing();
+  // Only re-pin hover from cursor when an action just shifted the layout out
+  // from under it (close/hide). For server-driven hover updates (arrow keys,
+  // proxy hover), trust the new key — the cached cursor position may be stale
+  // from before a cursor warp and would incorrectly revert hover.
+  if (state.moveEverythingHoverNeedsReevaluation) {
+    state.moveEverythingHoverNeedsReevaluation = false;
+    reevaluateMoveEverythingHoverFromCursor();
+  }
 
   const elapsed = performance.now() - renderStartedAt;
   if (elapsed >= moveEverythingPerfLogThresholdMs) {
@@ -2612,6 +3010,33 @@ function applyMoveEverythingTitleSizing() {
       element.title = fullTitle;
     } else {
       element.title = "";
+    }
+  }
+
+  // Phase 3: Inject colored repo prefix spans for Claude Code windows.
+  const repoPrefixEnabled = Boolean(state.config?.settings?.moveEverythingClaudeCodeRepoPrefix);
+  if (repoPrefixEnabled) {
+    const isDark = moveEverythingThemeIsDark();
+    const prefixColor = isDark
+      ? (state.config?.settings?.moveEverythingClaudeCodeRepoPrefixColor || "#7B9ECA")
+      : (state.config?.settings?.moveEverythingClaudeCodeRepoPrefixColorLight || "#3A6CA8");
+    for (const element of titleElements) {
+      const repoPrefix = element.dataset.repoPrefix;
+      if (!repoPrefix) continue;
+      const currentText = element.textContent;
+      const separator = repoPrefix + " ";
+      const restText = currentText.startsWith(separator)
+        ? currentText.slice(separator.length)
+        : currentText === repoPrefix ? "" : currentText;
+      element.textContent = "";
+      const prefixSpan = document.createElement("span");
+      prefixSpan.style.color = prefixColor;
+      prefixSpan.style.fontSize = "calc(1em + 1px)";
+      prefixSpan.textContent = repoPrefix;
+      element.appendChild(prefixSpan);
+      if (restText) {
+        element.appendChild(document.createTextNode(" " + restText));
+      }
     }
   }
 
@@ -2701,6 +3126,14 @@ function titleContainsStatusMarker(rawTitle, markerText) {
 function isLikelyITermWindow(windowItem) {
   const appName = String(windowItem?.appName || "").trim().toLowerCase();
   return appName === "iterm2" || appName === "iterm";
+}
+
+function isGhostITermWindow(windowItem) {
+  const rawTitle = String(windowItem?.title || "").trim();
+  if (rawTitle !== "Window") return false;
+  const paneTitle = String(windowItem?.iTermPaneTitle || "").trim();
+  const repoGroup = String(windowItem?.iTermRepoGroup || "").trim();
+  return !repoGroup && (!paneTitle || paneTitle === "Claude Code" || paneTitle === "Codex");
 }
 
 function stripLeadingMarkerToken(title, marker) {
@@ -2847,10 +3280,20 @@ function resolveMoveEverythingDisplayedWindowTitle(windowItem) {
   const baseProfile = profileID.split("+")[0];
   if (baseProfile === "claude-code" || baseProfile === "codex") {
     const paneTitle = String(windowItem?.iTermPaneTitle || "").trim();
-    // Strip the status indicator prefix (e.g. "✳ " or "⠂ ")
     const ccSessionName = paneTitle.replace(/^.\s+/, "").trim();
-    if (ccSessionName.length && ccSessionName !== "Claude Code" && ccSessionName !== "Codex") {
-      return ccSessionName;
+    // Reject auto-generated tmux pane titles like "github[231]" so they
+    // fall through to the codex/claude-code fallback below — otherwise the
+    // repo prefix renders twice (e.g. "github github[231]").
+    const isAutoPaneTitle = /^[A-Za-z][\w-]*\[\d+\]$/.test(ccSessionName);
+    if (paneTitle.length
+        && ccSessionName !== "Claude Code"
+        && ccSessionName !== "Codex"
+        && !isAutoPaneTitle) {
+      return paneTitle;
+    }
+    if (baseProfile === "codex") {
+      const digits = detectMuxSessionDigits(windowItem);
+      if (digits) return `codex [${digits}]`;
     }
   }
   // Prefer the stripped raw AX title — it contains the full context
@@ -2872,6 +3315,63 @@ function resolveMoveEverythingDisplayedWindowTitle(windowItem) {
   return strippedTitle;
 }
 
+const CLAUDE_CODE_ICON_DATA_URL = "data:image/svg+xml;utf8," + encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">' +
+    '<defs>' +
+      '<linearGradient id="cc-bg" x1="0" y1="0" x2="1" y2="1">' +
+        '<stop offset="0" stop-color="#FFB088"/>' +
+        '<stop offset="1" stop-color="#E8623C"/>' +
+      '</linearGradient>' +
+    '</defs>' +
+    '<rect width="100" height="100" rx="22" fill="url(#cc-bg)"/>' +
+    '<path fill="#FFFFFF" d="M50 10c1.8 19 9.2 26.4 28.2 28.2C59.2 40 51.8 47.4 50 66.4 48.2 47.4 40.8 40 21.8 38.2 40.8 36.4 48.2 29 50 10z"/>' +
+    '<path fill="#FFFFFF" d="M72 52c1 11 5.3 15.3 16.3 16.3C77.3 69.3 73 73.6 72 84.6 71 73.6 66.7 69.3 55.7 68.3 66.7 67.3 71 63 72 52z" opacity="0.9"/>' +
+  '</svg>'
+);
+
+const CODEX_ICON_DATA_URL = "data:image/svg+xml;utf8," + encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">' +
+    '<defs>' +
+      '<linearGradient id="cx-bg" x1="0" y1="0" x2="1" y2="1">' +
+        '<stop offset="0" stop-color="#1F2937"/>' +
+        '<stop offset="1" stop-color="#0F766E"/>' +
+      '</linearGradient>' +
+    '</defs>' +
+    '<rect width="100" height="100" rx="22" fill="url(#cx-bg)"/>' +
+    '<path fill="none" stroke="#FFFFFF" stroke-width="9" stroke-linecap="round" stroke-linejoin="round" d="M36 32 L18 50 L36 68"/>' +
+    '<path fill="none" stroke="#FFFFFF" stroke-width="9" stroke-linecap="round" stroke-linejoin="round" d="M64 32 L82 50 L64 68"/>' +
+  '</svg>'
+);
+
+function detectMuxSessionHost(windowItem) {
+  const name = String(windowItem?.iTermSessionName || "").trim();
+  const stripped = name.replace(/\s*\(tmux\)\s*$/, "");
+  const match = stripped.match(/^([a-zA-Z][a-zA-Z0-9]*)-(\d+)/);
+  if (!match) return "";
+  return match[1].toLowerCase();
+}
+
+function detectMuxSessionDigits(windowItem) {
+  const name = String(windowItem?.iTermSessionName || "").trim();
+  const stripped = name.replace(/\s*\(tmux\)\s*$/, "");
+  const match = stripped.match(/^([a-zA-Z][a-zA-Z0-9]*)-(\d+)/);
+  if (!match) return "";
+  return match[2];
+}
+
+function resolveMoveEverythingWindowIconOverride(windowItem) {
+  if (!isLikelyITermWindow(windowItem)) return "";
+  const profileID = String(windowItem?.iTermProfileID || "").trim().toLowerCase();
+  const baseProfile = profileID.split("+")[0];
+  if (baseProfile === "claude-code") {
+    return CLAUDE_CODE_ICON_DATA_URL;
+  }
+  if (baseProfile === "codex") {
+    return CODEX_ICON_DATA_URL;
+  }
+  return "";
+}
+
 function resolveMoveEverythingWindowSubtitle(windowItem) {
   const isCoreGraphicsFallback = Boolean(windowItem?.isCoreGraphicsFallback);
   if (isCoreGraphicsFallback) {
@@ -2886,11 +3386,11 @@ function resolveMoveEverythingWindowSubtitle(windowItem) {
     const profileID = String(windowItem?.iTermProfileID || "").trim().toLowerCase();
     const baseProfile = profileID.split("+")[0];
     const repoGroup = String(windowItem?.iTermRepoGroup || "").trim();
-    if (baseProfile === "claude-code") {
-      return repoGroup ? `Claude Code · ${repoGroup}` : "Claude Code";
-    }
-    if (baseProfile === "codex") {
-      return repoGroup ? `Codex · ${repoGroup}` : "Codex";
+    if (baseProfile === "claude-code" || baseProfile === "codex") {
+      if (repoGroup) return repoGroup;
+      const host = detectMuxSessionHost(windowItem);
+      if (host && host !== "local") return `[remote · ${host}]`;
+      return baseProfile === "codex" ? "Codex" : "Claude Code";
     }
     const displayedTitle = resolveMoveEverythingDisplayedWindowTitle(windowItem);
     const lowerTitle = displayedTitle.toLowerCase();
@@ -3320,6 +3820,54 @@ function moveEverythingProfileSortPriority(windowItem) {
   return 2;
 }
 
+function captureMoveEverythingFrozenVisibleOrder() {
+  const inventory = state.moveEverythingWindows || { visible: [] };
+  const visible = Array.isArray(inventory.visible) ? inventory.visible : [];
+  if (visible.length === 0) {
+    state.moveEverythingFrozenVisibleOrder = null;
+    return;
+  }
+  const sorted = [...visible].sort(compareMoveEverythingVisibleWindowsByAppThenTitle);
+  const order = new Map();
+  sorted.forEach((windowItem, index) => {
+    if (windowItem && windowItem.key) {
+      order.set(windowItem.key, index);
+    }
+  });
+  state.moveEverythingFrozenVisibleOrder = order;
+}
+
+// Returns the key of the window immediately below `key` in rendered order that
+// shares the same appName — or null if the window below is a different app group
+// or there is no window below. Used to auto-advance hover on close/hide.
+function nextSameCategoryInMoveEverythingList(sortedWindows, key) {
+  const idx = sortedWindows.findIndex((w) => w?.key === key);
+  if (idx < 0) return null;
+  const current = sortedWindows[idx];
+  const currentApp = String(current?.appName || "").trim().toLowerCase();
+  const next = sortedWindows[idx + 1];
+  if (!next) return null;
+  const nextApp = String(next?.appName || "").trim().toLowerCase();
+  return nextApp === currentApp ? next.key : null;
+}
+
+function compareMoveEverythingVisibleWindowsWithFrozenOrder(leftWindow, rightWindow) {
+  const order = state.moveEverythingFrozenVisibleOrder;
+  if (order) {
+    const leftHas = order.has(leftWindow?.key);
+    const rightHas = order.has(rightWindow?.key);
+    if (leftHas && rightHas) {
+      return order.get(leftWindow.key) - order.get(rightWindow.key);
+    }
+    // Newly-arrived windows sort by default rules but always after frozen ones,
+    // so their appearance never shifts existing rows.
+    if (leftHas !== rightHas) {
+      return leftHas ? -1 : 1;
+    }
+  }
+  return compareMoveEverythingVisibleWindowsByAppThenTitle(leftWindow, rightWindow);
+}
+
 function compareMoveEverythingVisibleWindowsByAppThenTitle(leftWindow, rightWindow) {
   const leftAppName = String(leftWindow?.appName || "").trim();
   const rightAppName = String(rightWindow?.appName || "").trim();
@@ -3346,8 +3894,11 @@ function compareMoveEverythingVisibleWindowsByAppThenTitle(leftWindow, rightWind
     }
   }
 
-  const leftTitle = String(resolveMoveEverythingDisplayedWindowTitle(leftWindow) || "").trim();
-  const rightTitle = String(resolveMoveEverythingDisplayedWindowTitle(rightWindow) || "").trim();
+  // Strip leading non-letter/digit chars so an activity-status prefix that
+  // flips between iterations (e.g. "* " vs "· ") doesn't reorder the list.
+  const stripSortPrefix = (s) => s.replace(/^[^\p{L}\p{N}]+/u, "");
+  const leftTitle = stripSortPrefix(String(resolveMoveEverythingDisplayedWindowTitle(leftWindow) || "").trim());
+  const rightTitle = stripSortPrefix(String(resolveMoveEverythingDisplayedWindowTitle(rightWindow) || "").trim());
   const titleComparison = leftTitle.localeCompare(rightTitle, undefined, {
     sensitivity: "base",
     numeric: true,
@@ -3376,11 +3927,13 @@ function buildMoveEverythingWindowRow(windowItem, options = {}) {
   const main = document.createElement("div");
   main.className = "move-window-main";
 
-  if (windowItem.iconDataURL) {
+  const overrideIconDataURL = resolveMoveEverythingWindowIconOverride(windowItem);
+  const iconDataURL = overrideIconDataURL || windowItem.iconDataURL;
+  if (iconDataURL) {
     const icon = document.createElement("img");
     icon.className = "move-window-icon";
     icon.alt = "";
-    icon.src = windowItem.iconDataURL;
+    icon.src = iconDataURL;
     main.appendChild(icon);
   } else {
     const iconFallback = document.createElement("span");
@@ -3393,8 +3946,21 @@ function buildMoveEverythingWindowRow(windowItem, options = {}) {
   copy.className = "move-window-copy";
   const title = document.createElement("strong");
   const displayedTitle = String(resolveMoveEverythingDisplayedWindowTitle(windowItem) || "");
-  title.dataset.fullTitle = displayedTitle;
-  title.textContent = displayedTitle;
+  const repoPrefixEnabled = Boolean(settings.moveEverythingClaudeCodeRepoPrefix);
+  const repoGroup = String(windowItem?.iTermRepoGroup || "").trim();
+  const profileID = String(windowItem?.iTermProfileID || "").trim().toLowerCase();
+  const baseProfile = profileID.split("+")[0];
+  const isClaudeCode = baseProfile === "claude-code";
+  const isCodex = baseProfile === "codex";
+  const showRepoPrefix = repoPrefixEnabled && (isClaudeCode || isCodex) && repoGroup.length > 0;
+  if (showRepoPrefix) {
+    title.dataset.fullTitle = repoGroup + " " + displayedTitle;
+    title.dataset.repoPrefix = repoGroup;
+    title.textContent = repoGroup + " " + displayedTitle;
+  } else {
+    title.dataset.fullTitle = displayedTitle;
+    title.textContent = displayedTitle;
+  }
   const activeWindowHighlightColorizeEnabled = Boolean(settings.moveEverythingActiveWindowHighlightColorize);
   if (!hovered && focused && activeWindowHighlightColorizeEnabled) {
     const activeWindowColorPair = resolveMoveEverythingWindowActivityColorPair(
@@ -3417,8 +3983,6 @@ function buildMoveEverythingWindowRow(windowItem, options = {}) {
     state.moveEverythingCustomITermWindowTitlesByKey[windowKey] ||
     state.moveEverythingCustomWindowTitlesByKey[windowKey]
   );
-  const profileID = String(windowItem?.iTermProfileID || "").trim().toLowerCase();
-  const baseProfile = profileID.split("+")[0];
   const isClaudeOrCodex = baseProfile === "claude-code" || baseProfile === "codex";
   if (activityColorizeEnabled && isClaudeOrCodex && (activityStatus === "active" || activityStatus === "idle")) {
     const darkColor = activityStatus === "active"
@@ -3436,7 +4000,7 @@ function buildMoveEverythingWindowRow(windowItem, options = {}) {
     }
   }
   const subtitle = document.createElement("small");
-  subtitle.textContent = resolveMoveEverythingWindowSubtitle(windowItem);
+  subtitle.textContent = showRepoPrefix ? "" : resolveMoveEverythingWindowSubtitle(windowItem);
   copy.appendChild(title);
   copy.appendChild(subtitle);
   main.appendChild(copy);
@@ -3827,9 +4391,14 @@ function renderSettingsModal() {
   ids.settingDefaultCycleDisplaysOnWrap.checked = Boolean(
     state.config.settings.defaultCycleDisplaysOnWrap
   );
+  ids.settingControlCenterSticky.checked = Boolean(state.config.settings.controlCenterSticky);
   syncThemeModeSelect(state.config.settings.themeMode);
   renderControlCenterScaleInput();
-  ids.settingLargerFonts.checked = Boolean(state.config.settings.largerFonts);
+  ids.settingFontSizeAdjustPt.value = clampInt(
+    Number(state.config.settings.fontSizeAdjustPt ?? (state.config.settings.largerFonts ? 2 : 0)),
+    -4,
+    8
+  );
   ids.settingLaunchAtLogin.checked = Boolean(state.launchAtLogin.enabled);
   ids.settingLaunchAtLogin.disabled = !Boolean(state.launchAtLogin.supported);
   ids.openLoginItemsSettingsBtn.classList.toggle("hidden", !Boolean(state.launchAtLogin.supported));
@@ -4257,18 +4826,39 @@ async function loadFromYaml() {
   stopHotkeyRecording();
   hidePlacementPreview();
 
-  const proceed = await showConfirmDialog({
-    title: "Load configuration from YAML?",
-    message: "Loading from YAML will replace the current shortcut configuration.",
-    confirmLabel: "Load",
-    tone: "danger",
+  const action = await showActionDialog({
+    title: "Load YAML file",
+    message: "Choose how to apply the YAML file to your current configuration.",
+    actions: [
+      { key: "load", label: "Load (Replace)", tone: "danger" },
+      { key: "merge", label: "Merge", tone: "primary" },
+      { key: "mergeOverwrite", label: "Merge & Overwrite Conflicts", tone: "primary" },
+    ],
   });
-  if (!proceed) {
+
+  if (!action) {
     return;
   }
 
-  flushAutosave();
-  sendToNative("loadFromYaml");
+  if (action === "load") {
+    const proceed = await showConfirmDialog({
+      title: "Replace configuration?",
+      message: "Loading will replace your entire current configuration with the new YAML file.",
+      confirmLabel: "Replace",
+      tone: "danger",
+    });
+    if (!proceed) {
+      return;
+    }
+    flushAutosave();
+    sendToNative("loadFromYaml");
+  } else if (action === "merge") {
+    flushAutosave();
+    sendToNative("mergeFromYaml");
+  } else if (action === "mergeOverwrite") {
+    flushAutosave();
+    sendToNative("mergeOverwriteFromYaml");
+  }
 }
 
 function addShortcut() {
@@ -4282,8 +4872,10 @@ function addShortcut() {
     enabled: true,
     hotkey: { key: "left", modifiers: ["cmd", "alt"] },
     cycleDisplaysOnWrap: Boolean(state.config.settings.defaultCycleDisplaysOnWrap),
-    controlCenterOnly: false,
+    canMoveControlCenter: false,
     ignoreExcludePinnedWindows: false,
+    resetBeforeFirstStep: false,
+    resetBeforeFirstStepMoveCursor: false,
     placements: [defaultGridPlacement()],
   };
 
@@ -4895,13 +5487,13 @@ function updateCycleDisplaysOnWrap(value) {
   markDirty();
 }
 
-function updateControlCenterOnly(value) {
+function updateCanMoveControlCenter(value) {
   const shortcut = selectedShortcut();
   if (!shortcut) {
     return;
   }
 
-  shortcut.controlCenterOnly = Boolean(value);
+  shortcut.canMoveControlCenter = Boolean(value);
   markDirty();
   renderShortcutList();
 }
@@ -4913,6 +5505,27 @@ function updateIgnoreExcludePinnedWindows(value) {
   }
 
   shortcut.ignoreExcludePinnedWindows = Boolean(value);
+  markDirty();
+}
+
+function updateResetBeforeFirstStep(value) {
+  const shortcut = selectedShortcut();
+  if (!shortcut) {
+    return;
+  }
+
+  shortcut.resetBeforeFirstStep = Boolean(value);
+  markDirty();
+  renderShortcutEditor();
+}
+
+function updateResetBeforeFirstStepMoveCursor(value) {
+  const shortcut = selectedShortcut();
+  if (!shortcut) {
+    return;
+  }
+
+  shortcut.resetBeforeFirstStepMoveCursor = Boolean(value);
   markDirty();
 }
 
@@ -4967,8 +5580,11 @@ function updateSettings() {
   state.config.settings.defaultCycleDisplaysOnWrap = Boolean(
     ids.settingDefaultCycleDisplaysOnWrap.checked
   );
+  state.config.settings.controlCenterSticky = Boolean(ids.settingControlCenterSticky.checked);
   state.config.settings.themeMode = resolveThemeMode(ids.settingThemeMode.value);
-  state.config.settings.largerFonts = Boolean(ids.settingLargerFonts.checked);
+  const fontAdjust = clampInt(Number(ids.settingFontSizeAdjustPt.value), -4, 8);
+  state.config.settings.fontSizeAdjustPt = fontAdjust;
+  state.config.settings.largerFonts = fontAdjust > 0;
   state.config.settings = normalizeSettings(state.config.settings);
 
   const nonThemeSettingsChanged =
@@ -5827,9 +6443,15 @@ function normalizeSettings(settings) {
     defaultGridRows: clampInt(Number(source.defaultGridRows), 1, 20),
     gap: clampInt(Number(source.gap), 0, 80),
     defaultCycleDisplaysOnWrap: Boolean(source.defaultCycleDisplaysOnWrap),
+    controlCenterSticky: source.controlCenterSticky === undefined ? true : Boolean(source.controlCenterSticky),
     animationDuration: clampNumber(Number(source.animationDuration), 0, 30),
     controlCenterScale: clampControlCenterScale(source.controlCenterScale),
     largerFonts: Boolean(source.largerFonts),
+    fontSizeAdjustPt: clampInt(
+      Number(source.fontSizeAdjustPt ?? (source.largerFonts ? 2 : 0)),
+      -4,
+      8
+    ),
     themeMode,
     moveEverythingMoveOnSelection,
     moveEverythingCenterWidthPercent: clampNumber(
@@ -5848,6 +6470,9 @@ function normalizeSettings(settings) {
     moveEverythingStartMoveToBottom: Boolean(
       source.moveEverythingStartMoveToBottom ?? defaults.moveEverythingStartMoveToBottom
     ),
+    moveEverythingStartMoveToCenter: Boolean(
+      source.moveEverythingStartMoveToCenter ?? defaults.moveEverythingStartMoveToCenter
+    ),
     moveEverythingAdvancedControlCenterHover: Boolean(
       source.moveEverythingAdvancedControlCenterHover ??
         defaults.moveEverythingAdvancedControlCenterHover
@@ -5861,6 +6486,17 @@ function normalizeSettings(settings) {
         defaults.moveEverythingCloseHideHotkeysOutsideMode
     ),
     moveEverythingCloseMuxKill: source.moveEverythingCloseMuxKill ?? defaults.moveEverythingCloseMuxKill,
+    moveEverythingCloseSmart: Boolean(
+      source.moveEverythingCloseSmart ?? defaults.moveEverythingCloseSmart
+    ),
+    moveEverythingCloseSmartDelaySeconds: clampNumber(
+      Number(
+        source.moveEverythingCloseSmartDelaySeconds ??
+          defaults.moveEverythingCloseSmartDelaySeconds
+      ),
+      0.5,
+      120
+    ),
     moveEverythingExcludePinnedWindows: Boolean(
       source.moveEverythingExcludePinnedWindows ??
         source.moveEverythingExcludeControlCenter ??
@@ -5872,6 +6508,10 @@ function normalizeSettings(settings) {
     moveEverythingRetileOrder: normalizeMoveEverythingRetileOrder(
       source.moveEverythingRetileOrder ?? defaults.moveEverythingRetileOrder
     ),
+    moveEverythingRetileSide: (() => {
+      const v = String(source.moveEverythingRetileSide ?? defaults.moveEverythingRetileSide ?? "auto").toLowerCase();
+      return (v === "left" || v === "right") ? v : "auto";
+    })(),
     moveEverythingITermGroupByRepository: source.moveEverythingITermGroupByRepository !== false,
     moveEverythingMiniRetileWidthPercent: clampNumber(
       Number(source.moveEverythingMiniRetileWidthPercent ?? defaults.moveEverythingMiniRetileWidthPercent),
@@ -5882,6 +6522,10 @@ function normalizeSettings(settings) {
       Number(source.moveEverythingBackgroundRefreshInterval ?? defaults.moveEverythingBackgroundRefreshInterval),
       0.5,
       30
+    ),
+    moveEverythingActivityEnabled: (source.moveEverythingActivityEnabled ?? defaults.moveEverythingActivityEnabled) !== false,
+    moveEverythingVibedActivityEnabled: Boolean(
+      source.moveEverythingVibedActivityEnabled ?? defaults.moveEverythingVibedActivityEnabled
     ),
     moveEverythingITermRecentActivityTimeout: clampNumber(
       Number(
@@ -5952,6 +6596,13 @@ function normalizeSettings(settings) {
       ),
       0, 1
     ),
+    moveEverythingHoverOverlayOpacity: clampNumber(
+      Number(
+        source.moveEverythingHoverOverlayOpacity ??
+          defaults.moveEverythingHoverOverlayOpacity
+      ),
+      0, 2
+    ),
     moveEverythingITermActivityBackgroundTintEnabled: Boolean(
       source.moveEverythingITermActivityBackgroundTintEnabled ??
         defaults.moveEverythingITermActivityBackgroundTintEnabled
@@ -6005,6 +6656,15 @@ function normalizeSettings(settings) {
     moveEverythingWindowListIdleColorLight: normalizeHexColor(
       source.moveEverythingWindowListIdleColorLight ?? defaults.moveEverythingWindowListIdleColorLight, "#A03030"
     ),
+    moveEverythingClaudeCodeRepoPrefix: Boolean(
+      source.moveEverythingClaudeCodeRepoPrefix ?? defaults.moveEverythingClaudeCodeRepoPrefix
+    ),
+    moveEverythingClaudeCodeRepoPrefixColor: normalizeHexColor(
+      source.moveEverythingClaudeCodeRepoPrefixColor ?? defaults.moveEverythingClaudeCodeRepoPrefixColor, "#7B9ECA"
+    ),
+    moveEverythingClaudeCodeRepoPrefixColorLight: normalizeHexColor(
+      source.moveEverythingClaudeCodeRepoPrefixColorLight ?? defaults.moveEverythingClaudeCodeRepoPrefixColorLight, "#3A6CA8"
+    ),
     moveEverythingITermBadgeTopMargin: clampInt(
       Number(
         source.moveEverythingITermBadgeTopMargin ??
@@ -6045,6 +6705,30 @@ function normalizeSettings(settings) {
     ),
     moveEverythingRedoWindowMovementHotkey: normalizeHotkeyObject(
       source.moveEverythingRedoWindowMovementHotkey
+    ),
+    moveEverythingUndoWindowMovementForFocusedWindowHotkey: normalizeHotkeyObject(
+      source.moveEverythingUndoWindowMovementForFocusedWindowHotkey
+    ),
+    moveEverythingRedoWindowMovementForFocusedWindowHotkey: normalizeHotkeyObject(
+      source.moveEverythingRedoWindowMovementForFocusedWindowHotkey
+    ),
+    moveEverythingShowAllHiddenWindowsHotkey: normalizeHotkeyObject(
+      source.moveEverythingShowAllHiddenWindowsHotkey
+    ),
+    moveEverythingRetile1Hotkey: normalizeHotkeyObject(source.moveEverythingRetile1Hotkey),
+    moveEverythingRetile1Mode: normalizeRetileMode(
+      source.moveEverythingRetile1Mode,
+      defaults.moveEverythingRetile1Mode
+    ),
+    moveEverythingRetile2Hotkey: normalizeHotkeyObject(source.moveEverythingRetile2Hotkey),
+    moveEverythingRetile2Mode: normalizeRetileMode(
+      source.moveEverythingRetile2Mode,
+      defaults.moveEverythingRetile2Mode
+    ),
+    moveEverythingRetile3Hotkey: normalizeHotkeyObject(source.moveEverythingRetile3Hotkey),
+    moveEverythingRetile3Mode: normalizeRetileMode(
+      source.moveEverythingRetile3Mode,
+      defaults.moveEverythingRetile3Mode
     ),
   };
 }
@@ -6204,7 +6888,12 @@ function applyControlCenterScale() {
 }
 
 function applyLargerFonts() {
-  document.documentElement.classList.toggle("larger-fonts", Boolean(state.config?.settings?.largerFonts));
+  const raw = state.config?.settings?.fontSizeAdjustPt;
+  const adjust = Number.isFinite(raw)
+    ? Math.max(-4, Math.min(8, Math.round(Number(raw))))
+    : (state.config?.settings?.largerFonts ? 2 : 0);
+  document.documentElement.classList.toggle("larger-fonts", adjust > 0);
+  document.documentElement.style.setProperty("--fb", `${adjust}px`);
 }
 
 function handleSystemThemePreferenceChanged() {
@@ -6249,24 +6938,32 @@ function createDefaultConfig() {
       defaultGridRows: 8,
       gap: 2,
       defaultCycleDisplaysOnWrap: false,
+      controlCenterSticky: true,
       animationDuration: 0,
       controlCenterScale: 1,
       largerFonts: true,
+      fontSizeAdjustPt: 2,
       themeMode: "system",
       moveEverythingMoveOnSelection: "miniControlCenterOnTop",
       moveEverythingCenterWidthPercent: 33,
       moveEverythingCenterHeightPercent: 70,
       moveEverythingStartAlwaysOnTop: false,
       moveEverythingStartMoveToBottom: false,
+      moveEverythingStartMoveToCenter: false,
       moveEverythingAdvancedControlCenterHover: true,
       moveEverythingStickyHoverStealFocus: false,
       moveEverythingCloseHideHotkeysOutsideMode: false,
       moveEverythingCloseMuxKill: true,
+      moveEverythingCloseSmart: false,
+      moveEverythingCloseSmartDelaySeconds: 5,
       moveEverythingExcludePinnedWindows: false,
       moveEverythingQuickViewVerticalMode: "fromCursor",
       moveEverythingRetileOrder: "leftToRight",
       moveEverythingITermGroupByRepository: true,
+      moveEverythingActivityEnabled: true,
+      moveEverythingVibedActivityEnabled: false,
       moveEverythingMiniRetileWidthPercent: 25,
+      moveEverythingRetileSide: "auto",
       moveEverythingBackgroundRefreshInterval: 5,
       moveEverythingITermRecentActivityTimeout: 1,
       moveEverythingITermRecentActivityBuffer: 4,
@@ -6276,11 +6973,15 @@ function createDefaultConfig() {
       moveEverythingITermBadgeFromTitle: true,
       moveEverythingITermTitleFromBadge: true,
       moveEverythingITermTitleAllCaps: false,
+      moveEverythingClaudeCodeRepoPrefix: false,
+      moveEverythingClaudeCodeRepoPrefixColor: "#7B9ECA",
+      moveEverythingClaudeCodeRepoPrefixColorLight: "#3A6CA8",
       moveEverythingITermRecentActivityColorize: true,
       moveEverythingITermRecentActivityColorizeNamedOnly: false,
       moveEverythingITermActivityTintIntensity: 0.25,
       moveEverythingITermActivityHoldSeconds: 7,
       moveEverythingITermActivityOverlayOpacity: 0.0,
+      moveEverythingHoverOverlayOpacity: 1.0,
       moveEverythingITermActivityBackgroundTintEnabled: false,
       moveEverythingITermActivityBackgroundTintPersistent: true,
       moveEverythingITermActivityTabColorEnabled: false,
@@ -6306,6 +7007,15 @@ function createDefaultConfig() {
       moveEverythingQuickViewHotkey: null,
       moveEverythingUndoWindowMovementHotkey: null,
       moveEverythingRedoWindowMovementHotkey: null,
+      moveEverythingUndoWindowMovementForFocusedWindowHotkey: null,
+      moveEverythingRedoWindowMovementForFocusedWindowHotkey: null,
+      moveEverythingShowAllHiddenWindowsHotkey: null,
+      moveEverythingRetile1Hotkey: null,
+      moveEverythingRetile1Mode: "full",
+      moveEverythingRetile2Hotkey: null,
+      moveEverythingRetile2Mode: "iterm",
+      moveEverythingRetile3Hotkey: null,
+      moveEverythingRetile3Mode: "hybrid",
     },
     shortcuts: [],
   };
@@ -6401,7 +7111,53 @@ function closeConfirmDialog(confirmed) {
   resolve(Boolean(confirmed));
 }
 
+function showActionDialog({ title, message, actions }) {
+  return new Promise((resolve) => {
+    if (state.actionDialog?.resolve) {
+      state.actionDialog.resolve(null);
+    }
+
+    state.actionDialog = { resolve };
+    ids.actionTitle.textContent = title || "Choose Action";
+    ids.actionMessage.textContent = message || "";
+
+    ids.actionButtons.innerHTML = "";
+    for (const action of actions) {
+      const btn = document.createElement("button");
+      btn.className = `btn ${action.tone === "danger" ? "danger" : "primary"}`;
+      btn.textContent = action.label;
+      btn.addEventListener("click", () => closeActionDialog(action.key));
+      ids.actionButtons.appendChild(btn);
+    }
+    const cancelBtn = document.createElement("button");
+    cancelBtn.className = "btn ghost";
+    cancelBtn.textContent = "Cancel";
+    cancelBtn.addEventListener("click", () => closeActionDialog(null));
+    ids.actionButtons.appendChild(cancelBtn);
+
+    ids.actionModal.classList.remove("hidden");
+    ids.actionButtons.firstChild?.focus();
+  });
+}
+
+function closeActionDialog(key) {
+  if (!state.actionDialog) {
+    return;
+  }
+
+  const resolve = state.actionDialog.resolve;
+  state.actionDialog = null;
+  ids.actionModal.classList.add("hidden");
+  resolve(key);
+}
+
 function handleWindowKeyDown(event) {
+  if (state.actionDialog && event.key === "Escape") {
+    event.preventDefault();
+    closeActionDialog(null);
+    return;
+  }
+
   if (state.confirmDialog && event.key === "Escape") {
     event.preventDefault();
     closeConfirmDialog(false);
@@ -6440,6 +7196,11 @@ function handleWindowKeyDown(event) {
     return;
   }
 
+  if (handleMoveEverythingWindowListArrowKey(event)) {
+    event.preventDefault();
+    return;
+  }
+
   if (!canUseKeyboardListReorder(event)) {
     return;
   }
@@ -6448,6 +7209,137 @@ function handleWindowKeyDown(event) {
   const didMove = moveSelectedItemForLastHoveredKind(direction);
   if (didMove) {
     event.preventDefault();
+  }
+}
+
+function stepMoveEverythingWindowListSelection(direction) {
+  if (state.settingsModalOpen ||
+      state.moveEverythingModalOpen ||
+      state.confirmDialog ||
+      state.moveEverythingWindowEditor) {
+    return false;
+  }
+  const list = ids.moveEverythingWindowList;
+  if (!list || list.offsetParent === null) {
+    return false;
+  }
+  const rows = Array.from(
+    list.querySelectorAll(".move-window-row[data-me-window-key]")
+  ).filter((row) => {
+    if (row.dataset.meControlCenter === "1") return false;
+    if (row.offsetParent === null) return false;
+    return String(row.dataset.meWindowKey || "").trim().length > 0;
+  });
+  if (!rows.length) {
+    return false;
+  }
+
+  const hoveredKey = state.moveEverythingHoveredWindowKey;
+  const isNarrow = document.body.classList.contains("narrow-mode");
+  if (!hoveredKey && !isNarrow) {
+    return false;
+  }
+
+  let currentIndex = -1;
+  if (hoveredKey) {
+    currentIndex = rows.findIndex((row) => row.dataset.meWindowKey === hoveredKey);
+  }
+
+  const step = direction > 0 ? 1 : -1;
+  let targetIndex;
+  if (currentIndex < 0) {
+    targetIndex = step > 0 ? 0 : rows.length - 1;
+  } else {
+    targetIndex = currentIndex + step;
+    if (targetIndex < 0) targetIndex = 0;
+    if (targetIndex >= rows.length) targetIndex = rows.length - 1;
+    if (targetIndex === currentIndex) {
+      return true;
+    }
+  }
+
+  const targetRow = rows[targetIndex];
+  if (!targetRow) {
+    return false;
+  }
+
+  targetRow.scrollIntoView({ block: "nearest", inline: "nearest" });
+
+  const warpToRowCenter = () => {
+    const rect = targetRow.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return;
+    const x = rect.left + rect.width / 2;
+    const y = rect.top + rect.height / 2;
+    sendToNative("warpCursorToControlCenterPoint", { x, y });
+  };
+  if (typeof requestAnimationFrame === "function") {
+    requestAnimationFrame(warpToRowCenter);
+  } else {
+    warpToRowCenter();
+  }
+
+  const newKey = String(targetRow.dataset.meWindowKey || "").trim();
+  if (newKey) {
+    setMoveEverythingHoveredWindow(newKey, { render: true, immediate: true });
+  }
+  return true;
+}
+
+function handleMoveEverythingWindowListArrowKey(event) {
+  if (!state.controlCenterFocused) {
+    return false;
+  }
+  if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) {
+    return false;
+  }
+  const target = event.target instanceof Element ? event.target : null;
+  if ((target && isInteractiveElement(target)) ||
+      (document.activeElement instanceof Element && isInteractiveElement(document.activeElement))) {
+    return false;
+  }
+  return stepMoveEverythingWindowListSelection(event.key === "ArrowDown" ? 1 : -1);
+}
+
+// Mouse wheel mirrors the arrow-key behavior, throttled so a fast scroll
+// doesn't blow through the entire window list. Sub-tick deltas are accumulated
+// so trackpads still feel responsive without overshooting.
+const moveEverythingWheelStepMinIntervalMs = 22;
+const moveEverythingWheelStepDeltaThreshold = 8;
+let moveEverythingLastWheelStepAt = 0;
+let moveEverythingWheelDeltaAccumulator = 0;
+
+function handleMoveEverythingWindowListWheel(event) {
+  if (!event || typeof event.deltaY !== "number") return;
+  const deltaY = event.deltaY;
+  if (Math.abs(deltaY) < 0.5) return;
+
+  // Reset the accumulator on direction flip so a quick reversal doesn't
+  // require neutralising prior travel before the next step lands.
+  if ((deltaY > 0) !== (moveEverythingWheelDeltaAccumulator > 0)) {
+    moveEverythingWheelDeltaAccumulator = 0;
+  }
+  moveEverythingWheelDeltaAccumulator += deltaY;
+
+  const now = (typeof performance !== "undefined" && performance.now)
+    ? performance.now()
+    : Date.now();
+  if (now - moveEverythingLastWheelStepAt < moveEverythingWheelStepMinIntervalMs) {
+    event.preventDefault();
+    return;
+  }
+  if (Math.abs(moveEverythingWheelDeltaAccumulator) < moveEverythingWheelStepDeltaThreshold) {
+    // Don't preventDefault here — let small leftover deltas (e.g. trackpad
+    // inertia) pass through as normal scroll until they cross the threshold.
+    return;
+  }
+
+  const direction = moveEverythingWheelDeltaAccumulator > 0 ? 1 : -1;
+  if (stepMoveEverythingWindowListSelection(direction)) {
+    moveEverythingLastWheelStepAt = now;
+    moveEverythingWheelDeltaAccumulator = 0;
+    event.preventDefault();
+  } else {
+    moveEverythingWheelDeltaAccumulator = 0;
   }
 }
 
@@ -6478,6 +7370,7 @@ function wireEvents() {
     }
     handleMoveEverythingWindowListButtonEvent(event, "pointerdown");
   });
+  on(ids.moveEverythingWindowList, "wheel", handleMoveEverythingWindowListWheel, { passive: false });
   // Track clicks manually for double-click detection. Native dblclick is
   // unreliable because hover-driven state pushes can rebuild the DOM between
   // the two clicks, destroying the target element so the browser never fires
@@ -6524,6 +7417,7 @@ function wireEvents() {
       sendToNative("moveEverythingFocusWindow", {
         key,
         movePointerToCenter: true,
+        commitHoverPosition: true,
       });
       return;
     }
@@ -6531,8 +7425,26 @@ function wireEvents() {
     _lastRowClickKey = key;
     _lastRowClickTime = now;
   });
+  // Middle click (wheel button) on a visible row commits the window — same as Enter/double-click.
+  on(ids.moveEverythingWindowList, "auxclick", (event) => {
+    if (event.button !== 1) return;
+    const target = event.target instanceof Element ? event.target : null;
+    if (!target) return;
+    const row = target.closest(".move-window-row[data-me-window-key]");
+    if (!row ||
+        !ids.moveEverythingWindowList.contains(row) ||
+        row.classList.contains("hidden-window") ||
+        row.dataset.meControlCenter === "1") {
+      return;
+    }
+    const key = String(row.dataset.meWindowKey || "").trim();
+    if (!key) return;
+    event.preventDefault();
+    sendToNative("moveEverythingFocusWindow", { key, movePointerToCenter: true, commitHoverPosition: true });
+  });
   let _hoverHysteresisY = null;
   on(ids.moveEverythingWindowList, "pointermove", (event) => {
+    state.moveEverythingLastPointerClient = { x: event.clientX, y: event.clientY };
     // Don't change hover while a mouse button is pressed — a DOM rebuild
     // during a click would destroy the button element and eat the click.
     if (event.buttons !== 0) {
@@ -6576,13 +7488,45 @@ function wireEvents() {
     setMoveEverythingHoveredWindow(key);
   });
   on(ids.moveEverythingWindowList, "pointerleave", () => {
+    state.moveEverythingLastPointerClient = null;
     setMoveEverythingHoveredWindow(null, { immediate: true });
+  });
+  // Enter key on the control center commits the hovered window — same effect
+  // as double-clicking the row. Skipped when the user is typing in a form
+  // field so Enter still submits/newlines in inputs.
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" || event.isComposing) {
+      return;
+    }
+    if (event.metaKey || event.ctrlKey || event.altKey) {
+      return;
+    }
+    if (!state.moveEverythingActive) {
+      return;
+    }
+    const hoveredKey = state.moveEverythingHoveredWindowKey;
+    if (!hoveredKey) {
+      return;
+    }
+    const target = event.target instanceof Element ? event.target : null;
+    if (target && (isInteractiveElement(target) || target.isContentEditable)) {
+      return;
+    }
+    event.preventDefault();
+    sendToNative("moveEverythingFocusWindow", {
+      key: hoveredKey,
+      movePointerToCenter: true,
+      commitHoverPosition: true,
+    });
   });
   on(ids.moveEverythingAlwaysOnTop, "change", (event) =>
     updateMoveEverythingAlwaysOnTop(event.target.checked)
   );
   on(ids.moveEverythingMoveToBottom, "change", (event) =>
     updateMoveEverythingMoveToBottom(event.target.checked)
+  );
+  on(ids.moveEverythingMoveToCenter, "change", (event) =>
+    updateMoveEverythingMoveToCenter(event.target.checked)
   );
   on(ids.moveEverythingDontMoveVibeGrid, "change", (event) =>
     updateMoveEverythingDontMoveVibeGrid(event.target.checked)
@@ -6804,13 +7748,20 @@ function wireEvents() {
   ids.placementTitle.addEventListener("input", (event) => updatePlacementTitle(event.target.value));
   ids.displayTarget.addEventListener("change", (event) => updateDisplayTarget(event.target.value));
   ids.cycleDisplaysOnWrap.addEventListener("change", (event) => updateCycleDisplaysOnWrap(event.target.checked));
-  ids.controlCenterOnly.addEventListener("change", (event) => updateControlCenterOnly(event.target.checked));
+  ids.canMoveControlCenter.addEventListener("change", (event) => updateCanMoveControlCenter(event.target.checked));
   ids.ignoreExcludePinnedWindows.addEventListener("change", (event) => updateIgnoreExcludePinnedWindows(event.target.checked));
+  if (ids.resetBeforeFirstStep) {
+    ids.resetBeforeFirstStep.addEventListener("change", (event) => updateResetBeforeFirstStep(event.target.checked));
+  }
+  if (ids.resetBeforeFirstStepMoveCursor) {
+    ids.resetBeforeFirstStepMoveCursor.addEventListener("change", (event) => updateResetBeforeFirstStepMoveCursor(event.target.checked));
+  }
   document.getElementById("useForRetiling").addEventListener("change", (event) => updateUseForRetiling(event.target.value));
   ids.settingGridCols.addEventListener("input", updateSettings);
   ids.settingGridRows.addEventListener("input", updateSettings);
   ids.settingGap.addEventListener("input", updateSettings);
   ids.settingDefaultCycleDisplaysOnWrap.addEventListener("change", updateSettings);
+  ids.settingControlCenterSticky.addEventListener("change", updateSettings);
   ids.settingThemeMode.addEventListener("change", updateSettings);
   ids.settingControlCenterScale.addEventListener("input", (event) => {
     state.settingControlCenterScaleDraft = event.target.value;
@@ -6823,7 +7774,7 @@ function wireEvents() {
     applyControlCenterScaleSetting();
   });
   ids.applyControlCenterScaleBtn.addEventListener("click", applyControlCenterScaleSetting);
-  ids.settingLargerFonts.addEventListener("change", updateSettings);
+  ids.settingFontSizeAdjustPt.addEventListener("change", updateSettings);
   ids.settingLaunchAtLogin.addEventListener("change", (event) =>
     updateLaunchAtLogin(event.target.checked)
   );
@@ -7002,11 +7953,26 @@ function wireEvents() {
   on(ids.moveEverythingStartAlwaysOnTopSetting, "change", updateMoveEverythingSettings);
   on(ids.moveEverythingStickyHoverStealFocusSetting, "change", updateMoveEverythingSettings);
   on(ids.moveEverythingCloseMuxKillSetting, "change", updateMoveEverythingSettings);
+  on(ids.moveEverythingCloseSmartSetting, "change", updateMoveEverythingSettings);
+  on(ids.moveEverythingCloseSmartDelaySecondsSetting, "change", updateMoveEverythingSettings);
   on(ids.moveEverythingExcludePinnedWindowsSetting, "change", updateMoveEverythingSettings);
+  on(ids.moveEverythingCenterWidthPercentSetting, "change", updateMoveEverythingSettings);
+  on(ids.moveEverythingCenterHeightPercentSetting, "change", updateMoveEverythingSettings);
   on(ids.moveEverythingMiniRetileWidthPercentSetting, "change", updateMoveEverythingSettings);
   on(ids.moveEverythingRetileOrderSetting, "change", updateMoveEverythingSettings);
+  on(ids.moveEverythingRetileSideSetting, "change", updateMoveEverythingSettings);
+  on(ids.moveEverythingRetile1ModeSetting, "change", updateMoveEverythingSettings);
+  on(ids.moveEverythingRetile2ModeSetting, "change", updateMoveEverythingSettings);
+  on(ids.moveEverythingRetile3ModeSetting, "change", updateMoveEverythingSettings);
   on(ids.moveEverythingQuickViewVerticalModeSetting, "change", updateMoveEverythingSettings);
   on(ids.moveEverythingITermGroupByRepositorySetting, "change", updateMoveEverythingSettings);
+  on(ids.moveEverythingActivityEnabledSetting, "change", updateMoveEverythingSettings);
+  on(ids.moveEverythingVibedActivityEnabledSetting, "change", updateMoveEverythingSettings);
+  on(ids.moveEverythingClaudeCodeRepoPrefixSetting, "change", updateMoveEverythingSettings);
+  on(ids.moveEverythingClaudeCodeRepoPrefixColorSetting, "change", updateMoveEverythingSettings);
+  on(ids.moveEverythingClaudeCodeRepoPrefixColorSetting, "input", updateMoveEverythingSettings);
+  on(ids.moveEverythingClaudeCodeRepoPrefixColorLightSetting, "change", updateMoveEverythingSettings);
+  on(ids.moveEverythingClaudeCodeRepoPrefixColorLightSetting, "input", updateMoveEverythingSettings);
   on(ids.moveEverythingBackgroundRefreshIntervalSetting, "change", updateMoveEverythingSettings);
   on(ids.moveEverythingBackgroundRefreshIntervalSetting, "input", updateMoveEverythingSettings);
   on(ids.moveEverythingITermRecentActivityTimeoutSetting, "change", updateMoveEverythingSettings);
@@ -7029,6 +7995,8 @@ function wireEvents() {
   on(ids.moveEverythingITermActivityHoldSecondsSetting, "input", updateMoveEverythingSettings);
   on(ids.moveEverythingITermActivityOverlayOpacitySetting, "change", updateMoveEverythingSettings);
   on(ids.moveEverythingITermActivityOverlayOpacitySetting, "input", updateMoveEverythingSettings);
+  on(ids.moveEverythingHoverOverlayOpacitySetting, "change", updateMoveEverythingSettings);
+  on(ids.moveEverythingHoverOverlayOpacitySetting, "input", updateMoveEverythingSettings);
   on(ids.moveEverythingITermActivityBackgroundTintEnabledSetting, "change", updateMoveEverythingSettings);
   on(ids.moveEverythingITermActivityBackgroundTintPersistentSetting, "change", updateMoveEverythingSettings);
   on(ids.moveEverythingITermActivityTabColorEnabledSetting, "change", updateMoveEverythingSettings);

@@ -114,7 +114,24 @@ final class WindowManagerEngine: WindowManagerEngineProtocol {
     var onMoveEverythingModeChanged: ((Bool) -> Void)?
 
     /// Side-effect hook called before the default AX close (e.g. async mux session kill).
-    var onCloseWindowOverride: ((_ key: String) -> Void)?
+    /// `force` is true for the deferred kill triggered by smart close after its grace delay,
+    /// which should use `mux kill --now` (not undoable).
+    var onCloseWindowOverride: ((_ key: String, _ force: Bool) -> Void)?
+
+    /// Resolves the mux/tmux session name associated with a window key *right now*.
+    /// Smart close reads this at hide-time and captures the result, so the deferred kill
+    /// cannot drift onto a different session if the window's active tab changes during the
+    /// grace delay.
+    var muxSessionNameForKey: ((_ key: String) -> String?)?
+
+    /// Kills a specific mux session by name, bypassing any window-to-session cache. Used by
+    /// smart close's deferred kill with `force: true` so the captured session is the one
+    /// that actually gets killed.
+    var killMuxSessionByName: ((_ sessionName: String, _ force: Bool) -> Void)?
+
+    /// Pending deferred kills scheduled by smart close. Keyed by window key so a second
+    /// close press on the same window cancels the first pending kill (idempotent).
+    var pendingSmartCloseWorkItemsByKey: [String: DispatchWorkItem] = [:]
 
     var iTermLastActiveAtBySnapshotKey: [String: Date] = [:]
     var iTermRepositoryGroupBySnapshotKey: [String: String] = [:]
@@ -123,12 +140,43 @@ final class WindowManagerEngine: WindowManagerEngineProtocol {
     var shortcutsByID: [String: ShortcutConfig] = [:]
     var registeredHotkeyActionsByID: [String: RegisteredHotkeyAction] = [:]
 
-    var cycleIndexByShortcut: [String: Int] = [:]
-    var displayOffsetByShortcut: [String: Int] = [:]
-    var activeDisplayAnchorIndexByShortcut: [String: Int] = [:]
+    /// Per-(shortcut, target window) cycling state. Keyed by
+    /// `shortcutCycleKey(shortcutID:windowKey:)` so each window maintains an
+    /// independent cycle position, pending-reset flag, and press timestamp.
+    /// Switching windows or firing a different shortcut no longer clobbers
+    /// progress on the original (shortcut, window).
+    struct ShortcutCycleState {
+        var cycleIndex: Int = 0
+        var displayOffset: Int = 0
+        var activeDisplayAnchorIndex: Int? = nil
+        var pendingResetConsumed: Bool = false
+        var lastPressAt: Date? = nil
+    }
+    var shortcutCycleStates: [String: ShortcutCycleState] = [:]
+
+    /// Pre-sequence frame shared across all reset-enabled placement shortcuts
+    /// targeting the same window. Captured by the FIRST reset-enabled shortcut
+    /// to fire on a fresh window; subsequent shortcuts inherit it instead of
+    /// re-capturing their own (intermediate) frame. Cleared when any wrap-reset
+    /// is consumed or when the entry goes stale (no reset-enabled press within
+    /// `shortcutCycleResetTimeout`).
+    struct PreSequenceFrameEntry {
+        var frame: CGRect
+        var cursorPosition: CGPoint?
+        var lastTouchedAt: Date
+    }
+    var preSequenceFrameByWindowKey: [String: PreSequenceFrameEntry] = [:]
+    /// ID of the last placement shortcut that fired. Used to interrupt a
+    /// non-memory shortcut's cycle when a different shortcut is pressed in
+    /// between, so the sequence 1→2→1 restarts step 1 of shortcut 1 rather
+    /// than continuing where it left off. Memory shortcuts
+    /// (`resetBeforeFirstStep`) are exempt — their state is preserved across
+    /// other presses so the eventual reset-to-original still works.
+    var lastFiredPlacementShortcutID: String?
     let shortcutCycleResetTimeout: TimeInterval = 10
-    var lastShortcutID: String?
-    var lastShortcutPressAt: Date?
+    /// How long an unused (shortcut, window) entry is retained before pruning.
+    /// Bounds memory when users repeatedly press shortcuts across many windows.
+    let shortcutCycleStatePruneThreshold: TimeInterval = 3600
     var hotkeysSuspendedForCapture = false
 
     var moveEverythingRunState: MoveEverythingRunState?
@@ -148,6 +196,7 @@ final class WindowManagerEngine: WindowManagerEngineProtocol {
     var moveEverythingFocusedKeyBeforeHover: String?
     var moveEverythingShowOverlays = true
     var moveEverythingMoveToBottom = false
+    var moveEverythingMoveToCenter = false
     var moveEverythingDontMoveVibeGrid = false
     var moveEverythingPinnedWindowKeys: Set<String> = []
     var moveEverythingPinMode = false
@@ -162,6 +211,12 @@ final class WindowManagerEngine: WindowManagerEngineProtocol {
     var moveEverythingSavedWindowPositionSelectedIndex: Int?
     var hotkeyWindowMovementUndoHistory: [HotkeyWindowMovementRecord] = []
     var hotkeyWindowMovementRedoHistory: [HotkeyWindowMovementRecord] = []
+
+    /// Per-window movement timeline storage. Keyed by `"{pid}:{windowNumber}"`
+    /// so VibeGrid moves and MoveEverything inventory polling samples land on
+    /// the same timeline. Separate from `hotkeyWindowMovement{Undo,Redo}History`
+    /// (the global stack) — both systems run alongside each other.
+    var perWindowMovementTimelinesByKey: [String: PerWindowMovementTimeline] = [:]
     var moveEverythingHoverAdvancedOriginalFrameByWindowKey: [String: CGRect] = [:]
     var moveEverythingIconDataURLByPID: [pid_t: String] = [:]
     var moveEverythingResolvedInventoryCache: MoveEverythingManagedWindowInventory?
@@ -202,11 +257,48 @@ final class WindowManagerEngine: WindowManagerEngineProtocol {
     let moveEverythingTemporaryControlCenterTopDuration: TimeInterval = 0.42
     var moveEverythingControlCenterFocusedLastKnown = false
     var moveEverythingHoverFocusTransitionDepth = 0
+
+    // MARK: - Proxy-hover state
+
+    struct ProxyHoverEntry {
+        let gatingFocusPid: pid_t
+        let gatingFocusWindowNumber: Int?
+        let gatingFocusITermWindowID: String?
+        let targetPid: pid_t?
+        let targetWindowNumber: Int?
+        let targetITermWindowID: String?
+        let targetITermTTY: String?
+        let expiresAt: Date
+    }
+
+    var proxyHoverEntriesByGatingPid: [pid_t: ProxyHoverEntry] = [:]
+    var proxyHoverActiveGatingPid: pid_t?
+    var proxyHoverActiveWindowKey: String?
+    var proxyHoverStartedMoveEverythingMode = false
+    var proxyHoverEvaluationTimer: Timer?
+    var proxyHoverFrontmostObserver: NSObjectProtocol?
+    let proxyHoverEvaluationInterval: TimeInterval = 0.5
+    var proxyHoverITermTTYCache: Any?
+    /// Last time each pid was observed as the frontmost application. Used by
+    /// proxy-hover gating to tolerate brief focus blips (e.g. when our own
+    /// hover overlay momentarily steals focus from the gating app, which
+    /// would otherwise cause the hover to release and re-apply on a flicker
+    /// loop).
+    var proxyHoverLastFrontmostByPid: [pid_t: Date] = [:]
+    /// How long after losing frontmost status a pid is still treated as
+    /// "frontmost enough" for proxy-hover gating purposes.
+    let proxyHoverFrontmostGraceInterval: TimeInterval = 1.0
+    /// Set true while proxy-hover is applying its hover state. Read by
+    /// hover-pulse code to skip focus-stealing operations (e.g. activating
+    /// VibeGrid for Control Center input) — the gating app must keep focus
+    /// or proxy-hover release-flickers the moment we apply.
+    var proxyHoverSuppressFocusEffects: Bool = false
     var hotkeyPassthroughRestoreWorkItem: DispatchWorkItem?
     var firefoxFrameRetryWorkItemsByKey: [String: [DispatchWorkItem]] = [:]
     var onMoveEverythingInventoryRefreshed: (() -> Void)?
     var onMoveEverythingNameWindowRequested: ((String) -> Void)?
     var onMoveEverythingQuickViewRequested: (() -> Void)?
+    var onRetileHotkeyFired: ((_ action: MoveEverythingHotkeyAction) -> Void)?
     var onMoveEverythingSavedWindowPositionsHistoryChanged: (([MoveEverythingSavedWindowPositionsSnapshot]) -> Void)?
     var isMoveEverythingAlwaysOnTopEnabledProvider: (() -> Bool)?
     var cachedDesktopFrame: CGRect?
@@ -230,6 +322,10 @@ final class WindowManagerEngine: WindowManagerEngineProtocol {
         firefoxFrameRetryWorkItemsByKey.values.flatMap { $0 }.forEach { $0.cancel() }
         moveEverythingOverlaySyncTimer?.invalidate()
         moveEverythingBackgroundInventoryTimer?.invalidate()
+        proxyHoverEvaluationTimer?.invalidate()
+        if let observer = proxyHoverFrontmostObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(observer)
+        }
     }
 
     // MARK: - Configuration
@@ -242,15 +338,12 @@ final class WindowManagerEngine: WindowManagerEngineProtocol {
                 NSLog("VibeGrid: duplicate shortcut id '%@' detected after normalization; keeping last definition", shortcut.id)
             }
         }
-        cycleIndexByShortcut.removeAll()
-        displayOffsetByShortcut.removeAll()
-        activeDisplayAnchorIndexByShortcut.removeAll()
-        lastShortcutID = nil
-        lastShortcutPressAt = nil
+        shortcutCycleStates.removeAll()
+        lastFiredPlacementShortcutID = nil
 
         if isMoveEverythingActive,
            (normalized.settings.moveEverythingMoveOnSelection != .miniControlCenterOnTop ||
-            !moveEverythingMoveToBottom) {
+            (!moveEverythingMoveToBottom && !moveEverythingMoveToCenter)) {
             restoreAllMoveEverythingAdvancedHoverLayoutsIfNeeded(in: moveEverythingRunState)
         } else if !isMoveEverythingActive {
             moveEverythingHoverAdvancedOriginalFrameByWindowKey.removeAll()
@@ -351,6 +444,12 @@ final class WindowManagerEngine: WindowManagerEngineProtocol {
         actions.append(.quickView)
         actions.append(.undoWindowMovement)
         actions.append(.redoWindowMovement)
+        actions.append(.undoWindowMovementForFocusedWindow)
+        actions.append(.redoWindowMovementForFocusedWindow)
+        actions.append(.showAllHiddenWindows)
+        actions.append(.retile1)
+        actions.append(.retile2)
+        actions.append(.retile3)
 
         return actions
     }

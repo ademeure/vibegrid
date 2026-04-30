@@ -204,11 +204,17 @@ final class UIBridge: NSObject, WKScriptMessageHandler {
                 return
             }
             let movePointerToCenter = payload["movePointerToCenter"] as? Bool ?? false
+            let commitHoverPosition = payload["commitHoverPosition"] as? Bool ?? false
             if !appState.focusMoveEverythingWindow(
                 withKey: key,
-                movePointerToCenter: movePointerToCenter
+                movePointerToCenter: movePointerToCenter,
+                commitHoverPosition: commitHoverPosition
             ) {
                 sendNotice(level: "error", message: "Unable to focus that window")
+            }
+            if appState.isQuickViewActive() {
+                appState.exitQuickView()
+                pushStateToWeb(forceMoveEverythingWindowRefresh: false, allowMoveEverythingWindowRefresh: false)
             }
 
         case "moveEverythingCenterWindow":
@@ -320,49 +326,49 @@ final class UIBridge: NSObject, WKScriptMessageHandler {
             pushStateToWeb(forceMoveEverythingWindowRefresh: true)
 
         case "moveEverythingRetileVisibleWindows":
-            if !appState.retileVisibleMoveEverythingWindows() {
-                let message = appState.moveEverythingLastDirectActionError() ?? "Unable to retile visible windows"
-                sendNotice(level: "error", message: message)
-            } else if let message = appState.moveEverythingLastDirectActionError(), !message.isEmpty {
-                sendNotice(level: "info", message: message)
+            appState.performRetile(mode: .full) { [weak self] success in
+                guard let self else { return }
+                let err = self.appState.moveEverythingLastDirectActionError()
+                if !success { self.sendNotice(level: "error", message: err ?? "Unable to retile visible windows") }
+                else if let msg = err, !msg.isEmpty { self.sendNotice(level: "info", message: msg) }
+                self.pushStateToWeb(forceMoveEverythingWindowRefresh: true)
             }
-            pushStateToWeb(forceMoveEverythingWindowRefresh: true)
 
         case "moveEverythingMiniRetileVisibleWindows":
-            if !appState.miniRetileVisibleMoveEverythingWindows() {
-                let message = appState.moveEverythingLastDirectActionError() ?? "Unable to mini retile visible windows"
-                sendNotice(level: "error", message: message)
-            } else if let message = appState.moveEverythingLastDirectActionError(), !message.isEmpty {
-                sendNotice(level: "info", message: message)
+            appState.performRetile(mode: .mini) { [weak self] success in
+                guard let self else { return }
+                let err = self.appState.moveEverythingLastDirectActionError()
+                if !success { self.sendNotice(level: "error", message: err ?? "Unable to mini retile visible windows") }
+                else if let msg = err, !msg.isEmpty { self.sendNotice(level: "info", message: msg) }
+                self.pushStateToWeb(forceMoveEverythingWindowRefresh: true)
             }
-            pushStateToWeb(forceMoveEverythingWindowRefresh: true)
 
         case "moveEverythingITermRetileVisibleWindows":
-            if !appState.iTermRetileVisibleMoveEverythingWindows() {
-                let message = appState.moveEverythingLastDirectActionError() ?? "Unable to retile iTerm windows"
-                sendNotice(level: "error", message: message)
-            } else if let message = appState.moveEverythingLastDirectActionError(), !message.isEmpty {
-                sendNotice(level: "info", message: message)
+            appState.performRetile(mode: .iterm) { [weak self] success in
+                guard let self else { return }
+                let err = self.appState.moveEverythingLastDirectActionError()
+                if !success { self.sendNotice(level: "error", message: err ?? "Unable to retile iTerm windows") }
+                else if let msg = err, !msg.isEmpty { self.sendNotice(level: "info", message: msg) }
+                self.pushStateToWeb(forceMoveEverythingWindowRefresh: true)
             }
-            pushStateToWeb(forceMoveEverythingWindowRefresh: true)
 
         case "moveEverythingNonITermRetileVisibleWindows":
-            if !appState.nonITermRetileVisibleMoveEverythingWindows() {
-                let message = appState.moveEverythingLastDirectActionError() ?? "Unable to retile other windows"
-                sendNotice(level: "error", message: message)
-            } else if let message = appState.moveEverythingLastDirectActionError(), !message.isEmpty {
-                sendNotice(level: "info", message: message)
+            appState.performRetile(mode: .nonITerm) { [weak self] success in
+                guard let self else { return }
+                let err = self.appState.moveEverythingLastDirectActionError()
+                if !success { self.sendNotice(level: "error", message: err ?? "Unable to retile other windows") }
+                else if let msg = err, !msg.isEmpty { self.sendNotice(level: "info", message: msg) }
+                self.pushStateToWeb(forceMoveEverythingWindowRefresh: true)
             }
-            pushStateToWeb(forceMoveEverythingWindowRefresh: true)
 
         case "moveEverythingHybridRetileVisibleWindows":
-            if !appState.hybridRetileVisibleMoveEverythingWindows() {
-                let message = appState.moveEverythingLastDirectActionError() ?? "Unable to hybrid retile visible windows"
-                sendNotice(level: "error", message: message)
-            } else if let message = appState.moveEverythingLastDirectActionError(), !message.isEmpty {
-                sendNotice(level: "info", message: message)
+            appState.performRetile(mode: .hybrid) { [weak self] success in
+                guard let self else { return }
+                let err = self.appState.moveEverythingLastDirectActionError()
+                if !success { self.sendNotice(level: "error", message: err ?? "Unable to hybrid retile visible windows") }
+                else if let msg = err, !msg.isEmpty { self.sendNotice(level: "info", message: msg) }
+                self.pushStateToWeb(forceMoveEverythingWindowRefresh: true)
             }
-            pushStateToWeb(forceMoveEverythingWindowRefresh: true)
 
         case "moveEverythingUndoRetile":
             if !appState.undoLastMoveEverythingRetile() {
@@ -386,6 +392,7 @@ final class UIBridge: NSObject, WKScriptMessageHandler {
             config.settings.controlCenterFrameHeight = Double(frame.size.height)
             config.settings.moveEverythingStartAlwaysOnTop = appState.moveEverythingAlwaysOnTopEnabled()
             config.settings.moveEverythingStartMoveToBottom = appState.moveEverythingMoveToBottomEnabled()
+            config.settings.moveEverythingStartMoveToCenter = appState.moveEverythingMoveToCenterEnabled()
             config.settings.moveEverythingStartDontMoveVibeGrid = appState.moveEverythingDontMoveVibeGridEnabled()
             if appState.save(config: config, refreshControlCenter: false) {
                 sendNotice(level: "success", message: "Defaults saved (position & toggles)")
@@ -402,6 +409,7 @@ final class UIBridge: NSObject, WKScriptMessageHandler {
             settings.controlCenterFrameHeight = nil
             settings.moveEverythingStartAlwaysOnTop = false
             settings.moveEverythingStartMoveToBottom = false
+            settings.moveEverythingStartMoveToCenter = false
             settings.moveEverythingStartDontMoveVibeGrid = false
             var config = appState.config
             config.settings = settings
@@ -412,6 +420,7 @@ final class UIBridge: NSObject, WKScriptMessageHandler {
             }
             appState.setMoveEverythingAlwaysOnTop(enabled: false)
             appState.setMoveEverythingMoveToBottom(enabled: false)
+            appState.setMoveEverythingMoveToCenter(enabled: false)
             appState.setMoveEverythingDontMoveVibeGrid(enabled: false)
             pushStateToWeb()
 
@@ -429,6 +438,27 @@ final class UIBridge: NSObject, WKScriptMessageHandler {
             let enabled = (body["payload"] as? [String: Any])?["enabled"] as? Bool ?? false
             appState.setMoveEverythingMoveToBottom(enabled: enabled)
             pushStateToWeb(forceMoveEverythingWindowRefresh: false)
+
+        case "setMoveEverythingMoveToCenter":
+            let enabled = (body["payload"] as? [String: Any])?["enabled"] as? Bool ?? false
+            appState.setMoveEverythingMoveToCenter(enabled: enabled)
+            pushStateToWeb(forceMoveEverythingWindowRefresh: false)
+
+        case "warpCursorToControlCenterPoint":
+            // Only warp if the cursor hasn't moved since the quick view hotkey was pressed.
+            // This avoids yanking the cursor out from under the user if they moved the mouse
+            // between pressing the hotkey and the JS bridge round-trip completing.
+            if let origin = appState.quickViewActivationCursorPosition {
+                let current = NSEvent.mouseLocation
+                let dx = current.x - origin.x
+                let dy = current.y - origin.y
+                let moved = (dx * dx + dy * dy) > (20 * 20)
+                if moved { break }
+            }
+            let payload = body["payload"] as? [String: Any] ?? [:]
+            let clientX = CGFloat(payload["x"] as? Double ?? Double(payload["x"] as? Int ?? 0))
+            let clientY = CGFloat(payload["y"] as? Double ?? Double(payload["y"] as? Int ?? 0))
+            warpCursor(toControlCenterViewPointX: clientX, y: clientY)
 
         case "setMoveEverythingDontMoveVibeGrid":
             let enabled = (body["payload"] as? [String: Any])?["enabled"] as? Bool ?? false
@@ -524,6 +554,26 @@ final class UIBridge: NSObject, WKScriptMessageHandler {
                 sendNotice(level: "error", message: message)
             }
 
+        case "mergeFromYaml":
+            switch appState.mergeConfigFromYAML(overwrite: false) {
+            case .success(let message):
+                sendNotice(level: "success", message: message)
+            case .cancelled:
+                break
+            case .failure(let message):
+                sendNotice(level: "error", message: message)
+            }
+
+        case "mergeOverwriteFromYaml":
+            switch appState.mergeConfigFromYAML(overwrite: true) {
+            case .success(let message):
+                sendNotice(level: "success", message: message)
+            case .cancelled:
+                break
+            case .failure(let message):
+                sendNotice(level: "error", message: message)
+            }
+
         default:
             sendNotice(level: "error", message: "Unknown action: \(type)")
         }
@@ -561,10 +611,13 @@ final class UIBridge: NSObject, WKScriptMessageHandler {
             "moveEverythingActive": moveEverythingActive,
             "moveEverythingWindows": moveEverythingWindowInventoryPayload,
             "moveEverythingFocusedWindowKey": appState.moveEverythingFocusedWindowKey() ?? "",
+            "moveEverythingHoveredWindowKey": appState.moveEverythingHoveredWindowKey() ?? "",
+            "quickViewActive": appState.isQuickViewActive(),
             "controlCenterFocused": appState.controlCenterFocused(),
             "moveEverythingControlCenterFocused": appState.moveEverythingControlCenterFocused(),
             "moveEverythingAlwaysOnTop": appState.moveEverythingAlwaysOnTopEnabled(),
             "moveEverythingMoveToBottom": appState.moveEverythingMoveToBottomEnabled(),
+            "moveEverythingMoveToCenter": appState.moveEverythingMoveToCenterEnabled(),
             "moveEverythingDontMoveVibeGrid": appState.moveEverythingDontMoveVibeGridEnabled(),
             "moveEverythingPinnedWindowKeys": Array(appState.moveEverythingPinnedKeys()),
             "moveEverythingShowOverlays": appState.moveEverythingShowOverlaysEnabled(),
@@ -583,6 +636,26 @@ final class UIBridge: NSObject, WKScriptMessageHandler {
 
     func sendOpenWindowEditor(key: String) {
         send(type: "openWindowEditor", payload: ["key": key])
+    }
+
+    private func warpCursor(toControlCenterViewPointX clientX: CGFloat, y clientY: CGFloat) {
+        guard let webView,
+              let window = webView.window else {
+            return
+        }
+        let pointInView = NSPoint(x: clientX, y: clientY)
+        let pointInWindow = webView.convert(pointInView, to: nil)
+        let pointInScreen = window.convertPoint(toScreen: pointInWindow)
+        let desktop = NSScreen.screens.reduce(CGRect.null) { $0.union($1.frame) }
+        guard !desktop.isNull, !desktop.isEmpty else {
+            return
+        }
+        let quartzPoint = CGPoint(
+            x: pointInScreen.x,
+            y: desktop.maxY - pointInScreen.y
+        )
+        _ = CGWarpMouseCursorPosition(quartzPoint)
+        CGAssociateMouseAndMouseCursorPosition(1)
     }
 
     private func sendNotice(level: String, message: String) {
@@ -692,9 +765,20 @@ final class UIBridge: NSObject, WKScriptMessageHandler {
     }
 
     private func enrichInventoryWithActivity(_ payload: Any, inventory: MoveEverythingWindowInventory) -> Any {
-        // Kick off an async iTerm screen poll (results arrive and trigger refresh).
-        // Pass the inventory we already have to avoid a redundant AX enumeration.
-        appState.refreshITermActivity(cachedInventory: inventory)
+        let activityEnabled = appState.config.settings.moveEverythingActivityEnabled
+        let vibedEnabled = appState.config.settings.moveEverythingVibedActivityEnabled
+        guard activityEnabled || vibedEnabled else {
+            return payload
+        }
+        // Drive the right poll source. When vibed is the sole source, skip the
+        // iTerm screen poll so it doesn't mask vibed data.
+        if vibedEnabled {
+            appState.refreshVibedActivity()
+            appState.refreshVibedRuntimeMapping(cachedInventory: inventory)
+        }
+        if activityEnabled {
+            appState.refreshITermActivity(cachedInventory: inventory)
+        }
 
         // Compute activity status from detector output built from recent
         // visible-screen deltas and profile-specific rules.
@@ -707,7 +791,15 @@ final class UIBridge: NSObject, WKScriptMessageHandler {
         let panePathCache = appState.iTermPanePathCache
         let paneTitleCache = appState.iTermPaneTitleCache
         let repoGroupCache = appState.iTermRepoGroups()
+        let vibedCache = appState.vibedActivityByWindowID
+        let vibedToolCache = appState.vibedToolByWindowID
+        let runtimeWindowIDByKey = appState.iTermRuntimeWindowIDBySnapshotKey
         var statusByKey: [String: String] = [:]
+        var vibedProfileByKey: [String: String] = [:]
+
+        if vibedEnabled {
+            WindowListDebugLogger.log("vibed-debug", "cache=\(vibedCache.count) runtimeMap=\(runtimeWindowIDByKey.count)")
+        }
 
         for snapshot in inventory.visible + inventory.hidden {
             let appName = snapshot.appName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
@@ -716,6 +808,27 @@ final class UIBridge: NSObject, WKScriptMessageHandler {
             if let status = activityCache[snapshot.key],
                status == "active" || status == "idle" {
                 statusByKey[snapshot.key] = status
+            }
+            if vibedEnabled {
+                let runtimeID = runtimeWindowIDByKey[snapshot.key]
+                let vibedStatus = runtimeID.flatMap { vibedCache[$0] }
+                WindowListDebugLogger.log("vibed-lookup", "key=\(snapshot.key) runtimeID=\(runtimeID ?? "nil") status=\(vibedStatus ?? "nil")")
+                if let runtimeID, let vibedStatus {
+                    statusByKey[snapshot.key] = vibedStatus
+                    // Map tool → iTerm profile ID so the JS colorization gate
+                    // passes. Only set a profile for actual LLM tools — leave
+                    // plain shells (and anything else) without a profile so
+                    // the UI doesn't false-label them as Claude.
+                    let tool = vibedToolCache[runtimeID] ?? "shell"
+                    switch tool {
+                    case "codex":
+                        vibedProfileByKey[snapshot.key] = "codex"
+                    case "claude":
+                        vibedProfileByKey[snapshot.key] = "claude-code"
+                    default:
+                        break
+                    }
+                }
             }
         }
 
@@ -738,7 +851,20 @@ final class UIBridge: NSObject, WKScriptMessageHandler {
                 if let lastLine = lastLineCache[key] {
                     w["iTermLastLine"] = lastLine
                 }
-                if let profileID = profileCache[key] {
+                // iTermProfileID resolution: vibed's caffeinate-based tool
+                // detection is the source of truth when present. The screen
+                // poll's profileCache can hold a stale "claude-code"/"codex"
+                // tag from a prior classification; that stamp must not
+                // override what vibed reports right now.
+                if let vibedProfile = vibedProfileByKey[key] {
+                    let suffix: String
+                    if let cached = profileCache[key], cached.contains("+") {
+                        suffix = "+" + cached.split(separator: "+").dropFirst().joined(separator: "+")
+                    } else {
+                        suffix = ""
+                    }
+                    w["iTermProfileID"] = vibedProfile + suffix
+                } else if let profileID = profileCache[key] {
                     w["iTermProfileID"] = profileID
                 }
                 if let paneCommand = paneCommandCache[key] {

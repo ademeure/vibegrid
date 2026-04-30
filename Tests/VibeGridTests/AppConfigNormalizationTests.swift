@@ -211,11 +211,11 @@ shortcuts:
     let decoded = try YAMLConfigCodec.decode(yaml)
     #expect(decoded.shortcuts.count == 1)
     #expect(decoded.shortcuts[0].cycleDisplaysOnWrap == true)
-    #expect(decoded.shortcuts[0].controlCenterOnly == false)
+    #expect(decoded.shortcuts[0].canMoveControlCenter == false)
     #expect(decoded.settings.themeMode == .system)
 }
 
-@Test func yamlShortcutParsesControlCenterOnlyFlag() throws {
+@Test func yamlShortcutParsesCanMoveControlCenterFlag() throws {
     let yaml = """
 version: 1
 settings:
@@ -227,7 +227,7 @@ settings:
 shortcuts:
   - id: control-center
     name: Control Center
-    controlCenterOnly: true
+    canMoveControlCenter: true
     hotkey:
       key: c
       modifiers:
@@ -246,7 +246,7 @@ shortcuts:
 
     let decoded = try YAMLConfigCodec.decode(yaml)
     #expect(decoded.shortcuts.count == 1)
-    #expect(decoded.shortcuts[0].controlCenterOnly == true)
+    #expect(decoded.shortcuts[0].canMoveControlCenter == true)
 }
 
 @Test func yamlRoundTripPreservesEscapedQuotesAndBackslashes() throws {
@@ -315,7 +315,7 @@ shortcuts:
       name: Max
       enabled: true
       cycleDisplaysOnWrap: true
-      controlCenterOnly: false
+      canMoveControlCenter: false
       hotkey:
         key: keypad_asterisk
         modifiers:

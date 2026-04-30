@@ -1293,6 +1293,7 @@ func defaultConfig() map[string]any {
 			"moveEverythingCloseWindowHotkey":               nil,
 			"moveEverythingHideWindowHotkey":                nil,
 			"largerFonts":                                   true,
+			"fontSizeAdjustPt":                              2,
 		},
 		"shortcuts": defaultShortcuts(),
 	}

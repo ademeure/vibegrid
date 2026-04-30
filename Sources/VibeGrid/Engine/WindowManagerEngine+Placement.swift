@@ -32,16 +32,28 @@ extension WindowManagerEngine {
             return
         }
 
-        guard let targetPlacement = nextPlacement(for: shortcut) else {
+        let targetWindowKey = resolvePlacementShortcutTargetWindowKey(for: shortcut)
+        let cycleKey = shortcutCycleKey(shortcutID: shortcutID, windowKey: targetWindowKey)
+
+        guard let action = nextShortcutAction(for: shortcut, targetWindowKey: targetWindowKey) else {
             return
         }
 
-        if shortcut.controlCenterOnly {
-            _ = applyPlacementShortcutToControlCenter(
-                shortcutID: shortcutID,
-                placement: targetPlacement
-            )
-            return
+        let targetPlacement: PlacementStep
+        let shouldCapturePreFirstStepFrame: Bool
+        let isResetAction: Bool
+        switch action {
+        case .placement(let step, let capture):
+            targetPlacement = step
+            shouldCapturePreFirstStepFrame = capture
+            isResetAction = false
+        case .reset:
+            guard shortcutPreFirstStepFrame(cycleKey: cycleKey) != nil else {
+                return
+            }
+            targetPlacement = shortcut.placements[0]
+            shouldCapturePreFirstStepFrame = false
+            isResetAction = true
         }
 
         let hasHoveredMoveEverythingWindow = moveEverythingHoveredWindowKey != nil
@@ -49,17 +61,33 @@ extension WindowManagerEngine {
             syncMoveEverythingSelectionToFocusedWindowIfNeeded(forceFocusedWindowRefresh: true)
         }
 
-        let ownFocusedWindow = focusedOwnWindowForPlacementShortcut(
-            allowControlCenterTarget: !moveEverythingDontMoveVibeGrid
-        )
+        let controlCenterStickyActive = config.settings.controlCenterSticky || moveEverythingDontMoveVibeGrid
+        let canMoveCC = shortcut.canMoveControlCenter || !controlCenterStickyActive
+        let ownFocusedWindow = focusedOwnWindowForPlacementShortcut(allowControlCenterTarget: canMoveCC)
         let shouldTargetControlCenter = ownFocusedWindow.map(isControlCenterWindow) ?? false
 
-        if isMoveEverythingActive,
-           moveEverythingDontMoveVibeGrid,
+        // When sticky is on and the CC is the focused window (either by our own-window check, or via the
+        // MoveEverything-mode focus probe), skip the shortcut entirely unless it opts in via canMoveControlCenter.
+        let controlCenterFocused: Bool = {
+            if isMoveEverythingControlCenterFocused() {
+                return true
+            }
+            if let focused = ownFocusedWindow, isControlCenterWindow(focused) {
+                return true
+            }
+            // `ownFocusedWindow` is nil when allowControlCenterTarget is false and CC is focused;
+            // check key window directly as a fallback.
+            if let key = NSApp.keyWindow, isControlCenterWindow(key) {
+                return true
+            }
+            return false
+        }()
+
+        if !canMoveCC,
            !hasHoveredMoveEverythingWindow,
-           isMoveEverythingControlCenterFocused() {
+           controlCenterFocused {
             NSLog(
-                "VibeGrid: skipping shortcut '%@' because Sticky VibeGrid is enabled and Control Center is focused",
+                "VibeGrid: skipping shortcut '%@' because the control center is sticky and focused",
                 shortcutID
             )
             return
@@ -73,8 +101,11 @@ extension WindowManagerEngine {
             let preferredWindowKey = consumedHoveredWindowKey ?? hoveredWindowKeyBeforeHotkeyAction
             if applyPlacementShortcutToMoveEverythingSelection(
                 shortcutID: shortcutID,
+                cycleKey: cycleKey,
                 placement: targetPlacement,
-                preferredWindowKey: preferredWindowKey
+                preferredWindowKey: preferredWindowKey,
+                capturePreFirstStepFrame: shouldCapturePreFirstStepFrame,
+                overrideTargetRect: isResetAction ? shortcutPreFirstStepFrame(cycleKey: cycleKey) : nil
             ) {
                 if let consumedHoveredWindowKey {
                     moveEverythingHoveredWindowKey = consumedHoveredWindowKey
@@ -95,28 +126,47 @@ extension WindowManagerEngine {
         }
 
         let focusedWindowRect = ownFocusedWindow?.frame ?? focusedWindowElement.flatMap { currentWindowRect(for: $0) }
-        let displayOffset = displayOffsetByShortcut[shortcutID] ?? 0
-        guard let screen = selectScreen(
-            for: targetPlacement.display,
-            focusedWindowRect: focusedWindowRect,
-            displayOffset: displayOffset,
-            activeDisplayAnchor: activeDisplayAnchor(for: shortcutID, focusedWindowRect: focusedWindowRect)
-        ) else {
-            NSLog("VibeGrid: no screen available")
-            return
+
+        let targetRect: CGRect
+        if isResetAction, let captured = shortcutPreFirstStepFrame(cycleKey: cycleKey) {
+            targetRect = captured
+        } else {
+            let displayOffset = shortcutDisplayOffset(cycleKey: cycleKey)
+            guard let screen = selectScreen(
+                for: targetPlacement.display,
+                focusedWindowRect: focusedWindowRect,
+                displayOffset: displayOffset,
+                activeDisplayAnchor: activeDisplayAnchor(cycleKey: cycleKey, focusedWindowRect: focusedWindowRect)
+            ) else {
+                NSLog("VibeGrid: no screen available")
+                return
+            }
+
+            guard let normalizedRect = targetPlacement.normalizedRect(
+                defaultColumns: config.settings.defaultGridColumns,
+                defaultRows: config.settings.defaultGridRows
+            ) else {
+                NSLog("VibeGrid: invalid normalized rect for placement '%@'", targetPlacement.id)
+                return
+            }
+
+            let isControlCenter = ownFocusedWindow.map(isControlCenterWindow) ?? false
+            let excludeCC = !isControlCenter && !shortcut.ignoreExcludePinnedWindows
+            targetRect = makeTargetRect(normalizedRect: normalizedRect, on: screen, excludeControlCenter: excludeCC)
         }
 
-        guard let normalizedRect = targetPlacement.normalizedRect(
-            defaultColumns: config.settings.defaultGridColumns,
-            defaultRows: config.settings.defaultGridRows
-        ) else {
-            NSLog("VibeGrid: invalid normalized rect for placement '%@'", targetPlacement.id)
-            return
+        if shouldCapturePreFirstStepFrame, let focusedWindowRect {
+            let cursorToStore = shortcut.resetBeforeFirstStepMoveCursor
+                ? cursorPositionToCapture()
+                : nil
+            storeShortcutPreFirstStepFrame(
+                cycleKey: cycleKey,
+                frame: focusedWindowRect,
+                cursorPosition: cursorToStore,
+                forceOverwrite: shortcut.resetBeforeFirstStepMoveCursor
+            )
         }
 
-        let isControlCenter = ownFocusedWindow.map(isControlCenterWindow) ?? false
-        let excludeCC = !isControlCenter && !shortcut.ignoreExcludePinnedWindows
-        let targetRect = makeTargetRect(normalizedRect: normalizedRect, on: screen, excludeControlCenter: excludeCC)
         let didMove: Bool
         let movementTarget: HotkeyWindowMovementTarget?
         if let ownFocusedWindow {
@@ -140,6 +190,20 @@ extension WindowManagerEngine {
                 from: focusedWindowRect,
                 to: targetRect
             )
+        }
+
+        if shortcut.resetBeforeFirstStep, shortcut.resetBeforeFirstStepMoveCursor {
+            if isResetAction,
+               let restoreCursor = shortcutPreFirstStepCursorPosition(cycleKey: cycleKey) {
+                warpCursorToCocoaPoint(restoreCursor)
+                refocusControlCenterIfCursorIsOverIt(cocoaPoint: restoreCursor)
+            } else {
+                warpCursorToCocoaPoint(CGPoint(x: targetRect.midX, y: targetRect.midY))
+            }
+        }
+
+        if isResetAction {
+            clearSharedPreSequenceState(cycleKey: cycleKey)
         }
     }
 
@@ -173,7 +237,10 @@ extension WindowManagerEngine {
     @discardableResult
     private func applyPlacementShortcutToControlCenter(
         shortcutID: String,
-        placement targetPlacement: PlacementStep
+        cycleKey: String,
+        placement targetPlacement: PlacementStep,
+        capturePreFirstStepFrame: Bool = false,
+        overrideTargetRect: CGRect? = nil
     ) -> Bool {
         guard let controlCenterWindow = NSApp.windows.first(where: isControlCenterWindow) else {
             NSLog("VibeGrid: control center window not found for shortcut '%@'", shortcutID)
@@ -185,27 +252,50 @@ extension WindowManagerEngine {
         }
         ensureControlCenterWindowVisibleForMoveEverything()
 
+        let shortcut = shortcutsByID[shortcutID]
+        let isResetAction = overrideTargetRect != nil
+        let moveCursor = (shortcut?.resetBeforeFirstStep ?? false) &&
+            (shortcut?.resetBeforeFirstStepMoveCursor ?? false)
+
         let referenceFrame = controlCenterWindow.frame
-        let displayOffset = displayOffsetByShortcut[shortcutID] ?? 0
-        guard let screen = selectScreen(
-            for: targetPlacement.display,
-            focusedWindowRect: referenceFrame,
-            displayOffset: displayOffset,
-            activeDisplayAnchor: activeDisplayAnchor(for: shortcutID, focusedWindowRect: referenceFrame)
-        ) else {
-            NSLog("VibeGrid: no screen available for Control Center target")
-            return false
+        let targetRect: CGRect
+        if let overrideTargetRect {
+            targetRect = overrideTargetRect
+        } else {
+            let displayOffset = shortcutDisplayOffset(cycleKey: cycleKey)
+            guard let screen = selectScreen(
+                for: targetPlacement.display,
+                focusedWindowRect: referenceFrame,
+                displayOffset: displayOffset,
+                activeDisplayAnchor: activeDisplayAnchor(cycleKey: cycleKey, focusedWindowRect: referenceFrame)
+            ) else {
+                NSLog("VibeGrid: no screen available for Control Center target")
+                return false
+            }
+
+            guard let normalizedRect = targetPlacement.normalizedRect(
+                defaultColumns: config.settings.defaultGridColumns,
+                defaultRows: config.settings.defaultGridRows
+            ) else {
+                NSLog("VibeGrid: invalid normalized rect for placement '%@'", targetPlacement.id)
+                return false
+            }
+
+            targetRect = makeTargetRect(normalizedRect: normalizedRect, on: screen, excludeControlCenter: false)
         }
 
-        guard let normalizedRect = targetPlacement.normalizedRect(
-            defaultColumns: config.settings.defaultGridColumns,
-            defaultRows: config.settings.defaultGridRows
-        ) else {
-            NSLog("VibeGrid: invalid normalized rect for placement '%@'", targetPlacement.id)
-            return false
+        if capturePreFirstStepFrame {
+            let cursorToStore = moveCursor
+                ? cursorPositionToCapture()
+                : nil
+            storeShortcutPreFirstStepFrame(
+                cycleKey: cycleKey,
+                frame: referenceFrame,
+                cursorPosition: cursorToStore,
+                forceOverwrite: moveCursor
+            )
         }
 
-        let targetRect = makeTargetRect(normalizedRect: normalizedRect, on: screen, excludeControlCenter: false)
         guard setOwnWindow(controlCenterWindow, cocoaRect: targetRect) else {
             NSLog("VibeGrid: failed to move control center window for shortcut '%@'", shortcutID)
             return false
@@ -218,15 +308,31 @@ extension WindowManagerEngine {
         )
 
         ensureControlCenterWindowVisibleForMoveEverything()
+
+        if moveCursor {
+            if isResetAction,
+               let restoreCursor = shortcutPreFirstStepCursorPosition(cycleKey: cycleKey) {
+                warpCursorToCocoaPoint(restoreCursor)
+            } else {
+                warpCursorToCocoaPoint(CGPoint(x: targetRect.midX, y: targetRect.midY))
+            }
+        }
+        if isResetAction {
+            clearSharedPreSequenceState(cycleKey: cycleKey)
+        }
         return true
     }
 
     @discardableResult
     func applyPlacementShortcutToMoveEverythingSelection(
         shortcutID: String,
+        cycleKey: String? = nil,
         placement targetPlacement: PlacementStep,
-        preferredWindowKey: String? = nil
+        preferredWindowKey: String? = nil,
+        capturePreFirstStepFrame: Bool = false,
+        overrideTargetRect: CGRect? = nil
     ) -> Bool {
+        let resolvedCycleKey = cycleKey ?? shortcutCycleKey(shortcutID: shortcutID, windowKey: preferredWindowKey.map { "me:\($0)" })
         guard isMoveEverythingActive else {
             return false
         }
@@ -292,27 +398,51 @@ extension WindowManagerEngine {
         let managedWindow = runState.windows[targetIndex]
         let referenceFrame = currentWindowRect(for: managedWindow.window) ??
             runState.statesByWindowKey[managedWindow.key]?.originalFrame
-        let displayOffset = displayOffsetByShortcut[shortcutID] ?? 0
-        guard let screen = selectScreen(
-            for: targetPlacement.display,
-            focusedWindowRect: referenceFrame,
-            displayOffset: displayOffset,
-            activeDisplayAnchor: activeDisplayAnchor(for: shortcutID, focusedWindowRect: referenceFrame)
-        ) else {
-            NSLog("VibeGrid: no screen available for Window List target")
-            return true
+
+        let targetRect: CGRect
+        if let overrideTargetRect {
+            targetRect = overrideTargetRect
+        } else {
+            let displayOffset = shortcutDisplayOffset(cycleKey: resolvedCycleKey)
+            guard let screen = selectScreen(
+                for: targetPlacement.display,
+                focusedWindowRect: referenceFrame,
+                displayOffset: displayOffset,
+                activeDisplayAnchor: activeDisplayAnchor(cycleKey: resolvedCycleKey, focusedWindowRect: referenceFrame)
+            ) else {
+                NSLog("VibeGrid: no screen available for Window List target")
+                return true
+            }
+
+            guard let normalizedRect = targetPlacement.normalizedRect(
+                defaultColumns: config.settings.defaultGridColumns,
+                defaultRows: config.settings.defaultGridRows
+            ) else {
+                NSLog("VibeGrid: invalid normalized rect for placement '%@'", targetPlacement.id)
+                return true
+            }
+
+            let ignoreExclude = shortcutsByID[shortcutID]?.ignoreExcludePinnedWindows ?? false
+            targetRect = makeTargetRect(normalizedRect: normalizedRect, on: screen, excludeControlCenter: !ignoreExclude)
         }
 
-        guard let normalizedRect = targetPlacement.normalizedRect(
-            defaultColumns: config.settings.defaultGridColumns,
-            defaultRows: config.settings.defaultGridRows
-        ) else {
-            NSLog("VibeGrid: invalid normalized rect for placement '%@'", targetPlacement.id)
-            return true
+        let shortcut = shortcutsByID[shortcutID]
+        let isResetAction = overrideTargetRect != nil
+        let moveCursor = (shortcut?.resetBeforeFirstStep ?? false) &&
+            (shortcut?.resetBeforeFirstStepMoveCursor ?? false)
+
+        if capturePreFirstStepFrame, let referenceFrame {
+            let cursorToStore = moveCursor
+                ? cursorPositionToCapture()
+                : nil
+            storeShortcutPreFirstStepFrame(
+                cycleKey: resolvedCycleKey,
+                frame: referenceFrame,
+                cursorPosition: cursorToStore,
+                forceOverwrite: moveCursor
+            )
         }
 
-        let ignoreExclude = shortcutsByID[shortcutID]?.ignoreExcludePinnedWindows ?? false
-        let targetRect = makeTargetRect(normalizedRect: normalizedRect, on: screen, excludeControlCenter: !ignoreExclude)
         guard setMoveEverythingWindowFrame(managedWindow, cocoaRect: targetRect) else {
             NSLog("VibeGrid: failed to move selected Window List window for shortcut '%@'", shortcutID)
             return true
@@ -324,6 +454,23 @@ extension WindowManagerEngine {
                 from: referenceFrame,
                 to: targetRect
             )
+        }
+
+        if moveCursor {
+            if isResetAction,
+               let restoreCursor = shortcutPreFirstStepCursorPosition(cycleKey: resolvedCycleKey) {
+                warpCursorToCocoaPoint(restoreCursor)
+            } else {
+                warpCursorToCocoaPoint(CGPoint(x: targetRect.midX, y: targetRect.midY))
+            }
+            if !isMoveEverythingControlCenterWindow(managedWindow) {
+                NSRunningApplication(processIdentifier: managedWindow.pid)?
+                    .activate(options: [.activateIgnoringOtherApps])
+                focusMoveEverythingWindow(managedWindow, allowAppActivation: false)
+            }
+        }
+        if isResetAction {
+            clearSharedPreSequenceState(cycleKey: resolvedCycleKey)
         }
 
         var state = runState.statesByWindowKey[managedWindow.key] ??
@@ -360,9 +507,17 @@ extension WindowManagerEngine {
         case .closeWindow:
             if isMoveEverythingActive {
                 _ = consumeMoveEverythingHoveredWindowForHotkeyAction()
-                closeMoveEverythingCurrentWindow()
+                if config.settings.moveEverythingCloseSmart {
+                    smartCloseCurrentWindow()
+                } else {
+                    closeMoveEverythingCurrentWindow()
+                }
             } else {
-                _ = closeFocusedWindowOutsideMoveEverythingMode()
+                if config.settings.moveEverythingCloseSmart {
+                    smartCloseCurrentWindow()
+                } else {
+                    _ = closeFocusedWindowOutsideMoveEverythingMode()
+                }
             }
 
         case .hideWindow:
@@ -384,6 +539,33 @@ extension WindowManagerEngine {
 
         case .redoWindowMovement:
             _ = redoHotkeyWindowMovement()
+
+        case .undoWindowMovementForFocusedWindow:
+            _ = undoPerWindowMovementForCurrentTarget()
+
+        case .redoWindowMovementForFocusedWindow:
+            _ = redoPerWindowMovementForCurrentTarget()
+
+        case .showAllHiddenWindows:
+            _ = showAllHiddenMoveEverythingWindows()
+
+        case .retile1, .retile2, .retile3:
+            onRetileHotkeyFired?(action)
+        }
+    }
+
+    func runRetile(mode: MoveEverythingRetileShortcutMode) -> Bool {
+        switch mode {
+        case .full:
+            return retileVisibleMoveEverythingWindows()
+        case .mini:
+            return miniRetileVisibleMoveEverythingWindows()
+        case .iterm:
+            return iTermRetileVisibleMoveEverythingWindows()
+        case .nonITerm:
+            return nonITermRetileVisibleMoveEverythingWindows()
+        case .hybrid:
+            return hybridRetileVisibleMoveEverythingWindows()
         }
     }
 
@@ -432,6 +614,8 @@ extension WindowManagerEngine {
         guard !moveEverythingFramesApproximatelyEqual(fromFrame, toFrame, tolerance: 1) else {
             return
         }
+
+        recordPerWindowMovement(target: target, from: fromFrame, to: toFrame)
 
         hotkeyWindowMovementUndoHistory.append(
             HotkeyWindowMovementRecord(
@@ -691,39 +875,299 @@ extension WindowManagerEngine {
 
     // MARK: - Placement cycling
 
-    func nextPlacement(for shortcut: ShortcutConfig) -> PlacementStep? {
+    /// Returns a stable identity string for the window that this shortcut will
+    /// act on. Used to restart the placement sequence when the user presses the
+    /// same hotkey after switching to a different window. Returns `nil` when the
+    /// target cannot be determined — in that case the existing sequence is
+    /// preserved rather than reset.
+    func resolvePlacementShortcutTargetWindowKey(for shortcut: ShortcutConfig) -> String? {
+        let hasHoveredMoveEverythingWindow = moveEverythingHoveredWindowKey != nil
+
+        if isMoveEverythingActive {
+            if let hoveredKey = moveEverythingHoveredWindowKey {
+                return "me:\(hoveredKey)"
+            }
+
+            let stickyBlocksCC = (config.settings.controlCenterSticky || moveEverythingDontMoveVibeGrid)
+                && !shortcut.canMoveControlCenter
+            let ownFocusedWindow = focusedOwnWindowForPlacementShortcut(
+                allowControlCenterTarget: !stickyBlocksCC
+            )
+            let shouldTargetControlCenter = ownFocusedWindow.map(isControlCenterWindow) ?? false
+            if !shouldTargetControlCenter || hasHoveredMoveEverythingWindow {
+                syncMoveEverythingSelectionToFocusedWindowIfNeeded(forceFocusedWindowRefresh: true)
+                if let focusedKey = moveEverythingFocusedWindowKey {
+                    return "me:\(focusedKey)"
+                }
+                return nil
+            }
+            if let ownFocusedWindow {
+                return "own:\(ownFocusedWindow.windowNumber)"
+            }
+            return nil
+        }
+
+        if let ownFocusedWindow = focusedOwnWindowForPlacementShortcut(allowControlCenterTarget: true) {
+            return "own:\(ownFocusedWindow.windowNumber)"
+        }
+
+        guard let axWindow = focusedWindow() else {
+            return nil
+        }
+        var pid: pid_t = 0
+        AXUIElementGetPid(axWindow, &pid)
+        if let winNum = resolvedAXWindowNumber(for: axWindow) {
+            return "ax:\(pid):\(winNum)"
+        }
+        return "ax:\(pid)"
+    }
+
+    enum NextShortcutAction {
+        /// Apply this placement. `capturePreFirstStepFrame` is true when this is step 1 of a
+        /// sequence with `resetBeforeFirstStep` enabled — the caller must capture the current
+        /// window frame BEFORE applying the placement so the eventual wrap can restore it.
+        case placement(PlacementStep, capturePreFirstStepFrame: Bool)
+        /// Restore the previously-captured pre-sequence frame instead of applying a step. The
+        /// cycle index is not advanced; the next press applies step 1.
+        case reset
+    }
+
+    /// Stable key for per-(shortcut, window) cycle state. When no window target can be
+    /// resolved we fall back to the shortcut ID alone so the sequence still cycles.
+    func shortcutCycleKey(shortcutID: String, windowKey: String?) -> String {
+        if let windowKey, !windowKey.isEmpty {
+            return "\(shortcutID)|\(windowKey)"
+        }
+        return shortcutID
+    }
+
+    func pruneStaleShortcutCycleStates(now: Date = Date()) {
+        let threshold = shortcutCycleStatePruneThreshold
+        shortcutCycleStates = shortcutCycleStates.filter { _, state in
+            guard let ts = state.lastPressAt else { return true }
+            return now.timeIntervalSince(ts) < threshold
+        }
+    }
+
+    func nextShortcutAction(for shortcut: ShortcutConfig, targetWindowKey: String? = nil) -> NextShortcutAction? {
         guard !shortcut.placements.isEmpty else {
             return nil
         }
 
         let count = shortcut.placements.count
-        let shortcutID = shortcut.id
+        let cycleKey = shortcutCycleKey(shortcutID: shortcut.id, windowKey: targetWindowKey)
         let now = Date()
-        let didTimeout = lastShortcutPressAt.map {
+        pruneStaleShortcutCycleStates(now: now)
+        var state = shortcutCycleStates[cycleKey] ?? ShortcutCycleState()
+
+        let didTimeout = state.lastPressAt.map {
             now.timeIntervalSince($0) >= shortcutCycleResetTimeout
         } ?? false
-        let isFreshCycle = lastShortcutID != shortcutID || didTimeout
+        // A different placement shortcut firing in between always restarts the
+        // cycle at step 1 — so 1→2→1 begins shortcut 1 from the top regardless
+        // of whether resetBeforeFirstStep is set. The pre-sequence restore frame
+        // is shared per-window and first-write-wins, so it survives the restart.
+        let interruptedByOtherShortcut = lastFiredPlacementShortcutID != nil
+            && lastFiredPlacementShortcutID != shortcut.id
+        let isFreshCycle = state.lastPressAt == nil || didTimeout || interruptedByOtherShortcut
 
         if isFreshCycle {
-            cycleIndexByShortcut[shortcutID] = 0
-            displayOffsetByShortcut[shortcutID] = 0
-            activeDisplayAnchorIndexByShortcut[shortcutID] = nil
+            state.cycleIndex = 0
+            state.displayOffset = 0
+            state.activeDisplayAnchorIndex = nil
+            state.pendingResetConsumed = false
         }
 
-        let currentIndex = cycleIndexByShortcut[shortcutID] ?? 0
+        let currentIndex = state.cycleIndex
         let wrappedToFirst = !isFreshCycle && currentIndex == 0
+        let justConsumedReset = state.pendingResetConsumed
+
+        // Refresh the shared pre-sequence frame's touch timestamp so it
+        // doesn't go stale while the user keeps interleaving reset-enabled
+        // shortcuts on this window within the timeout window.
+        if shortcut.resetBeforeFirstStep {
+            touchPreSequenceFrame(cycleKey: cycleKey)
+        }
+
+        if wrappedToFirst,
+           shortcut.resetBeforeFirstStep,
+           !justConsumedReset,
+           shortcutPreFirstStepFrame(cycleKey: cycleKey) != nil {
+            state.pendingResetConsumed = true
+            state.lastPressAt = now
+            shortcutCycleStates[cycleKey] = state
+            lastFiredPlacementShortcutID = shortcut.id
+            return .reset
+        }
+
+        state.pendingResetConsumed = false
+
         if wrappedToFirst && shortcut.cycleDisplaysOnWrap {
             let screensCount = max(sortedScreens().count, 1)
-            let currentOffset = displayOffsetByShortcut[shortcutID] ?? 0
-            displayOffsetByShortcut[shortcutID] = (currentOffset + 1) % screensCount
+            state.displayOffset = (state.displayOffset + 1) % screensCount
         }
 
-        let nextIndex = (currentIndex + 1) % count
-        cycleIndexByShortcut[shortcutID] = nextIndex
-        lastShortcutID = shortcutID
-        lastShortcutPressAt = now
+        state.cycleIndex = (currentIndex + 1) % count
+        state.lastPressAt = now
+        shortcutCycleStates[cycleKey] = state
+        lastFiredPlacementShortcutID = shortcut.id
 
-        return shortcut.placements[currentIndex]
+        let shouldCapture = (currentIndex == 0) && shortcut.resetBeforeFirstStep
+        return .placement(shortcut.placements[currentIndex], capturePreFirstStepFrame: shouldCapture)
+    }
+
+    func nextPlacement(for shortcut: ShortcutConfig, targetWindowKey: String? = nil) -> PlacementStep? {
+        switch nextShortcutAction(for: shortcut, targetWindowKey: targetWindowKey) {
+        case .placement(let step, _):
+            return step
+        case .reset, .none:
+            return nil
+        }
+    }
+
+    func shortcutDisplayOffset(cycleKey: String) -> Int {
+        shortcutCycleStates[cycleKey]?.displayOffset ?? 0
+    }
+
+    /// Storage key used by the shared per-window pre-sequence frame map.
+    /// Falls back to the cycleKey itself when no window component is present
+    /// (e.g. shortcut had no resolvable target window) so the legacy
+    /// single-shortcut behavior still works.
+    func preSequenceFrameStorageKey(cycleKey: String) -> String {
+        if let pipeIndex = cycleKey.firstIndex(of: "|") {
+            let suffix = cycleKey[cycleKey.index(after: pipeIndex)...]
+            if !suffix.isEmpty {
+                return String(suffix)
+            }
+        }
+        return cycleKey
+    }
+
+    func shortcutPreFirstStepFrame(cycleKey: String) -> CGRect? {
+        let key = preSequenceFrameStorageKey(cycleKey: cycleKey)
+        guard let entry = preSequenceFrameByWindowKey[key] else { return nil }
+        if Date().timeIntervalSince(entry.lastTouchedAt) >= shortcutCycleResetTimeout {
+            preSequenceFrameByWindowKey.removeValue(forKey: key)
+            return nil
+        }
+        return entry.frame
+    }
+
+    /// Stores the pre-sequence recovery frame for a cycle key.
+    ///
+    /// Default (forceOverwrite: false): first-write-wins — subsequent reset-enabled shortcuts
+    /// firing on the same window inherit the original capture rather than overwriting with an
+    /// intermediate frame.
+    ///
+    /// When forceOverwrite is true (used when +moveCursor is also enabled): always captures the
+    /// current window position at sequence start so the recovery point is always fresh — after a
+    /// reset restores the window, the next cycle's recovery point is the restored position, not
+    /// the one from the first-ever cycle.
+    func storeShortcutPreFirstStepFrame(
+        cycleKey: String,
+        frame: CGRect,
+        cursorPosition: CGPoint? = nil,
+        forceOverwrite: Bool = false
+    ) {
+        let key = preSequenceFrameStorageKey(cycleKey: cycleKey)
+        let now = Date()
+        if var existing = preSequenceFrameByWindowKey[key] {
+            if forceOverwrite {
+                preSequenceFrameByWindowKey[key] = PreSequenceFrameEntry(
+                    frame: frame,
+                    cursorPosition: cursorPosition,
+                    lastTouchedAt: now
+                )
+            } else {
+                // Refresh the touch timestamp so the shared entry stays alive
+                // while the user keeps cycling, but keep the original frame.
+                existing.lastTouchedAt = now
+                preSequenceFrameByWindowKey[key] = existing
+            }
+            return
+        }
+        preSequenceFrameByWindowKey[key] = PreSequenceFrameEntry(
+            frame: frame,
+            cursorPosition: cursorPosition,
+            lastTouchedAt: now
+        )
+    }
+
+    func shortcutPreFirstStepCursorPosition(cycleKey: String) -> CGPoint? {
+        let key = preSequenceFrameStorageKey(cycleKey: cycleKey)
+        return preSequenceFrameByWindowKey[key]?.cursorPosition
+    }
+
+    /// Mark the shared pre-sequence frame as touched without changing it.
+    /// Called on every reset-enabled shortcut press so the entry doesn't go
+    /// stale while the user is actively cycling.
+    func touchPreSequenceFrame(cycleKey: String) {
+        let key = preSequenceFrameStorageKey(cycleKey: cycleKey)
+        guard var entry = preSequenceFrameByWindowKey[key] else { return }
+        entry.lastTouchedAt = Date()
+        preSequenceFrameByWindowKey[key] = entry
+    }
+
+    /// Called after a wrap-reset is consumed. Clears the shared frame for the
+    /// window and resets cycle state of every other reset-enabled shortcut
+    /// targeting the same window so the next press of any of them is treated
+    /// as a fresh capture round.
+    func clearSharedPreSequenceState(cycleKey consumingCycleKey: String) {
+        let key = preSequenceFrameStorageKey(cycleKey: consumingCycleKey)
+        preSequenceFrameByWindowKey.removeValue(forKey: key)
+
+        // Only meaningful when we actually have a windowKey component;
+        // otherwise the storage key collides with the consuming shortcut's ID
+        // and there's nothing to fan out to.
+        guard consumingCycleKey.contains("|") else { return }
+        let suffix = "|" + key
+        for (otherCycleKey, _) in shortcutCycleStates where otherCycleKey != consumingCycleKey
+            && otherCycleKey.hasSuffix(suffix) {
+            // Extract the shortcutID portion to check resetBeforeFirstStep.
+            let shortcutID = String(otherCycleKey.dropLast(suffix.count))
+            guard let other = shortcutsByID[shortcutID], other.resetBeforeFirstStep else {
+                continue
+            }
+            shortcutCycleStates[otherCycleKey] = ShortcutCycleState()
+        }
+    }
+
+    /// Live cursor position to stash at capture time. Captured unconditionally
+    /// (even when the cursor is outside the focused window's frame) so that the
+    /// reset-with-warp restore returns the cursor to wherever it actually was
+    /// before the sequence started.
+    func cursorPositionToCapture() -> CGPoint {
+        NSEvent.mouseLocation
+    }
+
+    /// Warp the cursor to `cocoaPoint`. Converts from Cocoa (bottom-left) to
+    /// Quartz (top-left) using the multi-display desktop frame.
+    func warpCursorToCocoaPoint(_ cocoaPoint: CGPoint) {
+        let desktop = desktopFrame
+        guard !desktop.isNull, !desktop.isEmpty else { return }
+        let quartz = CGPoint(
+            x: min(max(cocoaPoint.x, desktop.minX + 1), desktop.maxX - 1),
+            y: desktop.maxY - min(max(cocoaPoint.y, desktop.minY + 1), desktop.maxY - 1)
+        )
+        _ = CGWarpMouseCursorPosition(quartz)
+        CGAssociateMouseAndMouseCursorPosition(1)
+    }
+
+    /// If the restored cursor position landed inside the Control Center
+    /// window, bring the Control Center back to key/front. The shortcut may
+    /// have moved focus to the manipulated window; without this, the user is
+    /// looking at their cursor over the Control Center but typing into the
+    /// previously-focused app.
+    func refocusControlCenterIfCursorIsOverIt(cocoaPoint: CGPoint) {
+        guard let window = NSApp.windows.first(where: isControlCenterWindow),
+              window.isVisible,
+              !window.isMiniaturized,
+              window.frame.contains(cocoaPoint),
+              !window.isKeyWindow else {
+            return
+        }
+        window.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
     }
 
     func registrationIssues() -> [HotKeyRegistrationIssue] {
@@ -844,13 +1288,13 @@ extension WindowManagerEngine {
 
     // MARK: - Display anchor
 
-    func activeDisplayAnchor(for shortcutID: String, focusedWindowRect: CGRect?) -> NSScreen? {
+    func activeDisplayAnchor(cycleKey: String, focusedWindowRect: CGRect?) -> NSScreen? {
         let screens = sortedScreens()
         guard !screens.isEmpty else {
             return nil
         }
 
-        if let anchoredIndex = activeDisplayAnchorIndexByShortcut[shortcutID],
+        if let anchoredIndex = shortcutCycleStates[cycleKey]?.activeDisplayAnchorIndex,
            anchoredIndex >= 0,
            anchoredIndex < screens.count {
             return screens[anchoredIndex]
@@ -861,7 +1305,9 @@ extension WindowManagerEngine {
             NSScreen.main ??
             screens.first
         if let anchor, let index = screens.firstIndex(of: anchor) {
-            activeDisplayAnchorIndexByShortcut[shortcutID] = index
+            var state = shortcutCycleStates[cycleKey] ?? ShortcutCycleState()
+            state.activeDisplayAnchorIndex = index
+            shortcutCycleStates[cycleKey] = state
         }
         return anchor
     }

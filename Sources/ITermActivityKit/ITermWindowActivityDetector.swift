@@ -117,9 +117,22 @@ public enum ITermWindowActivityDetector {
         }
     }
 
+    public struct CommandResult: Sendable {
+        public let op: String
+        public let ok: Bool
+        public let error: String
+
+        public init(op: String, ok: Bool, error: String = "") {
+            self.op = op
+            self.ok = ok
+            self.error = error
+        }
+    }
+
     public struct PollResult: Sendable {
         public let entries: [PollEntry]
         public let activitiesByWindowID: [String: ResolvedActivity]
+        public let commandResults: [CommandResult]
         public let rawOutput: String
         public let stderrText: String
         public let terminationStatus: Int32
@@ -129,6 +142,7 @@ public enum ITermWindowActivityDetector {
         public init(
             entries: [PollEntry],
             activitiesByWindowID: [String: ResolvedActivity],
+            commandResults: [CommandResult] = [],
             rawOutput: String,
             stderrText: String,
             terminationStatus: Int32,
@@ -137,6 +151,7 @@ public enum ITermWindowActivityDetector {
         ) {
             self.entries = entries
             self.activitiesByWindowID = activitiesByWindowID
+            self.commandResults = commandResults
             self.rawOutput = rawOutput
             self.stderrText = stderrText
             self.terminationStatus = terminationStatus

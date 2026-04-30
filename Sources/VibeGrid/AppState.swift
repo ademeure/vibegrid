@@ -48,6 +48,7 @@ final class AppState {
     private let windowManager: WindowManagerEngineProtocol
     private var moveEverythingAlwaysOnTop = false
     private var moveEverythingMoveToBottom = false
+    private var moveEverythingMoveToCenter = false
     private var moveEverythingDontMoveVibeGrid = false
     private var moveEverythingShowOverlays = true
     private var moveEverythingModeWasActive = false
@@ -58,6 +59,9 @@ final class AppState {
     private var quickViewActive = false
     private var quickViewSavedFrame: NSRect?
     private var quickViewWasVisible = false
+    private(set) var quickViewActivationCursorPosition: NSPoint?
+    private var lastRetileHotkeyAction: MoveEverythingHotkeyAction?
+    private var lastRetileHotkeyFiredAt: Date?
     private let iTermActivityWorkerClient = ITermActivityWorkerClient()
     private(set) var iTermActivityCache: [String: String] = [:]  // snapshot key → "active"/"idle"
     private(set) var iTermLastActiveAt: [String: Date] = [:]  // snapshot key → when last became active
@@ -69,7 +73,7 @@ final class AppState {
     private(set) var iTermPanePathCache: [String: String] = [:]  // snapshot key → tmux pane current path
     private(set) var iTermPaneTitleCache: [String: String] = [:]  // snapshot key → tmux pane title (e.g. Claude Code session name)
     private var iTermTmuxFallbackLastActiveAt: [String: Date] = [:]  // snapshot key → last time tmux fallback saw active
-    private var iTermRuntimeWindowIDBySnapshotKey: [String: String] = [:]  // snapshot key → pty-... runtime id
+    private(set) var iTermRuntimeWindowIDBySnapshotKey: [String: String] = [:]  // snapshot key → pty-... runtime id
     private let iTermActivityOverlayController = ITermActivityOverlayController()
     private struct OriginalBackground {
         let dark: (r: Int, g: Int, b: Int)
@@ -80,6 +84,8 @@ final class AppState {
     private var iTermCurrentBgTintStatus: [String: String] = [:]  // windowID → "active"/"idle"/""
     private var iTermCurrentTabColorStatus: [String: String] = [:]  // windowID → "active"/"idle"/""
     private var pendingITermColorCommands: [[String: Any]] = []
+    private var iTermPendingRestoreWindowIDs: Set<String> = []
+    private var iTermPendingRestoreCommandCount: Int = 0
     private static let tintedWindowsFileURL: URL = {
         FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent("Library/Application Support/VibeGrid")
@@ -91,6 +97,13 @@ final class AppState {
     private var iTermActivityPollInFlight = false
     private var iTermActivityPollStartedAt: Date?
     private var iTermActivityPollLastCompletedAt: Date?
+    private(set) var vibedActivityByWindowID: [String: String] = [:]  // iTerm window ID → "active"/"idle"
+    private(set) var vibedToolByWindowID: [String: String] = [:]     // iTerm window ID → "claude"/"codex"/"shell"
+    private(set) var vibedCwdByWindowID: [String: String] = [:]      // iTerm window ID → cwd
+    private var vibedFetchInFlight = false
+    private var vibedRuntimeMappingInFlight = false
+    private var vibedRuntimeMappingLastAt: Date?
+    private let vibedRuntimeMappingMinInterval: TimeInterval = 8.0
     private var iTermActivityPollGeneration = 0
 
     private let iTermActivityPollTimeout: TimeInterval = 1.5
@@ -101,6 +114,8 @@ final class AppState {
     private var cachedConfigYAML: String?
     private var cachedConfigJSONObject: Any?
     private var controlCenter: ControlCenterWindowController?
+    private var proxyHoverAPIServer: ProxyHoverAPIServer?
+    private let proxyHoverAPIPort: UInt16 = 58392
 
     init() {
         let initialConfig = configStore.loadOrCreate()
@@ -124,7 +139,7 @@ final class AppState {
         windowManager.isMoveEverythingAlwaysOnTopEnabledProvider = { [weak self] in
             self?.moveEverythingAlwaysOnTop ?? false
         }
-        windowManager.onCloseWindowOverride = { [weak self] key in
+        windowManager.onCloseWindowOverride = { [weak self] key, force in
             guard let self else {
                 WindowListDebugLogger.log("close-mux", "override self is nil for key=\(key)")
                 return
@@ -140,11 +155,33 @@ final class AppState {
                 )
                 return
             }
-            WindowListDebugLogger.log("close-mux", "dispatching mux kill for key=\(key) session=\(sessionName)")
+            let forceTag = force ? " --now" : ""
+            WindowListDebugLogger.log("close-mux", "dispatching mux kill\(forceTag) for key=\(key) session=\(sessionName)")
             // Kill the mux session async — the caller AX-closes the window
             // immediately so the user gets instant visual feedback.
             DispatchQueue.global(qos: .utility).async {
-                AppState.muxKill(sessionName: sessionName)
+                AppState.muxKill(sessionName: sessionName, force: force)
+            }
+        }
+        windowManager.muxSessionNameForKey = { [weak self] key in
+            self?.iTermSessionNameCache[key]
+        }
+        windowManager.killMuxSessionByName = { [weak self] sessionName, force in
+            guard let self else { return }
+            guard self.config.settings.moveEverythingCloseMuxKill else {
+                WindowListDebugLogger.log(
+                    "close-mux",
+                    "moveEverythingCloseMuxKill disabled; skipping direct kill of session=\(sessionName)"
+                )
+                return
+            }
+            let forceTag = force ? " --now" : ""
+            WindowListDebugLogger.log(
+                "close-mux",
+                "dispatching direct mux kill\(forceTag) session=\(sessionName)"
+            )
+            DispatchQueue.global(qos: .utility).async {
+                AppState.muxKill(sessionName: sessionName, force: force)
             }
         }
         windowManager.onMoveEverythingModeChanged = { [weak self] isActive in
@@ -156,6 +193,7 @@ final class AppState {
                     if isActive {
                         self.setMoveEverythingAlwaysOnTop(enabled: self.config.settings.moveEverythingStartAlwaysOnTop)
                         self.setMoveEverythingMoveToBottom(enabled: self.config.settings.moveEverythingStartMoveToBottom)
+                        self.setMoveEverythingMoveToCenter(enabled: self.config.settings.moveEverythingStartMoveToCenter)
                         self.setMoveEverythingDontMoveVibeGrid(enabled: self.config.settings.moveEverythingStartDontMoveVibeGrid)
                     } else {
                         if self.moveEverythingAlwaysOnTop {
@@ -165,6 +203,10 @@ final class AppState {
                         if self.moveEverythingMoveToBottom {
                             self.moveEverythingMoveToBottom = false
                             self.windowManager.setMoveEverythingMoveToBottom(false)
+                        }
+                        if self.moveEverythingMoveToCenter {
+                            self.moveEverythingMoveToCenter = false
+                            self.windowManager.setMoveEverythingMoveToCenter(false)
                         }
                         if self.moveEverythingDontMoveVibeGrid {
                             self.moveEverythingDontMoveVibeGrid = false
@@ -221,12 +263,84 @@ final class AppState {
                 self.toggleQuickView()
             }
         }
+        windowManager.onRetileHotkeyFired = { [weak self] action in
+            DispatchQueue.main.async {
+                guard let self else { return }
+                let now = Date()
+                // Feature: undo if the same retile hotkey fires again within 5 seconds.
+                if action == self.lastRetileHotkeyAction,
+                   let lastAt = self.lastRetileHotkeyFiredAt,
+                   now.timeIntervalSince(lastAt) <= 5 {
+                    self.lastRetileHotkeyAction = nil
+                    self.lastRetileHotkeyFiredAt = nil
+                    _ = self.undoLastMoveEverythingRetile()
+                    return
+                }
+                self.lastRetileHotkeyAction = action
+                self.lastRetileHotkeyFiredAt = now
+                guard let mode = self.config.settings.moveEverythingRetileMode(for: action) else { return }
+                self.performRetile(mode: mode)
+            }
+        }
         // Track any global input for activity overlay suppression.
         globalInputMonitor = NSEvent.addGlobalMonitorForEvents(matching: [
             .keyDown, .keyUp, .flagsChanged, .scrollWheel,
             .leftMouseDown, .leftMouseUp, .rightMouseDown,
         ]) { [weak self] _ in
             self?.lastGlobalInputAt = Date()
+        }
+
+        startProxyHoverAPIServer()
+    }
+
+    private func startProxyHoverAPIServer() {
+        let server = ProxyHoverAPIServer(port: proxyHoverAPIPort) { [weak self] command in
+            guard let self else {
+                return ProxyHoverAPIServer.Response(status: 500, body: ["error": "app state gone"])
+            }
+            return DispatchQueue.main.sync {
+                self.handleProxyHoverCommand(command)
+            }
+        }
+        server.start()
+        proxyHoverAPIServer = server
+    }
+
+    private func handleProxyHoverCommand(_ command: ProxyHoverAPIServer.Command) -> ProxyHoverAPIServer.Response {
+        switch command {
+        case .get:
+            return ProxyHoverAPIServer.Response(status: 200, body: [
+                "entries": windowManager.currentProxyHoverSnapshot(),
+                "maxDurationSeconds": ProxyHoverAPIServer.maxDurationSeconds,
+                "minDurationSeconds": ProxyHoverAPIServer.minDurationSeconds
+            ])
+        case .set(let payload):
+            let result = windowManager.setProxyHover(
+                gatingFocusPid: payload.gatingFocusPid,
+                gatingFocusWindowNumber: payload.gatingFocusWindowNumber,
+                gatingFocusITermWindowID: payload.gatingFocusITermWindowID,
+                targetPid: payload.targetPid,
+                targetWindowNumber: payload.targetWindowNumber,
+                targetITermWindowID: payload.targetITermWindowID,
+                targetITermTTY: payload.targetITermTTY,
+                durationSeconds: payload.durationSeconds
+            )
+            var body: [String: Any] = [
+                "accepted": result.accepted,
+                "applied": result.applied
+            ]
+            if let reason = result.reason { body["reason"] = reason }
+            if let expiresAt = result.expiresAt {
+                body["expiresAt"] = ISO8601DateFormatter().string(from: expiresAt)
+            }
+            if let key = result.resolvedWindowKey { body["resolvedWindowKey"] = key }
+            return ProxyHoverAPIServer.Response(status: 200, body: body)
+        case .clear(let gatingFocusPid):
+            let wasPresent = windowManager.clearProxyHover(gatingFocusPid: gatingFocusPid)
+            return ProxyHoverAPIServer.Response(status: 200, body: ["cleared": wasPresent])
+        case .clearAll:
+            windowManager.clearAllProxyHover()
+            return ProxyHoverAPIServer.Response(status: 200, body: ["clearedAll": true])
         }
     }
 
@@ -292,17 +406,48 @@ final class AppState {
         }
     }
 
+    func isQuickViewActive() -> Bool { quickViewActive }
+
+    func exitQuickView() {
+        guard quickViewActive else { return }
+        if !quickViewWasVisible {
+            controlCenter?.window?.orderOut(nil)
+        } else if let saved = quickViewSavedFrame {
+            controlCenter?.window?.setFrame(saved, display: false, animate: false)
+        }
+        quickViewSavedFrame = nil
+        quickViewWasVisible = false
+        quickViewActive = false
+        quickViewActivationCursorPosition = nil
+    }
+
+    func performRetile(mode: MoveEverythingRetileShortcutMode, completion: ((_ success: Bool) -> Void)? = nil) {
+        if quickViewActive {
+            exitQuickView()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+                guard let self else { return }
+                let success = self.runRetileByMode(mode)
+                completion?(success)
+            }
+        } else {
+            let success = runRetileByMode(mode)
+            completion?(success)
+        }
+    }
+
+    private func runRetileByMode(_ mode: MoveEverythingRetileShortcutMode) -> Bool {
+        switch mode {
+        case .full: return retileVisibleMoveEverythingWindows()
+        case .mini: return miniRetileVisibleMoveEverythingWindows()
+        case .iterm: return iTermRetileVisibleMoveEverythingWindows()
+        case .nonITerm: return nonITermRetileVisibleMoveEverythingWindows()
+        case .hybrid: return hybridRetileVisibleMoveEverythingWindows()
+        }
+    }
+
     func toggleQuickView() {
         if quickViewActive {
-            // Restore
-            if !quickViewWasVisible {
-                controlCenter?.window?.orderOut(nil)
-            } else if let saved = quickViewSavedFrame {
-                controlCenter?.window?.setFrame(saved, display: false, animate: false)
-            }
-            quickViewSavedFrame = nil
-            quickViewWasVisible = false
-            quickViewActive = false
+            exitQuickView()
         } else {
             // Save state
             quickViewWasVisible = controlCenter?.window?.isVisible ?? false
@@ -310,6 +455,7 @@ final class AppState {
             quickViewActive = true
 
             let cursor = NSEvent.mouseLocation
+            quickViewActivationCursorPosition = cursor
             let screen = NSScreen.screens.first(where: { NSMouseInRect(cursor, $0.frame, false) })
                 ?? NSScreen.main
                 ?? NSScreen.screens.first
@@ -559,6 +705,89 @@ final class AppState {
         }
     }
 
+    func mergeConfigFromYAML(overwrite: Bool) -> FileDialogResult {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = yamlContentTypes
+        panel.canChooseDirectories = false
+        panel.canChooseFiles = true
+        panel.allowsMultipleSelection = false
+
+        guard panel.runModal() == .OK, let url = panel.url else {
+            return .cancelled
+        }
+
+        do {
+            let text = try String(contentsOf: url, encoding: .utf8)
+            let newConfig = try YAMLConfigCodec.decode(text)
+
+            func hotkeySignature(_ hotkey: Hotkey) -> String {
+                let key = hotkey.key.lowercased().trimmingCharacters(in: .whitespaces)
+                let mods = hotkey.modifiers
+                    .map { $0.lowercased().trimmingCharacters(in: .whitespaces) }
+                    .filter { !$0.isEmpty }
+                    .sorted()
+                    .joined(separator: "+")
+                return "\(key)|\(mods)"
+            }
+
+            var merged = config
+            // Preserve current settings — only merge shortcuts.
+            var existingBySignature: [String: Int] = [:]
+            for (i, shortcut) in merged.shortcuts.enumerated() {
+                let sig = hotkeySignature(shortcut.hotkey)
+                if !sig.isEmpty { existingBySignature[sig] = i }
+            }
+
+            var added = 0
+            var overwritten = 0
+            var conflicts = 0
+
+            for incoming in newConfig.shortcuts {
+                let sig = hotkeySignature(incoming.hotkey)
+                if let existingIndex = existingBySignature[sig], !sig.isEmpty {
+                    if overwrite {
+                        merged.shortcuts[existingIndex] = incoming
+                        overwritten += 1
+                    } else {
+                        // Add both; the UI will flag the duplicate hotkey.
+                        var sc = incoming
+                        sc.id = UUID().uuidString.lowercased()
+                        merged.shortcuts.append(sc)
+                        conflicts += 1
+                        added += 1
+                    }
+                } else {
+                    var sc = incoming
+                    sc.id = UUID().uuidString.lowercased()
+                    merged.shortcuts.append(sc)
+                    added += 1
+                    if !sig.isEmpty {
+                        existingBySignature[sig] = merged.shortcuts.count - 1
+                    }
+                }
+            }
+
+            guard save(config: merged) else {
+                return .failure("Failed to apply merged config")
+            }
+
+            let fileName = url.lastPathComponent
+            if overwrite {
+                if overwritten > 0 {
+                    return .success("Merged \(added) shortcuts from \(fileName). \(overwritten) conflict(s) overwritten.")
+                }
+                return .success("Merged \(added) shortcuts from \(fileName).")
+            } else {
+                if conflicts > 0 {
+                    return .success("Merged \(added) shortcuts from \(fileName). \(conflicts) hotkey conflict(s) — review highlighted issues.")
+                }
+                return .success("Merged \(added) shortcuts from \(fileName).")
+            }
+        } catch {
+            return .failure("Failed to load YAML: \(error)")
+        }
+    }
+
     func configURLString() -> String {
         configStore.configURL.path
     }
@@ -618,6 +847,10 @@ final class AppState {
 
     func moveEverythingFocusedWindowKey() -> String? {
         windowManager.moveEverythingFocusedWindowKeySnapshot()
+    }
+
+    func moveEverythingHoveredWindowKey() -> String? {
+        windowManager.moveEverythingHoveredWindowKeySnapshot()
     }
 
     func controlCenterFocused() -> Bool {
@@ -776,17 +1009,35 @@ final class AppState {
     }
 
     /// Run `mux kill <sessionName>` to cleanly terminate a mux session and its iTerm window.
+    /// When `force` is true, passes `--now` so the kill cannot be undone by the normal `mux kill`
+    /// undo mechanism (used by smart close after its grace delay expires).
     @discardableResult
-    static func muxKill(sessionName: String) -> Bool {
+    static func muxKill(sessionName: String, force: Bool = false) -> Bool {
         guard let muxBin = findMuxBinary() else {
             WindowListDebugLogger.log("close-mux", "mux binary not found, falling back to AX close (session=\(sessionName))")
             return false
         }
         let killArg = muxKillArgument(from: sessionName)
-        WindowListDebugLogger.log("close-mux", "mux kill \(killArg) (from session name \(sessionName))")
+        if muxKillAttempt(muxBin: muxBin, killArg: killArg, sessionName: sessionName, attempt: 1, force: force) {
+            return true
+        }
+        // Session may be too new for the daemon to have registered it yet.
+        // Wait and retry once before giving up.
+        Thread.sleep(forTimeInterval: 10.0)
+        return muxKillAttempt(muxBin: muxBin, killArg: killArg, sessionName: sessionName, attempt: 2, force: force)
+    }
+
+    private static func muxKillAttempt(muxBin: String, killArg: String, sessionName: String, attempt: Int, force: Bool = false) -> Bool {
+        let forceTag = force ? " --now" : ""
+        WindowListDebugLogger.log("close-mux", "mux kill\(forceTag) \(killArg) attempt=\(attempt) (from session name \(sessionName))")
         let process = Process()
         process.executableURL = URL(fileURLWithPath: muxBin)
-        process.arguments = ["kill", killArg]
+        var arguments = ["kill", "--detached"]
+        if force {
+            arguments.append("--now")
+        }
+        arguments.append(killArg)
+        process.arguments = arguments
         let semaphore = DispatchSemaphore(value: 0)
         process.terminationHandler = { _ in semaphore.signal() }
         do {
@@ -794,19 +1045,19 @@ final class AppState {
             // Timeout after 10s — remote sessions need SSH roundtrips.
             // This runs async so the timeout doesn't block the UI.
             if semaphore.wait(timeout: .now() + 10) == .timedOut {
-                WindowListDebugLogger.log("close-mux", "mux kill timed out for session \(sessionName), falling back to AX close")
+                WindowListDebugLogger.log("close-mux", "mux kill timed out for session \(sessionName) attempt=\(attempt)")
                 process.terminate()
                 return false
             }
             if process.terminationStatus == 0 {
-                WindowListDebugLogger.log("close-mux", "mux kill succeeded for session \(sessionName)")
+                WindowListDebugLogger.log("close-mux", "mux kill succeeded for session \(sessionName) attempt=\(attempt)")
                 return true
             } else {
-                WindowListDebugLogger.log("close-mux", "mux kill exited with status \(process.terminationStatus) for session \(sessionName)")
+                WindowListDebugLogger.log("close-mux", "mux kill exited with status \(process.terminationStatus) for session \(sessionName) attempt=\(attempt)")
                 return false
             }
         } catch {
-            WindowListDebugLogger.log("close-mux", "mux kill failed for session \(sessionName): \(error.localizedDescription)")
+            WindowListDebugLogger.log("close-mux", "mux kill failed for session \(sessionName) attempt=\(attempt): \(error.localizedDescription)")
             return false
         }
     }
@@ -982,14 +1233,17 @@ final class AppState {
 
             // Ensure the profile cache reflects the tool type from vibed,
             // so that UI styling (activity colors, indicators) applies correctly.
-            // The screen-content detector may classify remote sessions as
-            // "default+tmux" instead of "claude-code" — vibed knows better.
+            // vibed is the source of truth for tool identity — the screen
+            // detector can misclassify (e.g. tag a codex session "claude-code"
+            // from a transient screen state), and once that wrong tag is in
+            // the cache the old guard ("only set when current isn't a known
+            // tool") would never let it flip back. Always reconcile.
             let currentProfile = profileCache[key] ?? ""
-            let baseProfile = currentProfile.split(separator: "+").first.map(String.init) ?? currentProfile
-            if baseProfile != "claude-code" && baseProfile != "codex" {
-                // Preserve the "+tmux" suffix if present
-                let suffix = currentProfile.contains("+") ? "+" + currentProfile.split(separator: "+").dropFirst().joined(separator: "+") : ""
-                let vibedProfile = (tool == "codex" ? "codex" : "claude-code") + suffix
+            let expectedBase = (tool == "codex" ? "codex" : "claude-code")
+            // Preserve the "+tmux" (or other) suffix if present
+            let suffix = currentProfile.contains("+") ? "+" + currentProfile.split(separator: "+").dropFirst().joined(separator: "+") : ""
+            let vibedProfile = expectedBase + suffix
+            if currentProfile != vibedProfile {
                 profileCache[key] = vibedProfile
             }
 
@@ -1070,11 +1324,13 @@ final class AppState {
     @discardableResult
     func focusMoveEverythingWindow(
         withKey key: String,
-        movePointerToCenter: Bool
+        movePointerToCenter: Bool,
+        commitHoverPosition: Bool = false
     ) -> Bool {
         windowManager.focusMoveEverythingWindow(
             withKey: key,
-            movePointerToCenter: movePointerToCenter
+            movePointerToCenter: movePointerToCenter,
+            commitHoverPosition: commitHoverPosition
         )
     }
 
@@ -1416,6 +1672,10 @@ final class AppState {
         moveEverythingMoveToBottom
     }
 
+    func moveEverythingMoveToCenterEnabled() -> Bool {
+        moveEverythingMoveToCenter
+    }
+
     func moveEverythingDontMoveVibeGridEnabled() -> Bool {
         moveEverythingDontMoveVibeGrid
     }
@@ -1429,12 +1689,32 @@ final class AppState {
         let effective = enabled && moveEverythingModeActive()
         moveEverythingMoveToBottom = effective
         windowManager.setMoveEverythingMoveToBottom(effective)
+        if effective, moveEverythingMoveToCenter {
+            moveEverythingMoveToCenter = false
+        }
+    }
+
+    func setMoveEverythingMoveToCenter(enabled: Bool) {
+        let effective = enabled && moveEverythingModeActive()
+        moveEverythingMoveToCenter = effective
+        windowManager.setMoveEverythingMoveToCenter(effective)
+        if effective, moveEverythingMoveToBottom {
+            moveEverythingMoveToBottom = false
+        }
     }
 
     func setMoveEverythingDontMoveVibeGrid(enabled: Bool) {
         let effective = enabled && moveEverythingModeActive()
         moveEverythingDontMoveVibeGrid = effective
         windowManager.setMoveEverythingDontMoveVibeGrid(effective)
+        // "Pin CC" is a sticky preference: persist whenever the user-driven
+        // toggle changes value. The on-entry restore feeds the same value
+        // back through here, which short-circuits without re-saving.
+        if config.settings.moveEverythingStartDontMoveVibeGrid != enabled {
+            var nextConfig = config
+            nextConfig.settings.moveEverythingStartDontMoveVibeGrid = enabled
+            _ = save(config: nextConfig, refreshControlCenter: false)
+        }
     }
 
     func pinMoveEverythingWindow(withKey key: String) {
@@ -1704,14 +1984,17 @@ final class AppState {
         guard !titleMatches.isEmpty else {
             return nil
         }
+        let best: (offset: Int, element: ITermWindowActivityDetector.PollEntry)?
         if titleMatches.count == 1 {
-            return titleMatches[0].offset
+            best = titleMatches[0]
+        } else {
+            best = titleMatches.min(by: { lhs, rhs in
+                activityFrameDistance(lhs.element, frame: frame, desktopHeight: desktopHeight) <
+                    activityFrameDistance(rhs.element, frame: frame, desktopHeight: desktopHeight)
+            })
         }
-
-        return titleMatches.min(by: { lhs, rhs in
-            activityFrameDistance(lhs.element, frame: frame, desktopHeight: desktopHeight) <
-                activityFrameDistance(rhs.element, frame: frame, desktopHeight: desktopHeight)
-        })?.offset
+        guard let bestOffset = best?.offset else { return nil }
+        return unmatchedEntries.firstIndex(where: { $0.offset == bestOffset })
     }
 
     private func activityFrameDistance(
@@ -1731,7 +2014,206 @@ final class AppState {
     /// Kick off a background iTerm poll. A dedicated detector owns the
     /// semantic-screen heuristics and stabilizes "active vs idle" per iTerm
     /// window before the results are mapped back onto Window List snapshot keys.
+    func refreshVibedActivity() {
+        guard !vibedFetchInFlight else { return }
+        vibedFetchInFlight = true
+        guard let url = URL(string: "http://localhost:7483/api/sessions") else {
+            vibedFetchInFlight = false
+            return
+        }
+        var request = URLRequest(url: url, timeoutInterval: 2.0)
+        request.httpMethod = "GET"
+        URLSession.shared.dataTask(with: request) { [weak self] data, _, error in
+            defer {
+                DispatchQueue.main.async { self?.vibedFetchInFlight = false }
+            }
+            guard let data, error == nil,
+                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                return
+            }
+            var result: [String: String] = [:]
+            var tools: [String: String] = [:]
+            var cwds: [String: String] = [:]
+            // pty UUID → mux/tmux session name (e.g. "local-256"). Vibed already
+            // synthesizes this in its `name` field via session_name OR
+            // presentation_name fallback, so we don't need a separate fallback
+            // path on the VibeGrid side.
+            var sessionNamesByWindowID: [String: String] = [:]
+            // pty UUID → iTerm badge text. Only populated for entries that
+            // vibed surfaced a badge for (added in vibed >= the badge_text
+            // change). Empty for older daemons.
+            var badgesByWindowID: [String: String] = [:]
+            for (_, value) in json {
+                guard let session = value as? [String: Any],
+                      let windowID = session["window_id"] as? String,
+                      !windowID.isEmpty else { continue }
+                let classified = (session["classified_status"] as? String) ?? ""
+                let status = classified == "llm_working" ? "active" : "idle"
+                let tool = (session["tool"] as? String) ?? "shell"
+                result[windowID] = status
+                tools[windowID] = tool
+                if let cwd = session["cwd"] as? String, !cwd.isEmpty {
+                    cwds[windowID] = cwd
+                }
+                if let name = (session["name"] as? String)?
+                    .trimmingCharacters(in: .whitespacesAndNewlines),
+                   !name.isEmpty {
+                    sessionNamesByWindowID[windowID] = name
+                }
+                if let badge = (session["badge_text"] as? String)?
+                    .trimmingCharacters(in: .whitespacesAndNewlines),
+                   !badge.isEmpty {
+                    badgesByWindowID[windowID] = badge
+                }
+                WindowListDebugLogger.log("vibed-fetch", "pty=\(windowID) tool=\(tool) classified=\(classified) → \(status)")
+            }
+            WindowListDebugLogger.log("vibed-fetch", "total sessions with window_id=\(result.count) of \(json.count)")
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.vibedActivityByWindowID = result
+                self.vibedToolByWindowID = tools
+                self.vibedCwdByWindowID = cwds
+                self.refreshVibedRepoGroups()
+
+                // Update iTerm session-name and badge caches from vibed data.
+                // The legacy iTerm screen poll used to populate these; it's now
+                // a no-op (refreshITermActivity returns early), so vibed is the
+                // sole source. Without this, Hide-divert / Smart Close /
+                // Close-mux all fail to recognize mux-attached windows.
+                //
+                // We MERGE rather than replace: vibed's iTerm and tmux pollers
+                // run on different schedules and a single API response may
+                // omit a session that was present moments before. Replacing
+                // the cache wholesale causes UI flicker (a named session
+                // briefly drops back to an unnamed iTerm window). We only
+                // prune entries whose snapshot key is no longer in the
+                // runtime mapping (i.e. the iTerm window itself is gone).
+                var sessionNames = self.iTermSessionNameCache
+                var badges = self.iTermBadgeTextCache
+                let liveSnapshotKeys = Set(self.iTermRuntimeWindowIDBySnapshotKey.keys)
+                for staleKey in sessionNames.keys where !liveSnapshotKeys.contains(staleKey) {
+                    sessionNames.removeValue(forKey: staleKey)
+                }
+                for staleKey in badges.keys where !liveSnapshotKeys.contains(staleKey) {
+                    badges.removeValue(forKey: staleKey)
+                }
+                for (snapshotKey, ptyID) in self.iTermRuntimeWindowIDBySnapshotKey {
+                    if let name = sessionNamesByWindowID[ptyID] {
+                        sessionNames[snapshotKey] = name
+                    }
+                    if let badge = badgesByWindowID[ptyID] {
+                        badges[snapshotKey] = badge
+                    }
+                }
+                self.iTermSessionNameCache = sessionNames
+                self.iTermBadgeTextCache = badges
+
+                // Update hold timestamps so the indicator hold timer works from vibed data
+                let now = Date()
+                for (snapshotKey, ptyID) in self.iTermRuntimeWindowIDBySnapshotKey {
+                    if result[ptyID] == "active" {
+                        if self.iTermActivityCache[snapshotKey] != "active" || self.iTermLastActiveAt[snapshotKey] == nil {
+                            self.iTermLastActiveAt[snapshotKey] = now
+                        }
+                    }
+                }
+
+                // Drive indicators and overlays from vibed. The screen-poll
+                // path in refreshITermActivity is currently a no-op (returns
+                // early), so vibed is the sole activity source regardless of
+                // moveEverythingActivityEnabled.
+                let inv = self.windowManager.moveEverythingWindowInventory()
+                self.refreshITermActivityOverlays(inventory: inv)
+                self.refreshITermActivityIndicators(inventory: inv)
+                self.flushPendingITermColorCommands()
+                self.controlCenter?.refresh()
+            }
+        }.resume()
+    }
+
+    // Builds iTermRuntimeWindowIDBySnapshotKey without a full iTerm screen poll.
+    // Used when vibed is the sole activity source (moveEverythingActivityEnabled=false).
+    func refreshVibedRuntimeMapping(cachedInventory: MoveEverythingWindowInventory? = nil) {
+        guard config.settings.moveEverythingVibedActivityEnabled else { return }
+        guard !vibedRuntimeMappingInFlight else { return }
+        let now = Date()
+        if let lastAt = vibedRuntimeMappingLastAt,
+           now.timeIntervalSince(lastAt) < vibedRuntimeMappingMinInterval { return }
+        vibedRuntimeMappingInFlight = true
+
+        let currentInventory = cachedInventory ?? windowManager.moveEverythingWindowInventory()
+        let desktopMaxY = NSScreen.screens.reduce(CGRect.null) { $0.union($1.frame) }.maxY
+
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            guard let self else { return }
+            let runtimeInventory = ITermWindowInventoryResolver.fetchRuntimeInventory(debugContext: "vibed-mapping")
+            var newMapping: [String: String] = [:]
+            if !runtimeInventory.isEmpty {
+                var unmatched = Array(runtimeInventory.enumerated())
+                for snapshot in currentInventory.visible + currentInventory.hidden {
+                    let appName = snapshot.appName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+                    guard appName.contains("iterm"), let frame = snapshot.frame else { continue }
+                    let cocoaY = desktopMaxY - CGFloat(frame.y) - CGFloat(frame.height)
+                    if let idx = unmatched.firstIndex(where: {
+                        abs($0.element.frame.minX - CGFloat(frame.x)) <= 4 &&
+                        abs($0.element.frame.minY - cocoaY) <= 4 &&
+                        abs($0.element.frame.width - CGFloat(frame.width)) <= 4 &&
+                        abs($0.element.frame.height - CGFloat(frame.height)) <= 4
+                    }) {
+                        let matched = unmatched.remove(at: idx).element
+                        newMapping[snapshot.key] = matched.windowID
+                        WindowListDebugLogger.log("vibed-mapping", "key=\(snapshot.key) pty=\(matched.windowID)")
+                    }
+                }
+            }
+            // Build a pty-UUID → RuntimeWindowDescriptor lookup for bg color capture
+            DispatchQueue.main.async {
+                // Capture original background colors for ALL runtime windows (not just frame-matched ones),
+                // so bg is available even for windows not yet in the mapping.
+                for desc in runtimeInventory where (desc.bgR > 0 || desc.bgG > 0 || desc.bgB > 0) {
+                    guard self.iTermOriginalBackgroundByWindowID[desc.windowID] == nil else { continue }
+                    self.iTermOriginalBackgroundByWindowID[desc.windowID] = OriginalBackground(
+                        dark: (r: desc.bgR, g: desc.bgG, b: desc.bgB),
+                        light: (r: desc.bgRLight, g: desc.bgGLight, b: desc.bgBLight),
+                        useSeparateColors: desc.bgUseSeparate
+                    )
+                    WindowListDebugLogger.log("vibed-mapping", "bg captured pty=\(desc.windowID) dark=(\(desc.bgR),\(desc.bgG),\(desc.bgB)) separate=\(desc.bgUseSeparate)")
+                }
+                if !newMapping.isEmpty {
+                    self.iTermRuntimeWindowIDBySnapshotKey = newMapping
+                    self.refreshVibedRepoGroups()
+                }
+                self.vibedRuntimeMappingLastAt = Date()
+                self.vibedRuntimeMappingInFlight = false
+                WindowListDebugLogger.log("vibed-mapping", "done count=\(newMapping.count) runtime=\(runtimeInventory.count)")
+            }
+        }
+    }
+
+    private func refreshVibedRepoGroups() {
+        let mapping = iTermRuntimeWindowIDBySnapshotKey
+        let cwds = vibedCwdByWindowID
+        guard !mapping.isEmpty, !cwds.isEmpty else { return }
+
+        // Only update repo groups that aren't already set by the iTerm screen poll
+        var repoGroups = windowManager.iTermRepositoryGroupBySnapshotKey
+        for (snapshotKey, ptyID) in mapping {
+            guard repoGroups[snapshotKey] == nil,
+                  let cwd = cwds[ptyID], !cwd.isEmpty else { continue }
+            if let repo = AppState.extractRepositoryGroup(
+                sessionName: nil, badgeText: nil, windowTitle: nil,
+                iTermWindowName: nil, panePath: cwd
+            ) {
+                repoGroups[snapshotKey] = repo
+                WindowListDebugLogger.log("vibed-repo", "key=\(snapshotKey) cwd=\(cwd) repo=\(repo)")
+            }
+        }
+        windowManager.iTermRepositoryGroupBySnapshotKey = repoGroups
+    }
+
     func refreshITermActivity(cachedInventory: MoveEverythingWindowInventory? = nil) {
+        // HACK: screen poll disabled — testing vibed as sole activity source
+        return
         let now = Date()
         if let lastCompleted = iTermActivityPollLastCompletedAt,
            now.timeIntervalSince(lastCompleted) < iTermActivityPollMinInterval {
@@ -1819,7 +2301,42 @@ final class AppState {
                             "status=\(pollResult.terminationStatus) parse=\(pollResult.parseSucceeded) " +
                             "entries=\(pollResult.entries.count) stderr=\(pollResult.stderrText)"
                     )
+                    // Re-queue lost color commands so restores aren't silently dropped.
+                    if !colorCommands.isEmpty {
+                        self.pendingITermColorCommands.insert(contentsOf: colorCommands, at: 0)
+                        WindowListDebugLogger.log(
+                            "iterm-indicators",
+                            "re-queued \(colorCommands.count) color commands after poll failure"
+                        )
+                    }
                     return
+                }
+
+                // Check command results — re-queue any that failed.
+                if !colorCommands.isEmpty {
+                    let results = pollResult.commandResults
+                    var failedCommands: [[String: Any]] = []
+                    for (i, cmd) in colorCommands.enumerated() {
+                        let result = i < results.count ? results[i] : nil
+                        if result == nil || !result!.ok {
+                            failedCommands.append(cmd)
+                        }
+                    }
+                    if !failedCommands.isEmpty {
+                        self.pendingITermColorCommands.insert(contentsOf: failedCommands, at: 0)
+                        WindowListDebugLogger.log(
+                            "iterm-indicators",
+                            "re-queued \(failedCommands.count)/\(colorCommands.count) failed color commands"
+                        )
+                    }
+                    // Clear pending restore set for windows whose restores succeeded.
+                    for (i, cmd) in colorCommands.enumerated() {
+                        let result = i < results.count ? results[i] : nil
+                        if let result, result.ok,
+                           let windowID = cmd["window_id"] as? String {
+                            self.iTermPendingRestoreWindowIDs.remove(windowID)
+                        }
+                    }
                 }
 
                 let activityEntries = pollResult.entries
@@ -1849,8 +2366,13 @@ final class AppState {
                         let activity = activitiesByWindowID[matched.windowID]
                         newRuntimeWindowIDBySnapshotKey[snapshot.key] = matched.windowID
                         newCache[snapshot.key] = activity?.status.rawValue ?? "idle"
-                        // Cache original background on first encounter only.
-                        // Once captured, never overwrite — the session bg may be tinted.
+                        // Cache the original background for every matched iTerm
+                        // window. The local detector classifies remote SSH+tmux
+                        // sessions as "default+tmux", so a profile-gated cache
+                        // never captures their original background — and the
+                        // vibed overlay later upgrading them to "claude-code+tmux"
+                        // is too late to capture it. The bg-tint loop needs the
+                        // original to compute the tint, so we cache unconditionally.
                         if self.iTermOriginalBackgroundByWindowID[matched.windowID] == nil {
                             self.iTermOriginalBackgroundByWindowID[matched.windowID] = OriginalBackground(
                                 dark: (r: matched.backgroundColorR, g: matched.backgroundColorG, b: matched.backgroundColorB),
@@ -2076,7 +2598,12 @@ final class AppState {
                 // detection runs at a steady cadence independent of the UI timer.
                 let interval = self.iTermActivityPollMinInterval
                 DispatchQueue.main.asyncAfter(deadline: .now() + interval) { [weak self] in
-                    self?.refreshITermActivity()
+                    if self?.config.settings.moveEverythingActivityEnabled == true {
+                        self?.refreshITermActivity()
+                    }
+                    if self?.config.settings.moveEverythingVibedActivityEnabled == true {
+                        self?.refreshVibedActivity()
+                    }
                 }
             }
         }
@@ -2152,6 +2679,29 @@ final class AppState {
         return false
     }
 
+    /// Sends any queued color commands to iTerm without doing a full screen poll.
+    /// Used when the screen poll is disabled (vibed-only mode).
+    private func flushPendingITermColorCommands() {
+        guard !pendingITermColorCommands.isEmpty else { return }
+        let pythonURL = ITermWindowInventoryResolver.pythonURL()
+        let commands = pendingITermColorCommands
+        pendingITermColorCommands = []
+        let timeout = iTermActivityPollTimeout + Double(commands.count) * 1.5
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let result = self?.iTermActivityWorkerClient.poll(
+                pythonURL: pythonURL,
+                timeout: timeout,
+                maxPolledNonEmptyLines: 0,
+                commands: commands
+            )
+            if let result, (result.timedOut || result.terminationStatus != 0) {
+                DispatchQueue.main.async { [weak self] in
+                    self?.pendingITermColorCommands.insert(contentsOf: commands, at: 0)
+                }
+            }
+        }
+    }
+
     /// Drives iTerm background-tint and tab-color indicators via the Python API.
     /// Called on each poll cycle. Queues commands for the next poll round-trip.
     /// Restores original colors when the user is actively interacting (same
@@ -2179,12 +2729,19 @@ final class AppState {
         var activeWindowIDs = Set<String>()
 
         for snapshot in inventory.visible + inventory.hidden {
-            let profileID = iTermActivityProfileCache[snapshot.key] ?? ""
-            let isClaudeOrCodex = profileID.hasPrefix("claude-code") || profileID.hasPrefix("codex")
-            guard isClaudeOrCodex,
-                  let windowID = iTermRuntimeWindowIDBySnapshotKey[snapshot.key] else {
-                continue
+            guard let windowID = iTermRuntimeWindowIDBySnapshotKey[snapshot.key] else { continue }
+
+            // Profile: prefer screen-poll cache, fall back to vibed tool
+            let profileID: String
+            if let cached = iTermActivityProfileCache[snapshot.key], !cached.isEmpty {
+                profileID = cached
+            } else {
+                let tool = vibedToolByWindowID[windowID] ?? ""
+                profileID = tool == "codex" ? "codex" : (tool == "claude" ? "claude-code" : "")
             }
+            let isClaudeOrCodex = profileID.hasPrefix("claude-code") || profileID.hasPrefix("codex")
+            guard isClaudeOrCodex else { continue }
+
             activeWindowIDs.insert(windowID)
 
             // Suppress tint when user is actively interacting with this iTerm window,
@@ -2198,10 +2755,13 @@ final class AppState {
                     .map { $0 > inputCutoff } ?? false
             }
 
-            // Hold the "active" state for holdSeconds after the last active observation
-            // so brief vibed/detector idle blips (e.g. while the user types in the prompt)
-            // don't flip the indicator. The overlay path already does this — match it here.
-            let currentlyActive = iTermActivityCache[snapshot.key] == "active"
+            // Activity: prefer screen-poll cache, fall back to vibed
+            let currentlyActive: Bool
+            if let cached = iTermActivityCache[snapshot.key] {
+                currentlyActive = cached == "active"
+            } else {
+                currentlyActive = vibedActivityByWindowID[windowID] == "active"
+            }
             let isActive = Self.iTermIndicatorIsActive(
                 currentlyActive: currentlyActive,
                 lastActiveAt: iTermLastActiveAt[snapshot.key],
@@ -2223,8 +2783,9 @@ final class AppState {
                             Self.buildBgColorCommand(windowID: windowID, original: original, tintDark: tintDark, tintLight: tintLight, intensity: config.settings.moveEverythingITermActivityTintIntensity)
                         )
                     }
+                    iTermCurrentBgTintStatus[windowID] = statusKey
                 }
-                iTermCurrentBgTintStatus[windowID] = statusKey
+                // If original not captured yet, leave status unset so we retry next tick
             }
 
             if tabColorEnabled && iTermCurrentTabColorStatus[windowID] != statusKey {
@@ -2253,14 +2814,16 @@ final class AppState {
             }
         }
 
-        // Clean up state for windows no longer tracked
+        // Clean up state for windows no longer tracked as claude/codex.
+        // Queue restore commands but keep iTermOriginalBackgroundByWindowID
+        // until the restore is confirmed via command_results.
         for windowID in iTermCurrentBgTintStatus.keys where !activeWindowIDs.contains(windowID) {
             if let original = iTermOriginalBackgroundByWindowID[windowID] {
                 pendingITermColorCommands.append(
                     Self.buildBgColorCommand(windowID: windowID, original: original, tintDark: nil, tintLight: nil)
                 )
+                iTermPendingRestoreWindowIDs.insert(windowID)
             }
-            iTermOriginalBackgroundByWindowID.removeValue(forKey: windowID)
         }
         for windowID in iTermCurrentTabColorStatus.keys where !activeWindowIDs.contains(windowID) {
             pendingITermColorCommands.append([
@@ -2272,10 +2835,19 @@ final class AppState {
         }
         iTermCurrentBgTintStatus = iTermCurrentBgTintStatus.filter { activeWindowIDs.contains($0.key) }
         iTermCurrentTabColorStatus = iTermCurrentTabColorStatus.filter { activeWindowIDs.contains($0.key) }
+        // Remove original-bg entries only for confirmed restores or windows
+        // gone from inventory. Pending restores stay until acknowledged.
+        let confirmedRestores = iTermOriginalBackgroundByWindowID.keys.filter { windowID in
+            !activeWindowIDs.contains(windowID) && !iTermPendingRestoreWindowIDs.contains(windowID)
+        }
+        for windowID in confirmedRestores {
+            iTermOriginalBackgroundByWindowID.removeValue(forKey: windowID)
+        }
         // Prune original background cache for windows no longer in inventory
         let allCurrentWindowIDs = Set(iTermRuntimeWindowIDBySnapshotKey.values)
         for windowID in iTermOriginalBackgroundByWindowID.keys where !allCurrentWindowIDs.contains(windowID) {
             iTermOriginalBackgroundByWindowID.removeValue(forKey: windowID)
+            iTermPendingRestoreWindowIDs.remove(windowID)
         }
         // Persist tinted state for crash recovery
         if iTermOriginalBackgroundByWindowID.isEmpty {
@@ -2366,6 +2938,10 @@ final class AppState {
                 ),
                 useSeparateColors: (entry["useSeparateColors"] as? Bool) ?? false
             )
+            // Seed the in-memory cache so the first poll doesn't overwrite
+            // these known-good originals with still-tinted values.
+            iTermOriginalBackgroundByWindowID[windowID] = bg
+            iTermPendingRestoreWindowIDs.insert(windowID)
             pendingITermColorCommands.append(
                 Self.buildBgColorCommand(windowID: windowID, original: bg, tintDark: nil, tintLight: nil)
             )
@@ -2519,7 +3095,24 @@ final class AppState {
 }
 
 private final class LaunchAtLoginService {
+    // SMAppService.mainApp.status makes a blocking XPC call (~500ms). Cache the
+    // result and only re-query after 30 seconds or immediately after setEnabled().
+    private var cachedState: LaunchAtLoginState?
+    private var cachedAt: Date?
+    private static let cacheTTL: TimeInterval = 30
+
     func currentState() -> LaunchAtLoginState {
+        if let cached = cachedState, let at = cachedAt,
+           Date().timeIntervalSince(at) < Self.cacheTTL {
+            return cached
+        }
+        let fresh = queryCurrentState()
+        cachedState = fresh
+        cachedAt = Date()
+        return fresh
+    }
+
+    private func queryCurrentState() -> LaunchAtLoginState {
         guard isRunningAsBundledApp else {
             return LaunchAtLoginState(
                 supported: false,
@@ -2596,8 +3189,13 @@ private final class LaunchAtLoginService {
             } else {
                 try SMAppService.mainApp.unregister()
             }
+            // Invalidate cache so the next read reflects the change immediately.
+            cachedState = nil
+            cachedAt = nil
             return LaunchAtLoginUpdateResult(state: currentState(), errorMessage: nil)
         } catch {
+            cachedState = nil
+            cachedAt = nil
             return LaunchAtLoginUpdateResult(
                 state: currentState(),
                 errorMessage: "Failed to update launch at login: \(error.localizedDescription)"

@@ -149,6 +149,9 @@ struct YAMLConfigCodec {
                         config.settings.largerFonts = try parseBoolean(
                             effectiveValue, lineNumber: line.number, field: "largerFonts"
                         )
+                    case "fontSizeAdjustPt":
+                        let raw = try parseInt(effectiveValue, lineNumber: line.number, field: "fontSizeAdjustPt")
+                        config.settings.fontSizeAdjustPt = max(-4, min(8, raw))
                     case "themeMode":
                         let rawThemeMode = parseScalar(effectiveValue).trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
                         guard let themeMode = Settings.ThemeMode(rawValue: rawThemeMode) else {
@@ -228,11 +231,23 @@ struct YAMLConfigCodec {
                             field: "moveEverythingStartMoveToBottom"
                         )
                         didSetMoveEverythingStartMoveToBottom = true
+                    case "moveEverythingStartMoveToCenter":
+                        config.settings.moveEverythingStartMoveToCenter = try parseBoolean(
+                            effectiveValue,
+                            lineNumber: line.number,
+                            field: "moveEverythingStartMoveToCenter"
+                        )
                     case "moveEverythingStartDontMoveVibeGrid":
                         config.settings.moveEverythingStartDontMoveVibeGrid = try parseBoolean(
                             effectiveValue,
                             lineNumber: line.number,
                             field: "moveEverythingStartDontMoveVibeGrid"
+                        )
+                    case "controlCenterSticky":
+                        config.settings.controlCenterSticky = try parseBoolean(
+                            effectiveValue,
+                            lineNumber: line.number,
+                            field: "controlCenterSticky"
                         )
                     case "controlCenterFrameX":
                         config.settings.controlCenterFrameX = Double(effectiveValue)
@@ -266,6 +281,18 @@ struct YAMLConfigCodec {
                             lineNumber: line.number,
                             field: "moveEverythingCloseMuxKill"
                         )
+                    case "moveEverythingCloseSmart":
+                        config.settings.moveEverythingCloseSmart = try parseBoolean(
+                            effectiveValue,
+                            lineNumber: line.number,
+                            field: "moveEverythingCloseSmart"
+                        )
+                    case "moveEverythingCloseSmartDelaySeconds":
+                        config.settings.moveEverythingCloseSmartDelaySeconds = try parseDouble(
+                            effectiveValue,
+                            lineNumber: line.number,
+                            field: "moveEverythingCloseSmartDelaySeconds"
+                        )
                     case "moveEverythingExcludePinnedWindows", "moveEverythingExcludeControlCenter":
                         config.settings.moveEverythingExcludePinnedWindows = try parseBoolean(
                             effectiveValue,
@@ -278,6 +305,16 @@ struct YAMLConfigCodec {
                             lineNumber: line.number,
                             field: "moveEverythingMiniRetileWidthPercent"
                         )
+                    case "moveEverythingRetileSide":
+                        let raw = effectiveValue.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+                        switch raw {
+                        case "left":
+                            config.settings.moveEverythingRetileSide = .left
+                        case "right":
+                            config.settings.moveEverythingRetileSide = .right
+                        default:
+                            config.settings.moveEverythingRetileSide = .auto
+                        }
                     case "moveEverythingRetileOrder":
                         let raw = effectiveValue.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
                         if raw == "innermostfirst" {
@@ -348,6 +385,12 @@ struct YAMLConfigCodec {
                             effectiveValue,
                             lineNumber: line.number,
                             field: "moveEverythingITermActivityOverlayOpacity"
+                        )
+                    case "moveEverythingHoverOverlayOpacity":
+                        config.settings.moveEverythingHoverOverlayOpacity = try parseDouble(
+                            effectiveValue,
+                            lineNumber: line.number,
+                            field: "moveEverythingHoverOverlayOpacity"
                         )
                     case "moveEverythingITermActivityBackgroundTintEnabled":
                         config.settings.moveEverythingITermActivityBackgroundTintEnabled = try parseBoolean(
@@ -433,6 +476,28 @@ struct YAMLConfigCodec {
                             lineNumber: line.number,
                             field: "moveEverythingITermTitleFromBadge"
                         )
+                    case "moveEverythingClaudeCodeRepoPrefix":
+                        config.settings.moveEverythingClaudeCodeRepoPrefix = try parseBoolean(
+                            effectiveValue,
+                            lineNumber: line.number,
+                            field: "moveEverythingClaudeCodeRepoPrefix"
+                        )
+                    case "moveEverythingClaudeCodeRepoPrefixColor":
+                        config.settings.moveEverythingClaudeCodeRepoPrefixColor = parseScalar(effectiveValue)
+                    case "moveEverythingClaudeCodeRepoPrefixColorLight":
+                        config.settings.moveEverythingClaudeCodeRepoPrefixColorLight = parseScalar(effectiveValue)
+                    case "moveEverythingActivityEnabled":
+                        config.settings.moveEverythingActivityEnabled = try parseBoolean(
+                            effectiveValue,
+                            lineNumber: line.number,
+                            field: "moveEverythingActivityEnabled"
+                        )
+                    case "moveEverythingVibedActivityEnabled":
+                        config.settings.moveEverythingVibedActivityEnabled = try parseBoolean(
+                            effectiveValue,
+                            lineNumber: line.number,
+                            field: "moveEverythingVibedActivityEnabled"
+                        )
                     case "moveEverythingCloseWindowHotkey":
                         config.settings.moveEverythingCloseWindowHotkey = try parseHotkey(
                             effectiveValue,
@@ -488,6 +553,60 @@ struct YAMLConfigCodec {
                             lineNumber: line.number,
                             field: "moveEverythingRedoWindowMovementHotkey"
                         )
+                    case "moveEverythingUndoWindowMovementForFocusedWindowHotkey":
+                        config.settings.moveEverythingUndoWindowMovementForFocusedWindowHotkey = try parseHotkey(
+                            effectiveValue,
+                            lineNumber: line.number,
+                            field: "moveEverythingUndoWindowMovementForFocusedWindowHotkey"
+                        )
+                    case "moveEverythingRedoWindowMovementForFocusedWindowHotkey":
+                        config.settings.moveEverythingRedoWindowMovementForFocusedWindowHotkey = try parseHotkey(
+                            effectiveValue,
+                            lineNumber: line.number,
+                            field: "moveEverythingRedoWindowMovementForFocusedWindowHotkey"
+                        )
+                    case "moveEverythingShowAllHiddenWindowsHotkey":
+                        config.settings.moveEverythingShowAllHiddenWindowsHotkey = try parseHotkey(
+                            effectiveValue,
+                            lineNumber: line.number,
+                            field: "moveEverythingShowAllHiddenWindowsHotkey"
+                        )
+                    case "moveEverythingRetile1Hotkey":
+                        config.settings.moveEverythingRetile1Hotkey = try parseHotkey(
+                            effectiveValue,
+                            lineNumber: line.number,
+                            field: "moveEverythingRetile1Hotkey"
+                        )
+                    case "moveEverythingRetile1Mode":
+                        config.settings.moveEverythingRetile1Mode = try parseRetileMode(
+                            effectiveValue,
+                            lineNumber: line.number,
+                            field: "moveEverythingRetile1Mode"
+                        )
+                    case "moveEverythingRetile2Hotkey":
+                        config.settings.moveEverythingRetile2Hotkey = try parseHotkey(
+                            effectiveValue,
+                            lineNumber: line.number,
+                            field: "moveEverythingRetile2Hotkey"
+                        )
+                    case "moveEverythingRetile2Mode":
+                        config.settings.moveEverythingRetile2Mode = try parseRetileMode(
+                            effectiveValue,
+                            lineNumber: line.number,
+                            field: "moveEverythingRetile2Mode"
+                        )
+                    case "moveEverythingRetile3Hotkey":
+                        config.settings.moveEverythingRetile3Hotkey = try parseHotkey(
+                            effectiveValue,
+                            lineNumber: line.number,
+                            field: "moveEverythingRetile3Hotkey"
+                        )
+                    case "moveEverythingRetile3Mode":
+                        config.settings.moveEverythingRetile3Mode = try parseRetileMode(
+                            effectiveValue,
+                            lineNumber: line.number,
+                            field: "moveEverythingRetile3Mode"
+                        )
                     default:
                         // Silently ignore unknown settings keys for forward compatibility
                         break
@@ -504,7 +623,7 @@ struct YAMLConfigCodec {
                         enabled: true,
                         hotkey: Hotkey(key: "", modifiers: []),
                         cycleDisplaysOnWrap: config.settings.defaultCycleDisplaysOnWrap,
-                        controlCenterOnly: false,
+                        canMoveControlCenter: false,
                         ignoreExcludePinnedWindows: false,
                         placements: []
                     )
@@ -677,7 +796,8 @@ struct YAMLConfigCodec {
         lines.append("  defaultCycleDisplaysOnWrap: \(normalized.settings.defaultCycleDisplaysOnWrap ? "true" : "false")  # cycle to next display when wrapping")
         lines.append("  animationDuration: \(formatDouble(normalized.settings.animationDuration))  # window move animation in seconds (0=instant)")
         lines.append("  controlCenterScale: \(formatDouble(normalized.settings.controlCenterScale))  # UI scale for control center (0.5-2.0)")
-        lines.append("  largerFonts: \(normalized.settings.largerFonts ? "true" : "false")  # use larger fonts (+2pt)")
+        lines.append("  largerFonts: \(normalized.settings.largerFonts ? "true" : "false")  # use larger fonts (+2pt) [deprecated: use fontSizeAdjustPt]")
+        lines.append("  fontSizeAdjustPt: \(normalized.settings.fontSizeAdjustPt)  # font size adjustment in points (-4..+8)")
         lines.append("  themeMode: \(normalized.settings.themeMode.rawValue)  # system | light | dark")
         lines.append("")
         lines.append("  # ── Window List ────────────────────────────────────────────────")
@@ -688,7 +808,9 @@ struct YAMLConfigCodec {
         lines.append("  moveEverythingOverlayDuration: \(formatDouble(normalized.settings.moveEverythingOverlayDuration))  # overlay display duration (sec)")
         lines.append("  moveEverythingStartAlwaysOnTop: \(normalized.settings.moveEverythingStartAlwaysOnTop ? "true" : "false")  # start with always-on-top")
         lines.append("  moveEverythingStartMoveToBottom: \(normalized.settings.moveEverythingStartMoveToBottom ? "true" : "false")")
-        lines.append("  moveEverythingStartDontMoveVibeGrid: \(normalized.settings.moveEverythingStartDontMoveVibeGrid ? "true" : "false")")
+        lines.append("  moveEverythingStartMoveToCenter: \(normalized.settings.moveEverythingStartMoveToCenter ? "true" : "false")")
+        lines.append("  moveEverythingStartDontMoveVibeGrid: \(normalized.settings.moveEverythingStartDontMoveVibeGrid ? "true" : "false")  # Pin CC toggle (persists across sessions)")
+        lines.append("  controlCenterSticky: \(normalized.settings.controlCenterSticky ? "true" : "false")  # true = placement shortcuts don't move the control center when it's focused (unless shortcut has canMoveControlCenter: true)")
         if let x = normalized.settings.controlCenterFrameX,
            let y = normalized.settings.controlCenterFrameY,
            let w = normalized.settings.controlCenterFrameWidth,
@@ -704,8 +826,11 @@ struct YAMLConfigCodec {
             "  moveEverythingCloseHideHotkeysOutsideMode: \(normalized.settings.moveEverythingCloseHideHotkeysOutsideMode ? "true" : "false")  # close/hide hotkeys work outside Window List mode"
         )
         lines.append("  moveEverythingCloseMuxKill: \(normalized.settings.moveEverythingCloseMuxKill ? "true" : "false")  # kill mux session when closing iTerm windows")
+        lines.append("  moveEverythingCloseSmart: \(normalized.settings.moveEverythingCloseSmart ? "true" : "false")  # close hotkey hides first, then kills if still hidden")
+        lines.append("  moveEverythingCloseSmartDelaySeconds: \(formatDouble(normalized.settings.moveEverythingCloseSmartDelaySeconds))  # smart close kill delay (sec)")
         lines.append("  moveEverythingExcludePinnedWindows: \(normalized.settings.moveEverythingExcludePinnedWindows ? "true" : "false")")
         lines.append("  moveEverythingMiniRetileWidthPercent: \(formatDouble(normalized.settings.moveEverythingMiniRetileWidthPercent))  # width % for mini retile")
+        lines.append("  moveEverythingRetileSide: \(normalized.settings.moveEverythingRetileSide.rawValue)  # auto | left | right — force retile side, auto follows control center")
         lines.append("  moveEverythingRetileOrder: \(normalized.settings.moveEverythingRetileOrder.rawValue)  # leftToRight | innermostFirst")
         lines.append("  moveEverythingBackgroundRefreshInterval: \(formatDouble(normalized.settings.moveEverythingBackgroundRefreshInterval))  # window list refresh interval (sec)")
         lines.append("")
@@ -726,6 +851,7 @@ struct YAMLConfigCodec {
         lines.append("  moveEverythingITermActivityBackgroundTintPersistent: \(normalized.settings.moveEverythingITermActivityBackgroundTintPersistent ? "true" : "false")  # keep tint active during user interaction")
         lines.append("  moveEverythingITermActivityTabColorEnabled: \(normalized.settings.moveEverythingITermActivityTabColorEnabled ? "true" : "false")")
         lines.append("  moveEverythingITermActivityOverlayOpacity: \(formatDouble(normalized.settings.moveEverythingITermActivityOverlayOpacity))  # legacy overlay opacity (0=off, 0-1)")
+        lines.append("  moveEverythingHoverOverlayOpacity: \(formatDouble(normalized.settings.moveEverythingHoverOverlayOpacity))  # hover overlay opacity multiplier (0=off, 1=default, 2=2x)")
         lines.append("  moveEverythingITermActivityTintIntensity: \(formatDouble(normalized.settings.moveEverythingITermActivityTintIntensity))  # background tint strength (0.05-1.0)")
         lines.append("  moveEverythingITermActivityHoldSeconds: \(formatDouble(normalized.settings.moveEverythingITermActivityHoldSeconds))  # how long active status persists after last change (sec)")
         lines.append("  moveEverythingITermRecentActivityColorize: \(normalized.settings.moveEverythingITermRecentActivityColorize ? "true" : "false")  # color-code window list by activity")
@@ -755,6 +881,11 @@ struct YAMLConfigCodec {
         lines.append("  moveEverythingITermBadgeFromTitle: \(normalized.settings.moveEverythingITermBadgeFromTitle)  # auto-create badge from window title")
         lines.append("  moveEverythingITermTitleFromBadge: \(normalized.settings.moveEverythingITermTitleFromBadge)  # use badge text as window title")
         lines.append("  moveEverythingITermTitleAllCaps: \(normalized.settings.moveEverythingITermTitleAllCaps ? "true" : "false")  # ALL CAPS iTerm window titles")
+        lines.append("  moveEverythingClaudeCodeRepoPrefix: \(normalized.settings.moveEverythingClaudeCodeRepoPrefix ? "true" : "false")  # show repo: title format for Claude Code windows")
+        lines.append("  moveEverythingClaudeCodeRepoPrefixColor: \(encodeScalar(normalized.settings.moveEverythingClaudeCodeRepoPrefixColor))  # repo prefix color (dark mode)")
+        lines.append("  moveEverythingClaudeCodeRepoPrefixColorLight: \(encodeScalar(normalized.settings.moveEverythingClaudeCodeRepoPrefixColorLight))  # repo prefix color (light mode)")
+        lines.append("  moveEverythingActivityEnabled: \(normalized.settings.moveEverythingActivityEnabled ? "true" : "false")  # enable iTerm activity detection (screen polling + vibed)")
+        lines.append("  moveEverythingVibedActivityEnabled: \(normalized.settings.moveEverythingVibedActivityEnabled ? "true" : "false")  # use vibed daemon (localhost:7483) for activity detection")
         lines.append("")
         lines.append("  # ── Window List Hotkeys ────────────────────────────────────────")
         lines.append("  # Format: {key: \"x\", modifiers: [\"ctrl\",\"shift\"]} or none")
@@ -764,6 +895,16 @@ struct YAMLConfigCodec {
         lines.append("  moveEverythingQuickViewHotkey: \(encodeHotkey(normalized.settings.moveEverythingQuickViewHotkey))")
         lines.append("  moveEverythingUndoWindowMovementHotkey: \(encodeHotkey(normalized.settings.moveEverythingUndoWindowMovementHotkey))")
         lines.append("  moveEverythingRedoWindowMovementHotkey: \(encodeHotkey(normalized.settings.moveEverythingRedoWindowMovementHotkey))")
+        lines.append("  moveEverythingUndoWindowMovementForFocusedWindowHotkey: \(encodeHotkey(normalized.settings.moveEverythingUndoWindowMovementForFocusedWindowHotkey))")
+        lines.append("  moveEverythingRedoWindowMovementForFocusedWindowHotkey: \(encodeHotkey(normalized.settings.moveEverythingRedoWindowMovementForFocusedWindowHotkey))")
+        lines.append("  moveEverythingShowAllHiddenWindowsHotkey: \(encodeHotkey(normalized.settings.moveEverythingShowAllHiddenWindowsHotkey))")
+        lines.append("  # Configurable retile shortcuts — mode: full | mini | iterm | nonITerm | hybrid")
+        lines.append("  moveEverythingRetile1Hotkey: \(encodeHotkey(normalized.settings.moveEverythingRetile1Hotkey))")
+        lines.append("  moveEverythingRetile1Mode: \(normalized.settings.moveEverythingRetile1Mode.rawValue)")
+        lines.append("  moveEverythingRetile2Hotkey: \(encodeHotkey(normalized.settings.moveEverythingRetile2Hotkey))")
+        lines.append("  moveEverythingRetile2Mode: \(normalized.settings.moveEverythingRetile2Mode.rawValue)")
+        lines.append("  moveEverythingRetile3Hotkey: \(encodeHotkey(normalized.settings.moveEverythingRetile3Hotkey))")
+        lines.append("  moveEverythingRetile3Mode: \(normalized.settings.moveEverythingRetile3Mode.rawValue)")
         lines.append("  moveEverythingQuickViewVerticalMode: \(normalized.settings.moveEverythingQuickViewVerticalMode.rawValue)  # fullHeight | fromCursor | padded")
         lines.append("")
         lines.append("# ── Shortcuts ───────────────────────────────────────────────────")
@@ -775,7 +916,7 @@ struct YAMLConfigCodec {
         lines.append("#   name: display name shown in the control center")
         lines.append("#   enabled: true/false — disabled shortcuts are ignored")
         lines.append("#   cycleDisplaysOnWrap: true = move to next display on wrap from last step")
-        lines.append("#   controlCenterOnly: true = only works from the control center UI, no global hotkey")
+        lines.append("#   canMoveControlCenter: true = this shortcut is allowed to move the control center when it's the focused window (overrides controlCenterSticky)")
         lines.append("#   hotkey: {key: \"x\", modifiers: [\"ctrl\",\"shift\",\"alt\",\"cmd\"]}")
         lines.append("#")
         lines.append("# Placement step fields:")
@@ -799,8 +940,10 @@ struct YAMLConfigCodec {
             lines.append("    name: \(encodeScalar(shortcut.name))")
             lines.append("    enabled: \(shortcut.enabled ? "true" : "false")")
             lines.append("    cycleDisplaysOnWrap: \(shortcut.cycleDisplaysOnWrap ? "true" : "false")")
-            lines.append("    controlCenterOnly: \(shortcut.controlCenterOnly ? "true" : "false")")
+            lines.append("    canMoveControlCenter: \(shortcut.canMoveControlCenter ? "true" : "false")")
             lines.append("    ignoreExcludePinnedWindows: \(shortcut.ignoreExcludePinnedWindows ? "true" : "false")")
+            lines.append("    resetBeforeFirstStep: \(shortcut.resetBeforeFirstStep ? "true" : "false")")
+            lines.append("    resetBeforeFirstStepMoveCursor: \(shortcut.resetBeforeFirstStepMoveCursor ? "true" : "false")")
             if shortcut.useForRetiling != "no" {
                 lines.append("    useForRetiling: \(encodeScalar(shortcut.useForRetiling))")
             }
@@ -1000,10 +1143,15 @@ struct YAMLConfigCodec {
             shortcut.enabled = try parseRequiredBoolean(value, lineNumber: lineNumber, field: "shortcut.enabled")
         case "cycleDisplaysOnWrap":
             shortcut.cycleDisplaysOnWrap = try parseRequiredBoolean(value, lineNumber: lineNumber, field: "shortcut.cycleDisplaysOnWrap")
-        case "controlCenterOnly":
-            shortcut.controlCenterOnly = try parseRequiredBoolean(value, lineNumber: lineNumber, field: "shortcut.controlCenterOnly")
+        case "canMoveControlCenter", "controlCenterOnly":
+            // `controlCenterOnly` is the legacy key; treat it as an alias when reading.
+            shortcut.canMoveControlCenter = try parseRequiredBoolean(value, lineNumber: lineNumber, field: "shortcut.canMoveControlCenter")
         case "ignoreExcludePinnedWindows", "ignoreExcludeControlCenter":
             shortcut.ignoreExcludePinnedWindows = try parseRequiredBoolean(value, lineNumber: lineNumber, field: "shortcut.ignoreExcludePinnedWindows")
+        case "resetBeforeFirstStep":
+            shortcut.resetBeforeFirstStep = try parseRequiredBoolean(value, lineNumber: lineNumber, field: "shortcut.resetBeforeFirstStep")
+        case "resetBeforeFirstStepMoveCursor":
+            shortcut.resetBeforeFirstStepMoveCursor = try parseRequiredBoolean(value, lineNumber: lineNumber, field: "shortcut.resetBeforeFirstStepMoveCursor")
         case "useForRetiling":
             shortcut.useForRetiling = parseScalar(try requiredValue(value, lineNumber: lineNumber, field: "shortcut.useForRetiling"))
         default:
@@ -1146,6 +1294,26 @@ struct YAMLConfigCodec {
             throw ConfigParseError.invalidValue(lineNumber, "\(field) must be a number")
         }
         return parsed
+    }
+
+    private static func parseRetileMode(
+        _ raw: String,
+        lineNumber: Int,
+        field: String
+    ) throws -> MoveEverythingRetileShortcutMode {
+        let scalar = parseScalar(raw).trimmingCharacters(in: .whitespacesAndNewlines)
+        switch scalar.lowercased() {
+        case "full": return .full
+        case "mini": return .mini
+        case "iterm": return .iterm
+        case "noniterm", "non-iterm": return .nonITerm
+        case "hybrid": return .hybrid
+        default:
+            throw ConfigParseError.invalidValue(
+                lineNumber,
+                "\(field) must be one of: full, mini, iterm, nonITerm, hybrid"
+            )
+        }
     }
 
     private static func parseHotkey(_ raw: String, lineNumber: Int, field: String) throws -> Hotkey? {

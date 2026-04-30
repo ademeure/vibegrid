@@ -51,3 +51,11 @@ struct MoveEverythingSavedWindowPositionsSnapshot: Codable {
     let createdAt: Date
     let windows: [MoveEverythingSavedWindowPosition]
 }
+
+struct ProxyHoverSetResult {
+    var accepted: Bool
+    var applied: Bool
+    var reason: String?
+    var expiresAt: Date?
+    var resolvedWindowKey: String?
+}

@@ -48,7 +48,7 @@ func settingsToYAML(s map[string]any) *yaml.Node {
 	keys := []string{
 		"defaultGridColumns", "defaultGridRows", "gap",
 		"defaultCycleDisplaysOnWrap", "animationDuration", "controlCenterScale",
-		"largerFonts", "themeMode", "moveEverythingMoveOnSelection",
+		"largerFonts", "fontSizeAdjustPt", "themeMode", "moveEverythingMoveOnSelection",
 		"moveEverythingCenterWidthPercent", "moveEverythingCenterHeightPercent",
 		"moveEverythingOverlayMode", "moveEverythingOverlayDuration",
 		"moveEverythingStartAlwaysOnTop", "moveEverythingStartMoveToBottom",
@@ -58,6 +58,7 @@ func settingsToYAML(s map[string]any) *yaml.Node {
 		"moveEverythingExcludeControlCenter",
 		"moveEverythingMiniRetileWidthPercent",
 		"moveEverythingBackgroundRefreshInterval",
+		"moveEverythingHoverOverlayOpacity",
 		"moveEverythingITermRecentActivityTimeout",
 		"moveEverythingITermRecentActivityActiveText",
 		"moveEverythingITermRecentActivityIdleText",
@@ -97,7 +98,11 @@ func shortcutsToYAML(shortcuts []any) *yaml.Node {
 		addMapping(entry, "name", scalarNode(sc["name"]))
 		addMapping(entry, "enabled", scalarNode(sc["enabled"]))
 		addMapping(entry, "cycleDisplaysOnWrap", scalarNode(sc["cycleDisplaysOnWrap"]))
-		addMapping(entry, "controlCenterOnly", scalarNode(sc["controlCenterOnly"]))
+		canMoveCC := sc["canMoveControlCenter"]
+		if canMoveCC == nil {
+			canMoveCC = sc["controlCenterOnly"]
+		}
+		addMapping(entry, "canMoveControlCenter", scalarNode(canMoveCC))
 
 		// hotkey
 		if hk, ok := sc["hotkey"].(map[string]any); ok {
