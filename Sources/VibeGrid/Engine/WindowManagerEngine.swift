@@ -231,8 +231,14 @@ final class WindowManagerEngine: WindowManagerEngineProtocol {
     var moveEverythingInventoryRefreshInFlight = false
     var moveEverythingInventoryRefreshQueued = false
     var moveEverythingInventoryRefreshRevision: UInt64 = 0
-    let moveEverythingOverlaySyncInterval: TimeInterval = 0.02
-    let moveEverythingFocusedWindowPollingInterval: TimeInterval = 0.125
+    // Overlay sync runs at 30 Hz while move-everything is active. Was 50 Hz
+    // (0.02), but at 30 Hz the overlay still tracks window drags smoothly
+    // and we save ~40% of the timer wake-ups.
+    let moveEverythingOverlaySyncInterval: TimeInterval = 0.033
+    // Halved from 0.125 (8 Hz) → 0.0625 (16 Hz). Only runs while move-
+    // everything mode is active, so this trades a small extra AX-call
+    // burst during drag for sharper focus tracking.
+    let moveEverythingFocusedWindowPollingInterval: TimeInterval = 0.0625
     let moveEverythingSelectionSyncSuppressionInterval: TimeInterval = 0.2
     let moveEverythingHoverRetentionInterval: TimeInterval = 0.35
     let moveEverythingResolvedInventoryRefreshInterval: TimeInterval = 0.35
@@ -277,7 +283,13 @@ final class WindowManagerEngine: WindowManagerEngineProtocol {
     var proxyHoverStartedMoveEverythingMode = false
     var proxyHoverEvaluationTimer: Timer?
     var proxyHoverFrontmostObserver: NSObjectProtocol?
-    let proxyHoverEvaluationInterval: TimeInterval = 0.5
+    // Halved from 0.5 → 0.25. The eval is a single dict lookup + frontmost-
+    // app check; with the proxy-hover entry duration now at 1s, evaluating
+    // 4×/s means a hover gets re-decided right around the time it would
+    // expire if no follow-up POST arrives. NSWorkspace.didActivateApplication
+    // already fires immediate evals on app focus changes — this timer is
+    // the safety net.
+    let proxyHoverEvaluationInterval: TimeInterval = 0.25
     var proxyHoverITermTTYCache: Any?
     /// Last time each pid was observed as the frontmost application. Used by
     /// proxy-hover gating to tolerate brief focus blips (e.g. when our own
